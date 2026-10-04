@@ -135,24 +135,25 @@ jobs:
           set -euo pipefail
           publish_log="$(mktemp)"
           trap 'rm -f "$publish_log"' EXIT
-          # Release gate (#208): the supported JSON surface (facade over
-          # source-generated metadata plus generated fragment converters) must
-          # publish with zero IL trim/AOT diagnostics. No warning-code or
-          # namespace allowlist is applied here; any diagnostic fails the gate.
+          # Release gate (#208, #251): the supported JSON surface (facade over
+          # source-generated metadata plus generated fragment converters) and the
+          # supported MessagePack surface (generated fragment formatters over an
+          # explicit closed-world resolver/options object) must publish with no IL
+          # trim/AOT diagnostics except the proven upstream residual asserted by
+          # assert-supported-aot-diagnostics.sh. No warning-code or namespace
+          # allowlist is applied here; any other diagnostic fails the gate.
+          #
+          # IlcTreatWarningsAsErrors is disabled only so the two proven-residual
+          # warnings do not fail the publish itself; the assertion script is the
+          # gate. Build-time trim/AOT analyzer diagnostics still fail the build
+          # through TreatWarningsAsErrors.
           dotnet publish tests/fixtures/consumers/native-aot-supported/NativeAot.Supported.Consumer.csproj \
             --configuration Release --runtime linux-x64 --self-contained \
             -p:ConfigluePackageVersion="$CONFIGLUE_PACKAGE_VERSION" \
             -p:RestoreAdditionalProjectSources="$CONFIGLUE_PACKAGE_FEED" \
-            -p:IlcTreatWarningsAsErrors=true 2>&1 | tee "$publish_log"
+            -p:IlcTreatWarningsAsErrors=false 2>&1 | tee "$publish_log"
 
-          unexpected_diagnostics="$(
-            grep -E '(warning|error) IL[0-9]{4}:' "$publish_log" || true
-          )"
-          if [[ -n "$unexpected_diagnostics" ]]; then
-            echo "Unexpected NativeAOT or trimming diagnostics:" >&2
-            echo "$unexpected_diagnostics" >&2
-            exit 1
-          fi
+          bash ./.github/workflows/scripts/assert-supported-aot-diagnostics.sh "$publish_log"
 
       - name: Run warning-clean NativeAOT consumer
         run: |
@@ -171,7 +172,7 @@ jobs:
           consumer_dir="tests/fixtures/consumers/native-aot-supported"
           probe_file="$consumer_dir/RdcProbe.regression.cs"
           # Inject a RequiresDynamicCode call into the supported consumer. The
-          # gate must reject it; a successful publish means the gate is blind.
+          # gate must reject it; a passing gate means the gate is blind.
           cat > "$probe_file" <<'EOF'
           using System.Diagnostics.CodeAnalysis;
           using System.Runtime.CompilerServices;
@@ -185,21 +186,71 @@ jobs:
               public static void Touch() { }
           }
           EOF
-          trap 'rm -f "$probe_file"' EXIT
+          probe_log="$(mktemp)"
+          trap 'rm -f "$probe_file" "$probe_log"' EXIT
+          # The probe publish is expected to fail (build-time analyzers reject
+          # the injection) or to log IL3050; either way the gate script must
+          # reject the log. A passing gate means the tripwire is blind.
           if dotnet publish "$consumer_dir/NativeAot.Supported.Consumer.csproj" \
             --configuration Release --runtime linux-x64 --self-contained \
             -p:ConfigluePackageVersion="$CONFIGLUE_PACKAGE_VERSION" \
             -p:RestoreAdditionalProjectSources="$CONFIGLUE_PACKAGE_FEED" \
-            -p:IlcTreatWarningsAsErrors=true > /tmp/rdc-probe.log 2>&1; then
+            -p:IlcTreatWarningsAsErrors=false > "$probe_log" 2>&1; then
+            echo "The probe publish succeeded; checking the gate still rejects its diagnostics." >&2
+          fi
+          if ! grep -qE '(warning|error) IL3050:' "$probe_log"; then
+            echo "The probe publish logged no IL3050 diagnostic:" >&2
+            cat "$probe_log" >&2
+            exit 1
+          fi
+          if bash ./.github/workflows/scripts/assert-supported-aot-diagnostics.sh "$probe_log"; then
             echo "The gate accepted injected RequiresDynamicCode; it should have failed." >&2
             exit 1
           fi
-          if ! grep -qE '(warning|error) IL3050:' /tmp/rdc-probe.log; then
-            echo "The probe publish failed without the expected IL3050 diagnostic:" >&2
-            cat /tmp/rdc-probe.log >&2
+          echo "RequiresDynamicCode injection was rejected as expected."
+
+      - name: Prove dynamic MessagePack API fails the gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          consumer_dir="tests/fixtures/consumers/native-aot-supported"
+          probe_file="$consumer_dir/RdcMessagePackProbe.regression.cs"
+          # Inject a dynamic-code MessagePack call (the reflection-capable
+          # parameterless codec constructor) into the supported MessagePack path.
+          # The gate must reject it just like the JSON-path probe above.
+          cat > "$probe_file" <<'EOF'
+          using System.Runtime.CompilerServices;
+          using Configlue.Provider.MessagePack;
+          using NativeAotSupportedConsumer;
+
+          internal static class RdcMessagePackProbeRegression
+          {
+              [ModuleInitializer]
+              public static void Init()
+              {
+                  _ = new MessagePackStateCodec<SampleAotSetting.Fragment>();
+              }
+          }
+          EOF
+          probe_log="$(mktemp)"
+          trap 'rm -f "$probe_file" "$probe_log"' EXIT
+          if dotnet publish "$consumer_dir/NativeAot.Supported.Consumer.csproj" \
+            --configuration Release --runtime linux-x64 --self-contained \
+            -p:ConfigluePackageVersion="$CONFIGLUE_PACKAGE_VERSION" \
+            -p:RestoreAdditionalProjectSources="$CONFIGLUE_PACKAGE_FEED" \
+            -p:IlcTreatWarningsAsErrors=false > "$probe_log" 2>&1; then
+            echo "The probe publish succeeded; checking the gate still rejects its diagnostics." >&2
+          fi
+          if ! grep -qE '(warning|error) IL3050:' "$probe_log"; then
+            echo "The probe publish logged no IL3050 diagnostic:" >&2
+            cat "$probe_log" >&2
             exit 1
           fi
-          echo "RequiresDynamicCode injection was rejected as expected."
+          if bash ./.github/workflows/scripts/assert-supported-aot-diagnostics.sh "$probe_log"; then
+            echo "The gate accepted the dynamic MessagePack API; it should have failed." >&2
+            exit 1
+          fi
+          echo "Dynamic MessagePack API injection was rejected as expected."
 
       - name: Upload failure artifacts
         if: failure() || cancelled()

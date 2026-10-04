@@ -28,6 +28,15 @@ namespace Configlue.Provider.MessagePack
             "explicit AOT-safe fallback resolver for NativeAOT.")]
         public static Configlue.Provider.MessagePack.ConfiglueMessagePackResolver Instance { get; }
         public MessagePack.Formatters.IMessagePackFormatter<T>? GetFormatter<T>() { }
+        public static MessagePack.MessagePackSerializerOptions CreateClosedWorldOptions(params MessagePack.IFormatterResolver[] leafResolvers) { }
+    }
+    public sealed class MessagePackEnumFormatter<TEnum> : MessagePack.Formatters.IMessagePackFormatter, MessagePack.Formatters.IMessagePackFormatter<TEnum>
+        where TEnum :  struct, System.Enum
+    {
+        public MessagePackEnumFormatter() { }
+        public static Configlue.Provider.MessagePack.MessagePackEnumFormatter<TEnum> Instance { get; }
+        public TEnum Deserialize(ref MessagePack.MessagePackReader reader, MessagePack.MessagePackSerializerOptions options) { }
+        public void Serialize(ref MessagePack.MessagePackWriter writer, TEnum value, MessagePack.MessagePackSerializerOptions options) { }
     }
     public sealed class MessagePackFileSourceOptions
     {

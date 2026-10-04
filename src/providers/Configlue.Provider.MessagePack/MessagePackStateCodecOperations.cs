@@ -69,7 +69,35 @@ internal static class MessagePackStateCodecOperations
             return;
         }
 
-        MessagePackSerializer.Serialize(ref writer, value, options);
+        // Resolve straight from the configured resolver so the MessagePackSerializer
+        // static entry points (which root the default options and the standard resolver's
+        // dynamic fallback) stay unreachable from trimming and NativeAOT callers.
+        // Application formatter failures are wrapped exactly like the static entry
+        // point wraps them so recovery policies keep working.
+        try
+        {
+            global::MessagePack
+                .FormatterResolverExtensions.GetFormatterWithVerify<T>(options.Resolver)
+                .Serialize(ref writer, value!, options);
+        }
+        catch (FormatterNotRegisteredException exception)
+        {
+            throw new MessagePackSerializationException(
+                $"Failed to serialize {typeof(T)} value.",
+                exception
+            );
+        }
+        catch (MessagePackSerializationException)
+        {
+            throw;
+        }
+        catch (Exception exception)
+        {
+            throw new MessagePackSerializationException(
+                $"Failed to serialize {typeof(T)} value.",
+                exception
+            );
+        }
     }
 
     internal static T? ReadValue<T>(
@@ -280,16 +308,52 @@ internal static class MessagePackStateCodecOperations
         IMessagePackFormatter<T>? formatter
     )
     {
+        if (formatter is not null)
+        {
+            try
+            {
+                return formatter.Deserialize(ref reader, options);
+            }
+            catch (Exception exception)
+                when (exception is EndOfStreamException or InsufficientExecutionStackException)
+            {
+                throw AsTruncatedPayload(exception);
+            }
+        }
+
+        // See WritePayload: resolve straight from the configured resolver so the
+        // MessagePackSerializer static entry points stay unreachable from trimming
+        // and NativeAOT callers. Application formatter failures are wrapped exactly
+        // like the static entry point wraps them; truncation signals still flow to
+        // the truncated-payload mapping below.
         try
         {
-            return formatter is not null
-                ? formatter.Deserialize(ref reader, options)
-                : MessagePackSerializer.Deserialize<T>(ref reader, options);
+            return global::MessagePack
+                .FormatterResolverExtensions.GetFormatterWithVerify<T>(options.Resolver)
+                .Deserialize(ref reader, options);
+        }
+        catch (FormatterNotRegisteredException exception)
+        {
+            throw new MessagePackSerializationException(
+                $"Failed to deserialize {typeof(T)} value.",
+                exception
+            );
+        }
+        catch (MessagePackSerializationException)
+        {
+            throw;
         }
         catch (Exception exception)
             when (exception is EndOfStreamException or InsufficientExecutionStackException)
         {
             throw AsTruncatedPayload(exception);
+        }
+        catch (Exception exception)
+        {
+            throw new MessagePackSerializationException(
+                $"Failed to deserialize {typeof(T)} value.",
+                exception
+            );
         }
     }
 

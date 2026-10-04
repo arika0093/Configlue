@@ -23,7 +23,7 @@ public sealed class MessagePackStateValueSerializer<T>
     )]
     public MessagePackStateValueSerializer()
     {
-        _options = MessagePackStateCodecDefaults.Options;
+        _options = MessagePackStateCodecDefaults.GetOptions();
         _formatter = ConfiglueMessagePackFragmentRegistry.GetOrNull<T>();
     }
 

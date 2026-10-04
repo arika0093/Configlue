@@ -18,12 +18,15 @@
     -->
     <TrimmerSingleWarn>false</TrimmerSingleWarn>
     <!--
-      Warning-clean supported NativeAOT surface (#208): JSON facade over
-      source-generated metadata plus generated fragment converters only. This
-      consumer intentionally carries no WarningsNotAsErrors allowlist: any IL
-      trim/AOT diagnostic fails publish. MessagePack execution stays in the
-      diagnostic broad consumer and the NativeAOT test suites because
-      MessagePack 3.x keeps its dynamic resolver fallback reachable for ILC.
+      Warning-clean supported NativeAOT surface (#208, #251): the JSON facade over
+      source-generated metadata plus generated fragment converters, and the generated
+      MessagePack fragment path over an explicit closed-world resolver/options object
+      (ConfiglueMessagePackResolver.CreateClosedWorldOptions). This consumer
+      intentionally carries no WarningsNotAsErrors allowlist. The release gate
+      (assert-supported-aot-diagnostics.sh) permits only the two proven-unreachable
+      upstream MessagePackSecurity comparer diagnostics; any other IL trim/AOT
+      diagnostic fails publish. The broader reflection-capable MessagePack API stays
+      available for non-AOT hosts but is never referenced from this project.
     -->
   </PropertyGroup>
 
@@ -35,6 +38,7 @@
   <!-- Restores Configlue from a local NuGet feed when ConfigluePackageVersion is provided. -->
   <ItemGroup Condition="'$(ConfigluePackageVersion)' == ''">
     <ProjectReference Include="../../../../src/basic/Configlue/Configlue.csproj" />
+    <ProjectReference Include="../../../../src/providers/Configlue.Provider.MessagePack/Configlue.Provider.MessagePack.csproj" />
     <ProjectReference
       Include="../../../../src/tools/Configlue.Generator/Configlue.Generator.csproj"
       OutputItemType="Analyzer"
@@ -43,5 +47,9 @@
   </ItemGroup>
   <ItemGroup Condition="'$(ConfigluePackageVersion)' != ''">
     <PackageReference Include="Configlue" Version="$(ConfigluePackageVersion)" />
+    <PackageReference
+      Include="Configlue.Provider.MessagePack"
+      Version="$(ConfigluePackageVersion)"
+    />
   </ItemGroup>
 </Project>

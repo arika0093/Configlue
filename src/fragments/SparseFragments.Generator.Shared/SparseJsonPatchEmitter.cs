@@ -198,10 +198,7 @@ internal static class SparseJsonPatchEmitter
             var property = SparseNaming.EscapeIdentifier(member.Property.Name);
             var wireName = WireName(member);
             var explicitName = member.Property.HasExplicitJsonPropertyName;
-            code.AppendIndent(4)
-                .Append("if (value.")
-                .Append(property)
-                .AppendLine(".IsPresent)");
+            code.AppendIndent(4).Append("if (value.").Append(property).AppendLine(".IsPresent)");
             code.AppendLineAt(4, "{");
             var conditionalIndent = 5;
             if (member.Property.IsJsonIgnoreWhenWritingNull)
@@ -315,7 +312,10 @@ internal static class SparseJsonPatchEmitter
         );
         foreach (var property in jsonMembers.Select(static member => member.Property))
         {
-            var literal = SymbolDisplay.FormatLiteral(property.JsonPropertyName ?? property.Name, true);
+            var literal = SymbolDisplay.FormatLiteral(
+                property.JsonPropertyName ?? property.Name,
+                true
+            );
             var expression = property.HasExplicitJsonPropertyName
                 ? literal
                 : "options.PropertyNamingPolicy?.ConvertName(" + literal + ") ?? " + literal;
@@ -335,6 +335,11 @@ internal static class SparseJsonPatchEmitter
     /// Conversion goes through the generated fragment converter directly so no
     /// <c>JsonTypeInfo</c> metadata is ever required for the fragment itself;
     /// scalar and collection members still use the supplied options resolver.
+    /// The reflection fallback is suppressed for trimming and NativeAOT and is
+    /// guarded by <c>JsonSerializer.IsReflectionEnabledByDefault</c> (available
+    /// in System.Text.Json 8 and later, which the JsonPatch runtime requires),
+    /// so NativeAOT applications fail fast with a clear message instead of
+    /// reaching runtime code generation.
     /// </remarks>
     public static void AppendFragmentJsonHelpers(
         SharedIndentedBuilder code,
@@ -342,6 +347,14 @@ internal static class SparseJsonPatchEmitter
         string optional
     )
     {
+        code.AppendLineAt(
+            2,
+            "[global::System.Diagnostics.CodeAnalysis.UnconditionalSuppressMessage(\"Trimming\", \"IL2026\", Justification = \"The reflection resolver is created only when reflection-based serialization is enabled. NativeAOT applications must supply a source-generated resolver, which bypasses this branch.\")]"
+        );
+        code.AppendLineAt(
+            2,
+            "[global::System.Diagnostics.CodeAnalysis.UnconditionalSuppressMessage(\"Aot\", \"IL3050\", Justification = \"The reflection resolver is created only when reflection-based serialization is enabled. NativeAOT applications must supply a source-generated resolver, which bypasses this branch.\")]"
+        );
         code.AppendLineAt(
             2,
             "private static global::System.Text.Json.JsonSerializerOptions __EffectiveOptions(global::System.Text.Json.JsonSerializerOptions? options)"
@@ -353,6 +366,16 @@ internal static class SparseJsonPatchEmitter
         );
         code.AppendLineAt(3, "if (effective.TypeInfoResolver is null)");
         code.AppendLineAt(3, "{");
+        code.AppendLineAt(
+            4,
+            "if (!global::System.Text.Json.JsonSerializer.IsReflectionEnabledByDefault)"
+        );
+        code.AppendLineAt(4, "{");
+        code.AppendLineAt(
+            5,
+            "throw new global::System.InvalidOperationException(\"Patch JSON serialization requires JsonSerializerOptions.TypeInfoResolver when reflection is disabled. Supply a source-generated JsonSerializerContext covering the scalar/collection member types used by the generated fragment converter.\");"
+        );
+        code.AppendLineAt(4, "}");
         code.AppendLineAt(
             4,
             "effective.TypeInfoResolver = new global::System.Text.Json.Serialization.Metadata.DefaultJsonTypeInfoResolver();"
@@ -370,10 +393,7 @@ internal static class SparseJsonPatchEmitter
         code.AppendLineAt(3, "if (!fragment.IsPresent) { isAbsent = true; return null; }");
         code.AppendLineAt(3, "isAbsent = false;");
         code.AppendLineAt(3, "if (fragment.Value is null) return null;");
-        code.AppendLineAt(
-            3,
-            "using var stream = new global::System.IO.MemoryStream();"
-        );
+        code.AppendLineAt(3, "using var stream = new global::System.IO.MemoryStream();");
         code.AppendLineAt(
             3,
             "using (var writer = new global::System.Text.Json.Utf8JsonWriter(stream))"
@@ -460,13 +480,14 @@ internal static class SparseJsonPatchEmitter
         );
         code.AppendLineAt(
             2,
-            "public static Patch " + fromJsonPatch + "(" + baselineType + " baseline, System.ReadOnlyMemory<byte> jsonPatch, global::System.Text.Json.JsonSerializerOptions? options = null)"
+            "public static Patch "
+                + fromJsonPatch
+                + "("
+                + baselineType
+                + " baseline, System.ReadOnlyMemory<byte> jsonPatch, global::System.Text.Json.JsonSerializerOptions? options = null)"
         );
         code.AppendLineAt(2, "{");
-        code.AppendLineAt(
-            3,
-            "var effective = __EffectiveOptions(options);"
-        );
+        code.AppendLineAt(3, "var effective = __EffectiveOptions(options);");
         code.AppendLineAt(
             3,
             "var baselineNode = __SerializeFragmentToNode(baseline, effective, out var baselineIsAbsent);"
@@ -482,11 +503,19 @@ internal static class SparseJsonPatchEmitter
                 + ".JsonPatch.JsonPatchEngine.Apply(baselineNode, baselineIsAbsent, document, __PropertyNameComparison(effective));"
         );
         code.AppendLineAt(3, baselineType + " result;");
-        code.AppendLineAt(3, "if (applied.IsAbsent) { result = " + optional + "<Fragment?>.Missing; }");
-        code.AppendLineAt(3, "else if (applied.Node is null) { result = " + optional + "<Fragment?>.Present(null); }");
         code.AppendLineAt(
             3,
-            "else { result = " + optional + "<Fragment?>.Present(__DeserializeFragmentNode(applied.Node, effective)); }"
+            "if (applied.IsAbsent) { result = " + optional + "<Fragment?>.Missing; }"
+        );
+        code.AppendLineAt(
+            3,
+            "else if (applied.Node is null) { result = " + optional + "<Fragment?>.Present(null); }"
+        );
+        code.AppendLineAt(
+            3,
+            "else { result = "
+                + optional
+                + "<Fragment?>.Present(__DeserializeFragmentNode(applied.Node, effective)); }"
         );
         code.AppendLineAt(3, "return " + between + "(baseline, result);");
         code.AppendLineAt(2, "}");
@@ -496,7 +525,9 @@ internal static class SparseJsonPatchEmitter
         );
         code.AppendLineAt(
             2,
-            "public static Patch " + fromJsonPatch + "(Fragment baseline, System.ReadOnlyMemory<byte> jsonPatch, global::System.Text.Json.JsonSerializerOptions? options = null)"
+            "public static Patch "
+                + fromJsonPatch
+                + "(Fragment baseline, System.ReadOnlyMemory<byte> jsonPatch, global::System.Text.Json.JsonSerializerOptions? options = null)"
         );
         code.AppendLineAt(2, "{");
         code.AppendLineAt(
@@ -505,7 +536,11 @@ internal static class SparseJsonPatchEmitter
         );
         code.AppendLineAt(
             3,
-            "return " + fromJsonPatch + "(" + optional + "<Fragment?>.Present(baseline), jsonPatch, options);"
+            "return "
+                + fromJsonPatch
+                + "("
+                + optional
+                + "<Fragment?>.Present(baseline), jsonPatch, options);"
         );
         code.AppendLineAt(2, "}");
     }
@@ -529,17 +564,15 @@ internal static class SparseJsonPatchEmitter
         );
         code.AppendLineAt(
             2,
-            "public System.ReadOnlyMemory<byte> " + toJsonPatch + "(" + baselineType + " baseline, global::System.Text.Json.JsonSerializerOptions? options = null)"
+            "public System.ReadOnlyMemory<byte> "
+                + toJsonPatch
+                + "("
+                + baselineType
+                + " baseline, global::System.Text.Json.JsonSerializerOptions? options = null)"
         );
         code.AppendLineAt(2, "{");
-        code.AppendLineAt(
-            3,
-            "var effective = __EffectiveOptions(options);"
-        );
-        code.AppendLineAt(
-            3,
-            "var result = ((" + contract + ")this).Apply(baseline);"
-        );
+        code.AppendLineAt(3, "var effective = __EffectiveOptions(options);");
+        code.AppendLineAt(3, "var result = ((" + contract + ")this).Apply(baseline);");
         code.AppendLineAt(
             3,
             "var beforeNode = __SerializeFragmentToNode(baseline, effective, out var beforeIsAbsent);"
@@ -550,7 +583,9 @@ internal static class SparseJsonPatchEmitter
         );
         code.AppendLineAt(
             3,
-            "var document = " + runtime + ".JsonPatch.JsonPatchEngine.Diff(beforeNode, beforeIsAbsent, afterNode, afterIsAbsent);"
+            "var document = "
+                + runtime
+                + ".JsonPatch.JsonPatchEngine.Diff(beforeNode, beforeIsAbsent, afterNode, afterIsAbsent);"
         );
         code.AppendLineAt(
             3,
@@ -563,7 +598,9 @@ internal static class SparseJsonPatchEmitter
         );
         code.AppendLineAt(
             2,
-            "public System.ReadOnlyMemory<byte> " + toJsonPatch + "(Fragment baseline, global::System.Text.Json.JsonSerializerOptions? options = null)"
+            "public System.ReadOnlyMemory<byte> "
+                + toJsonPatch
+                + "(Fragment baseline, global::System.Text.Json.JsonSerializerOptions? options = null)"
         );
         code.AppendLineAt(2, "{");
         code.AppendLineAt(
@@ -631,12 +668,17 @@ internal static class SparseJsonPatchEmitter
             var name = SparseNaming.EscapeIdentifier(member.Property.Name);
             if (member.ChildModel is null)
             {
-                var operation =
-                    "global::Configlue.FragmentOperation<" + valueType(member) + ">";
+                var operation = "global::Configlue.FragmentOperation<" + valueType(member) + ">";
                 code.AppendLineAt(3, "if (!afterFragment." + name + ".IsPresent)");
                 code.AppendLineAt(
                     4,
-                    "patch." + name + " = beforeFragment." + name + ".IsPresent ? " + operation + ".Unset : default;"
+                    "patch."
+                        + name
+                        + " = beforeFragment."
+                        + name
+                        + ".IsPresent ? "
+                        + operation
+                        + ".Unset : default;"
                 );
                 code.AppendLineAt(3, "else if (!beforeFragment." + name + ".IsPresent)");
                 code.AppendLineAt(
@@ -645,7 +687,13 @@ internal static class SparseJsonPatchEmitter
                 );
                 code.AppendLineAt(
                     3,
-                    "else if (!global::System.Collections.Generic.EqualityComparer<" + valueType(member) + ">.Default.Equals(beforeFragment." + name + ".Value!, afterFragment." + name + ".Value!))"
+                    "else if (!global::System.Collections.Generic.EqualityComparer<"
+                        + valueType(member)
+                        + ">.Default.Equals(beforeFragment."
+                        + name
+                        + ".Value!, afterFragment."
+                        + name
+                        + ".Value!))"
                 );
                 code.AppendLineAt(
                     4,
@@ -656,7 +704,15 @@ internal static class SparseJsonPatchEmitter
             {
                 code.AppendLineAt(
                     3,
-                    "patch." + backingField(member) + " = " + nestedPatchBetween(member) + "(beforeFragment." + name + ", afterFragment." + name + ");"
+                    "patch."
+                        + backingField(member)
+                        + " = "
+                        + nestedPatchBetween(member)
+                        + "(beforeFragment."
+                        + name
+                        + ", afterFragment."
+                        + name
+                        + ");"
                 );
             }
         }
@@ -676,18 +732,20 @@ internal static class SparseJsonPatchEmitter
         );
         code.AppendLineAt(
             2,
-            "public static Patch FromJsonPatch(" + optional + "<Fragment?> baseline, System.ReadOnlyMemory<byte> jsonPatch, global::System.Text.Json.JsonSerializerOptions? options = null)"
+            "public static Patch FromJsonPatch("
+                + optional
+                + "<Fragment?> baseline, System.ReadOnlyMemory<byte> jsonPatch, global::System.Text.Json.JsonSerializerOptions? options = null)"
         );
         code.AppendLineAt(2, "{");
-        code.AppendLineAt(
-            3,
-            "var effective = __EffectiveOptions(options);"
-        );
+        code.AppendLineAt(3, "var effective = __EffectiveOptions(options);");
         code.AppendLineAt(
             3,
             "var baselineNode = __SerializeFragmentToNode(baseline, effective, out var baselineIsAbsent);"
         );
-        code.AppendLineAt(3, "var document = " + runtime + ".JsonPatch.SparseJsonPatch.Parse(jsonPatch);");
+        code.AppendLineAt(
+            3,
+            "var document = " + runtime + ".JsonPatch.SparseJsonPatch.Parse(jsonPatch);"
+        );
         code.AppendLineAt(
             3,
             "var applied = "
@@ -695,11 +753,19 @@ internal static class SparseJsonPatchEmitter
                 + ".JsonPatch.JsonPatchEngine.Apply(baselineNode, baselineIsAbsent, document, __PropertyNameComparison(effective));"
         );
         code.AppendLineAt(3, optional + "<Fragment?> result;");
-        code.AppendLineAt(3, "if (applied.IsAbsent) { result = " + optional + "<Fragment?>.Missing; }");
-        code.AppendLineAt(3, "else if (applied.Node is null) { result = " + optional + "<Fragment?>.Present(null); }");
         code.AppendLineAt(
             3,
-            "else { result = " + optional + "<Fragment?>.Present(__DeserializeFragmentNode(applied.Node, effective)); }"
+            "if (applied.IsAbsent) { result = " + optional + "<Fragment?>.Missing; }"
+        );
+        code.AppendLineAt(
+            3,
+            "else if (applied.Node is null) { result = " + optional + "<Fragment?>.Present(null); }"
+        );
+        code.AppendLineAt(
+            3,
+            "else { result = "
+                + optional
+                + "<Fragment?>.Present(__DeserializeFragmentNode(applied.Node, effective)); }"
         );
         code.AppendLineAt(3, "return __ConfiglueJsonBetween(baseline, result);");
         code.AppendLineAt(2, "}");
@@ -718,7 +784,9 @@ internal static class SparseJsonPatchEmitter
         );
         code.AppendLineAt(
             3,
-            "return FromJsonPatch(" + optional + "<Fragment?>.Present(baseline), jsonPatch, options);"
+            "return FromJsonPatch("
+                + optional
+                + "<Fragment?>.Present(baseline), jsonPatch, options);"
         );
         code.AppendLineAt(2, "}");
     }
@@ -735,13 +803,12 @@ internal static class SparseJsonPatchEmitter
         );
         code.AppendLineAt(
             2,
-            "public System.ReadOnlyMemory<byte> ToJsonPatch(" + optional + "<Fragment?> baseline, global::System.Text.Json.JsonSerializerOptions? options = null)"
+            "public System.ReadOnlyMemory<byte> ToJsonPatch("
+                + optional
+                + "<Fragment?> baseline, global::System.Text.Json.JsonSerializerOptions? options = null)"
         );
         code.AppendLineAt(2, "{");
-        code.AppendLineAt(
-            3,
-            "var effective = __EffectiveOptions(options);"
-        );
+        code.AppendLineAt(3, "var effective = __EffectiveOptions(options);");
         code.AppendLineAt(3, "var result = ApplyNested(baseline);");
         code.AppendLineAt(
             3,
@@ -753,9 +820,14 @@ internal static class SparseJsonPatchEmitter
         );
         code.AppendLineAt(
             3,
-            "var document = " + runtime + ".JsonPatch.JsonPatchEngine.Diff(beforeNode, beforeIsAbsent, afterNode, afterIsAbsent);"
+            "var document = "
+                + runtime
+                + ".JsonPatch.JsonPatchEngine.Diff(beforeNode, beforeIsAbsent, afterNode, afterIsAbsent);"
         );
-        code.AppendLineAt(3, "return " + runtime + ".JsonPatch.JsonPatchEngine.Serialize(document);");
+        code.AppendLineAt(
+            3,
+            "return " + runtime + ".JsonPatch.JsonPatchEngine.Serialize(document);"
+        );
         code.AppendLineAt(2, "}");
         code.AppendLineAt(
             2,

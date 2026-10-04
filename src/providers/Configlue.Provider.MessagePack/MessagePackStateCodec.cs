@@ -6,15 +6,18 @@ using MessagePack.Formatters;
 namespace Configlue.Provider.MessagePack;
 
 /// <summary>Default options used by MessagePack codecs when the caller supplies none.</summary>
+/// <remarks>
+/// Constructed on demand inside the annotated accessor so merely referencing this type
+/// (for example to use the explicit-options constructors from NativeAOT code) never roots
+/// the standard resolver's dynamic fallback.
+/// </remarks>
 internal static class MessagePackStateCodecDefaults
 {
-    public static MessagePackSerializerOptions Options
-    {
-        [RequiresDynamicCode(
-            "The default resolver may generate formatters through runtime reflection."
-        )]
-        get;
-    } = MessagePackSerializerOptions.Standard.WithResolver(ConfiglueMessagePackResolver.Instance);
+    [RequiresDynamicCode(
+        "The default resolver may generate formatters through runtime reflection."
+    )]
+    public static MessagePackSerializerOptions GetOptions() =>
+        MessagePackSerializerOptions.Standard.WithResolver(new ConfiglueMessagePackResolver());
 }
 
 /// <summary>A MessagePack state codec for values discovered through a configured resolver.</summary>
@@ -42,7 +45,7 @@ public sealed class MessagePackStateCodec
     )]
     public MessagePackStateCodec(MessagePackSerializerOptions? options = null)
     {
-        _options = options ?? MessagePackStateCodecDefaults.Options;
+        _options = options ?? MessagePackStateCodecDefaults.GetOptions();
     }
 
     /// <inheritdoc />
@@ -102,7 +105,7 @@ public sealed class MessagePackStateCodec<T>
     )]
     public MessagePackStateCodec()
     {
-        _options = MessagePackStateCodecDefaults.Options;
+        _options = MessagePackStateCodecDefaults.GetOptions();
         _formatter = ConfiglueMessagePackFragmentRegistry.GetOrNull<T>();
     }
 

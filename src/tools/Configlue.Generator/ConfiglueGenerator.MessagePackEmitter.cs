@@ -53,10 +53,15 @@ public sealed partial class ConfiglueGenerator
             );
             if (member.ChildModel is null)
             {
+                // Resolve leaf members straight from the configured resolver. Calling
+                // MessagePackSerializer.Serialize here would root the default options and
+                // the standard resolver's dynamic fallback for trimming and NativeAOT.
                 code.AppendIndent(5)
-                    .Append("global::MessagePack.MessagePackSerializer.Serialize<")
+                    .Append(
+                        "global::MessagePack.FormatterResolverExtensions.GetFormatterWithVerify<"
+                    )
                     .Append(FragmentValueType(member))
-                    .Append(">(ref writer, value.")
+                    .Append(">(options.Resolver).Serialize(ref writer, value.")
                     .Append(property)
                     .AppendLine(".Value!, options);");
             }
@@ -109,14 +114,19 @@ public sealed partial class ConfiglueGenerator
             );
             if (member.ChildModel is null)
             {
+                // Resolve leaf members straight from the configured resolver. Calling
+                // MessagePackSerializer.Deserialize here would root the default options
+                // and the standard resolver's dynamic fallback for trimming and NativeAOT.
                 code.AppendIndent(8)
                     .Append("builder.")
                     .Append(property)
                     .Append(" = global::Configlue.Optional<")
                     .Append(FragmentValueType(member))
-                    .Append(">.Present(global::MessagePack.MessagePackSerializer.Deserialize<")
+                    .Append(
+                        ">.Present(global::MessagePack.FormatterResolverExtensions.GetFormatterWithVerify<"
+                    )
                     .Append(FragmentValueType(member))
-                    .AppendLine(">(ref reader, options));");
+                    .AppendLine(">(options.Resolver).Deserialize(ref reader, options));");
             }
             else
             {

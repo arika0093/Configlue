@@ -1,5 +1,6 @@
 using System.Collections;
 using System.Collections.Concurrent;
+using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 
 #if CONFIGLUE_FRAGMENT_RUNTIME
@@ -16,6 +17,12 @@ namespace SparseFragments;
 /// embedded fragment runtime (as <c>ConfiglueComparisonPrimitives</c>), so collection and
 /// fragment semantics cannot drift between the two. It is internal so the public APIs stay
 /// uncoupled.
+/// The typed native delegates below close generic helpers over runtime collection element
+/// types, which needs dynamic code. They are created only when dynamic code is supported
+/// (and cached per shape, preserving the non-allocating steady state); trimming and
+/// NativeAOT callers use the structural comparisons instead, so the whole closure stays
+/// warning-clean. Shape classification itself only compares generic type definitions and
+/// reads element types for assignability tests.
 /// </remarks>
 internal static class FragmentComparisonPrimitives
 {
@@ -51,6 +58,33 @@ internal static class FragmentComparisonPrimitives
 
     private static readonly MethodInfo SequencesEqualOpenMethod =
         typeof(FragmentComparisonPrimitives).GetMethod(nameof(SequencesEqualTyped))!;
+
+#if NETSTANDARD
+    // RuntimeFeature.IsDynamicCodeSupported is unavailable on .NET Standard targets, which
+    // never publish NativeAOT themselves. Assume JIT behavior there; NativeAOT hosts
+    // consume the .NET 8+ asset where the check below is exact.
+    private static bool IsDynamicCodeSupported => true;
+#else
+    private static bool IsDynamicCodeSupported =>
+        System.Runtime.CompilerServices.RuntimeFeature.IsDynamicCodeSupported;
+#endif
+
+    [UnconditionalSuppressMessage(
+        "Trimming",
+        "IL2060",
+        Justification = "Native delegates are created only when dynamic code is supported. Trimming and NativeAOT callers use the structural comparisons instead."
+    )]
+    [UnconditionalSuppressMessage(
+        "Aot",
+        "IL3050",
+        Justification = "Native delegates are created only when dynamic code is supported. NativeAOT callers use the structural comparisons instead."
+    )]
+    private static TDelegate CreateNativeDelegate<TDelegate>(
+        MethodInfo openMethod,
+        Type[] typeArguments
+    )
+        where TDelegate : Delegate =>
+        (TDelegate)openMethod.MakeGenericMethod(typeArguments).CreateDelegate(typeof(TDelegate));
 
     internal static bool AreValuesEqual(object? left, object? right)
     {
@@ -101,6 +135,11 @@ internal static class FragmentComparisonPrimitives
         return Equals(left, right);
     }
 
+    [UnconditionalSuppressMessage(
+        "Trimming",
+        "IL2072",
+        Justification = "Shape inputs originate from object.GetType(), whose exact runtime type is known to the trimmer. Classification only compares generic type definitions and reads element types for assignability tests; no members are invoked on discovered types."
+    )]
     private static bool AreCollectionsEqual(
         object left,
         object right,
@@ -507,7 +546,9 @@ internal static class FragmentComparisonPrimitives
     private static int? TryCollectionCount(object value) =>
         value is ICollection collection ? collection.Count : null;
 
-    private static CollectionShape? GetShape(Type type)
+    private static CollectionShape? GetShape(
+        [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.Interfaces)] Type type
+    )
     {
         if (ShapeCache.TryGetValue(type, out var cached))
         {
@@ -523,7 +564,9 @@ internal static class FragmentComparisonPrimitives
         return created;
     }
 
-    private static CollectionShape? CreateShape(Type type)
+    private static CollectionShape? CreateShape(
+        [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.Interfaces)] Type type
+    )
     {
         if (type == typeof(string) || !typeof(IEnumerable).IsAssignableFrom(type))
         {
@@ -534,13 +577,11 @@ internal static class FragmentComparisonPrimitives
         if (dictionaryArguments is not null || typeof(IDictionary).IsAssignableFrom(type))
         {
             var dictionaryShape = new CollectionShape { Kind = CollectionKind.Dictionary };
-            if (dictionaryArguments is not null)
+            if (dictionaryArguments is not null && IsDynamicCodeSupported)
             {
-                dictionaryShape.TryDictionariesEqual =
-                    (Func<object, object, bool?>)
-                        DictionariesEqualOpenMethod
-                            .MakeGenericMethod(dictionaryArguments[0], dictionaryArguments[1])
-                            .CreateDelegate(typeof(Func<object, object, bool?>));
+                dictionaryShape.TryDictionariesEqual = CreateNativeDelegate<
+                    Func<object, object, bool?>
+                >(DictionariesEqualOpenMethod, [dictionaryArguments[0], dictionaryArguments[1]]);
             }
 
             return dictionaryShape;
@@ -554,13 +595,12 @@ internal static class FragmentComparisonPrimitives
                 Kind = CollectionKind.Set,
                 ElementType = setElement,
             };
-            if (hasNativeSet)
+            if (hasNativeSet && IsDynamicCodeSupported)
             {
-                setShape.TrySetEquals =
-                    (Func<object, IEnumerable, bool?>)
-                        SetEqualsOpenMethod
-                            .MakeGenericMethod(setElement)
-                            .CreateDelegate(typeof(Func<object, IEnumerable, bool?>));
+                setShape.TrySetEquals = CreateNativeDelegate<Func<object, IEnumerable, bool?>>(
+                    SetEqualsOpenMethod,
+                    [setElement]
+                );
             }
 
             return setShape;
@@ -569,24 +609,27 @@ internal static class FragmentComparisonPrimitives
         return CreateSequenceShape(type);
     }
 
-    private static CollectionShape CreateSequenceShape(Type type)
+    private static CollectionShape CreateSequenceShape(
+        [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.Interfaces)] Type type
+    )
     {
         var sequenceShape = new CollectionShape { Kind = CollectionKind.Sequence };
         var elementType = FindSequenceElementType(type);
-        if (elementType is not null)
+        sequenceShape.ElementType = elementType;
+        if (elementType is not null && IsDynamicCodeSupported)
         {
-            sequenceShape.ElementType = elementType;
-            sequenceShape.TrySequencesEqual =
-                (Func<object, object, bool?>)
-                    SequencesEqualOpenMethod
-                        .MakeGenericMethod(elementType)
-                        .CreateDelegate(typeof(Func<object, object, bool?>));
+            sequenceShape.TrySequencesEqual = CreateNativeDelegate<Func<object, object, bool?>>(
+                SequencesEqualOpenMethod,
+                [elementType]
+            );
         }
 
         return sequenceShape;
     }
 
-    private static Type[]? FindDictionaryArguments(Type type)
+    private static Type[]? FindDictionaryArguments(
+        [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.Interfaces)] Type type
+    )
     {
         if (type.IsGenericType)
         {
@@ -623,7 +666,10 @@ internal static class FragmentComparisonPrimitives
         return readOnlyArguments;
     }
 
-    private static Type? FindSetElementType(Type type, out bool hasNativeSet)
+    private static Type? FindSetElementType(
+        [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.Interfaces)] Type type,
+        out bool hasNativeSet
+    )
     {
         if (type.IsGenericType)
         {
@@ -660,7 +706,9 @@ internal static class FragmentComparisonPrimitives
         return readOnlyElement;
     }
 
-    private static Type? FindSequenceElementType(Type type)
+    private static Type? FindSequenceElementType(
+        [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.Interfaces)] Type type
+    )
     {
         if (type.IsArray)
         {
