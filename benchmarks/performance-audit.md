@@ -117,7 +117,26 @@ Twelve new cases cover both span and enumerable vector layouts, null revisions, 
 
 The same run additionally measures all ten existing runtime diagnostic regression cases. Disabled/1 and Disabled/4 are 840.0/1,030.8 ns; observed modes range from 1,252.5 to 2,811.3 ns. Allocation is unchanged by diagnostic mode at approximately 2.2/2.28 KB for this annotated model. Diagnostic events/source snapshots are value types; replacing their constructors would not address those allocations. These are coverage/baseline measurements for further runtime investigation, not before/after diagnostic improvements.
 
-## Integrated checkpoint
+## Round 7: runtime resolution revision snapshots
+
+Nine new runtime benchmarks compare stable reads, alternating direct revisions, and alternating nested vectors at 1/4/16 sources. They use cached reader results and an unannotated generated model with diagnostics disabled, isolating runtime/model costs from reader factory and annotation validation costs. Baseline is in `artifacts/perf-round7/before`; initial candidate/diagnostic coverage in `after`; final candidate in `after-final`.
+
+| Path | Before mean | Final mean | Before allocation | Final allocation |
+| --- | ---: | ---: | ---: | ---: |
+| Stable runtime, 1 source | 386.6 ns | 318.6 ns | 424 B | 336 B |
+| Stable runtime, 4 sources | 511.3 ns | 482.3 ns | 512 B | 336 B |
+| Stable runtime, 16 sources | 1,212.0 ns | 1,108.9 ns | 1,072 B | 336 B |
+| Changed direct revision, 1 source | 313.3 ns | 325.3 ns | 424 B | 424 B |
+| Changed direct revision, 16 sources | 1,260.6 ns | 1,193.5 ns | 1,072 B | 1,072 B |
+| Changed nested vector, 16 sources | 1,232.8 ns | 1,230.6 ns | 1,104 B | 1,104 B |
+
+Source reads, migrations, validation, merge/model construction, public cloning, contributions, statuses, diagnostics, and proposal values remain fresh. Only the last immutable revision vector is memoized within one immutable active-source array. Topology replacement invalidates it, including dictionary enumeration order. An atomic cache/vector reference keeps concurrent publication safe: a stale publication can cause a later miss but cannot change a read's values or metadata. Cross-subject reuse is possible only for identical revision metadata; no model, subject, or pooled scratch arrays are retained. Cache size is one vector and one topology wrapper (32 B on initial/new topology), not an unbounded subject map. Changed reads retain their previous allocation budgets after warming.
+
+The initial candidate added a scan before detecting changed nested metadata (16-source mean 1,318.0 ns). Checking nested identities first and scanning direct revisions from the deeper end brings the final nested mean back to 1,230.6 ns. The one-source changed-revision mean still increases by 12 ns; stable allocation reductions are the intended tradeoff. Several baseline intervals are wide (notably 1-source stable and 16-source changed revision), so those timing ratios are not precise promises.
+
+Eleven semantic cases verify stable/fresh values and all-source reads, captured contributions, changed/removed nested identities and retained old vectors, source retirement, unavailable/recovered statuses, replacement proposals, and concurrent subject values/revisions with both equal and distinct revision tokens. Final Release net10.0 passes 1,697 tests, zero failures, 17 external-service skips. Core builds all three frameworks with zero warnings/errors. Resolution result/probe/contribution types move unchanged to `RuntimeResolutionTypes.cs`, bringing the modified engine file below the repository's 800-line rule. Formatting and whitespace checks pass. Diagnostic coverage allocates approximately 2.11 KB in all ten modes after snapshot reuse (previously 2.2/2.28 KB); several timing changes are within noise.
+
+## Integrated checkpoint after round 5
 
 All five verified rounds have been committed and cherry-picked into local main, preserving unrelated CI and timer-test fixes. Integrated main at `f1728ab3` passes the full Release net10.0 suite: 1,674 passed, zero failed, 17 skipped external-service tests. Its log is retained in the main worktree's ignored `artifacts/perf-integrated/tests.log`. No remote push has been performed. The working tree is clean after the audit documentation commit. The optimization goal remains active; the following coverage gaps are still outstanding.
 

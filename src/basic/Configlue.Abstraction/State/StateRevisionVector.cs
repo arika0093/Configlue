@@ -36,7 +36,7 @@ public readonly record struct StateRevision
 /// <summary>Direct and nested revisions observed during one state resolution.</summary>
 /// <remarks>Advanced revision vocabulary.</remarks>
 [System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Advanced)]
-public sealed class StateRevisionVector
+public sealed partial class StateRevisionVector
 {
     private static readonly IReadOnlyDictionary<SourceId, string?> EmptyRevisions =
         new ReadOnlyDictionary<SourceId, string?>(new Dictionary<SourceId, string?>());
