@@ -37,8 +37,6 @@ public sealed class StateCapabilityTests
         await using var provider = services.BuildServiceProvider();
         var context = provider.GetRequiredService<ConfiglueContext>();
         var options = context.GetState<AppSettings>();
-        ReferenceEquals(options, provider.GetRequiredService<IConfiglueInspection<AppSettings>>())
-            .ShouldBeTrue();
         ReferenceEquals(options, provider.GetRequiredService<IConfiglueEditSessions<AppSettings>>())
             .ShouldBeTrue();
         ReferenceEquals(options, provider.GetRequiredService<IConfiglueSources<AppSettings>>())
@@ -46,11 +44,6 @@ public sealed class StateCapabilityTests
         ReferenceEquals(options, provider.GetRequiredService<IConfiglueDiagnostics<AppSettings>>())
             .ShouldBeTrue();
         var named = context.GetState<AppSettings>("named");
-        ReferenceEquals(
-                named,
-                provider.GetRequiredKeyedService<IConfiglueInspection<AppSettings>>("named")
-            )
-            .ShouldBeTrue();
         ReferenceEquals(
                 named,
                 provider.GetRequiredKeyedService<IConfiglueEditSessions<AppSettings>>("named")
@@ -66,7 +59,7 @@ public sealed class StateCapabilityTests
                 provider.GetRequiredKeyedService<IConfiglueDiagnostics<AppSettings>>("named")
             )
             .ShouldBeTrue();
-        (await context.GetInspection<AppSettings>().Check().Result).Status.ShouldBe(
+        (await context.GetDiagnostics<AppSettings>().Check().Result).Status.ShouldBe(
             ConfiglueCheckStatus.Success
         );
     }

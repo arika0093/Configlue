@@ -13,12 +13,14 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
         : IWritableState<TModel>,
             IConfiglueDetailsRuntime,
             IConfiglueStateSnapshotRuntime<TModel>,
-            IConfiglueInspection<TModel>,
+            IConfiglueDiagnostics<TModel>,
             IConfiglueEditSessions<TModel>,
             IConfiglueWritePreview<TModel>
     {
         public IDisposable OnChange(Action<TModel> listener) =>
             owner._watches.WatchSubject(subject, listener);
+
+        public ConfiglueStateDiagnostics GetDiagnostics() => owner.GetDiagnostics();
 
         public ValueTask<TModel> GetValueAsync(CancellationToken cancellationToken = default) =>
             owner.GetValueForSubjectAsync(subject, cancellationToken);

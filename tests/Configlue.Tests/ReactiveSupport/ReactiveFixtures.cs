@@ -56,6 +56,9 @@ internal sealed class FakeOptions<T>(T value)
 
     public ConfiglueStateDiagnostics GetDiagnostics() => throw new NotSupportedException();
 
+    public ConfiglueCheckOperation Check(CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException();
+
     public void Emit(T value)
     {
         Value = value;

@@ -12,7 +12,7 @@ public sealed class GeneratedModelContractTests
         typeof(AppSettings).GetMethod("ToFragment").ShouldBeNull();
         typeof(ConfiglueModelBuilder<AppSettings>).GetMethod("BuildSources").ShouldBeNull();
         typeof(ConfiglueModelBuilder<AppSettings>).GetMethod("GetMigrations").ShouldBeNull();
-        typeof(IConfiglueInspection<AppSettings>)
+        typeof(IConfiglueDiagnostics<AppSettings>)
             .GetMethod("GetDetailsSnapshotAsync")
             .ShouldBeNull();
         typeof(IConfiglueFacadeModel<AppSettings>)

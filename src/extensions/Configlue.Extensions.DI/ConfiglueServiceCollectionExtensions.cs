@@ -110,9 +110,6 @@ public static class ConfiglueServiceCollectionExtensions
         services.AddSingleton<ISubjectState<TModel>>(provider =>
             provider.GetRequiredService<ConfiglueRuntime<TModel, TFragment>>()
         );
-        services.AddSingleton<IConfiglueInspection<TModel>>(provider =>
-            provider.GetRequiredService<ConfiglueRuntime<TModel, TFragment>>()
-        );
         services.AddSingleton<IConfiglueEditSessions<TModel>>(provider =>
             provider.GetRequiredService<ConfiglueRuntime<TModel, TFragment>>()
         );
@@ -231,11 +228,6 @@ public static class ConfiglueServiceCollectionExtensions
             (provider, key) =>
                 provider.GetRequiredKeyedService<ConfiglueRuntime<TModel, TFragment>>(key)
         );
-        services.AddKeyedSingleton<IConfiglueInspection<TModel>>(
-            serviceKey,
-            (provider, key) =>
-                provider.GetRequiredKeyedService<ConfiglueRuntime<TModel, TFragment>>(key)
-        );
         services.AddKeyedSingleton<IConfiglueEditSessions<TModel>>(
             serviceKey,
             (provider, key) =>
@@ -337,15 +329,9 @@ public static class ConfiglueServiceCollectionExtensions
             {
                 if (registration.IsPerSubject)
                 {
-                    // Per-subject inspection/edit sessions must resolve through the scoped
-                    // CurrentSubjectState. Keep only subject-agnostic facades as shared singletons
-                    // so the raw runtime descriptor cannot overwrite the scoped fix.
-                    services.AddSingleton<IConfiglueDiagnostics<TModel>>(provider =>
-                        (IConfiglueDiagnostics<TModel>)
-                            provider
-                                .GetRequiredService<ConfiglueContext>()
-                                .GetState<TModel>(registration.StateName)
-                    );
+                    // Per-subject edit sessions and diagnostics checks must resolve through the
+                    // scoped CurrentSubjectState. Keep only subject-agnostic facades as shared
+                    // singletons so the raw runtime descriptor cannot overwrite the scoped fix.
                     services.AddSingleton<IConfiglueSources<TModel>>(provider =>
                         (IConfiglueSources<TModel>)
                             provider
@@ -357,9 +343,6 @@ public static class ConfiglueServiceCollectionExtensions
                 {
                     Func<IServiceProvider, IWritableState<TModel>> getRuntime = provider =>
                         provider.GetRequiredService<IWritableState<TModel>>();
-                    services.AddSingleton<IConfiglueInspection<TModel>>(provider =>
-                        (IConfiglueInspection<TModel>)getRuntime(provider)
-                    );
                     services.AddSingleton<IConfiglueEditSessions<TModel>>(provider =>
                         (IConfiglueEditSessions<TModel>)getRuntime(provider)
                     );
@@ -380,14 +363,6 @@ public static class ConfiglueServiceCollectionExtensions
 
                 if (registration.IsPerSubject)
                 {
-                    services.AddKeyedSingleton<IConfiglueDiagnostics<TModel>>(
-                        registration.StateName,
-                        (provider, _) =>
-                            (IConfiglueDiagnostics<TModel>)
-                                provider
-                                    .GetRequiredService<ConfiglueContext>()
-                                    .GetState<TModel>(registration.StateName)
-                    );
                     services.AddKeyedSingleton<IConfiglueSources<TModel>>(
                         registration.StateName,
                         (provider, _) =>
@@ -403,10 +378,6 @@ public static class ConfiglueServiceCollectionExtensions
                         provider.GetRequiredKeyedService<IWritableState<TModel>>(
                             registration.StateName
                         );
-                    services.AddKeyedSingleton<IConfiglueInspection<TModel>>(
-                        registration.StateName,
-                        (provider, _) => (IConfiglueInspection<TModel>)getRuntime(provider)
-                    );
                     services.AddKeyedSingleton<IConfiglueEditSessions<TModel>>(
                         registration.StateName,
                         (provider, _) => (IConfiglueEditSessions<TModel>)getRuntime(provider)
@@ -462,7 +433,7 @@ public static class ConfiglueServiceCollectionExtensions
                     services.AddScoped<IWritableState<TModel>>(provider =>
                         provider.GetRequiredService<CurrentSubjectState<TModel>>()
                     );
-                    services.AddScoped<IConfiglueInspection<TModel>>(provider =>
+                    services.AddScoped<IConfiglueDiagnostics<TModel>>(provider =>
                         provider.GetRequiredService<CurrentSubjectState<TModel>>()
                     );
                     services.AddScoped<IConfiglueEditSessions<TModel>>(provider =>
@@ -497,7 +468,7 @@ public static class ConfiglueServiceCollectionExtensions
                         (provider, key) =>
                             provider.GetRequiredKeyedService<CurrentSubjectState<TModel>>(key)
                     );
-                    services.AddKeyedScoped<IConfiglueInspection<TModel>>(
+                    services.AddKeyedScoped<IConfiglueDiagnostics<TModel>>(
                         registration.StateName,
                         (provider, key) =>
                             provider.GetRequiredKeyedService<CurrentSubjectState<TModel>>(key)
@@ -672,7 +643,7 @@ public static class ConfiglueServiceCollectionExtensions
                     services.AddScoped<IWritableState<TModel>>(provider =>
                         provider.GetRequiredService<CurrentSubjectState<TModel>>()
                     );
-                    services.AddScoped<IConfiglueInspection<TModel>>(provider =>
+                    services.AddScoped<IConfiglueDiagnostics<TModel>>(provider =>
                         provider.GetRequiredService<CurrentSubjectState<TModel>>()
                     );
                     services.AddScoped<IConfiglueEditSessions<TModel>>(provider =>
@@ -701,7 +672,7 @@ public static class ConfiglueServiceCollectionExtensions
                         (provider, key) =>
                             provider.GetRequiredKeyedService<CurrentSubjectState<TModel>>(key)
                     );
-                    services.AddKeyedScoped<IConfiglueInspection<TModel>>(
+                    services.AddKeyedScoped<IConfiglueDiagnostics<TModel>>(
                         registration.StateName,
                         (provider, key) =>
                             provider.GetRequiredKeyedService<CurrentSubjectState<TModel>>(key)
@@ -748,9 +719,6 @@ public static class ConfiglueServiceCollectionExtensions
             services.AddScoped<ISubjectState<TModel>>(provider =>
                 (ISubjectState<TModel>)getRuntime(provider)
             );
-            services.AddScoped<IConfiglueInspection<TModel>>(provider =>
-                (IConfiglueInspection<TModel>)getRuntime(provider)
-            );
             services.AddScoped<IConfiglueEditSessions<TModel>>(provider =>
                 (IConfiglueEditSessions<TModel>)getRuntime(provider)
             );
@@ -771,10 +739,6 @@ public static class ConfiglueServiceCollectionExtensions
             services.AddKeyedScoped<ISubjectState<TModel>>(
                 serviceKey,
                 (provider, key) => (ISubjectState<TModel>)getRuntime(provider, key)
-            );
-            services.AddKeyedScoped<IConfiglueInspection<TModel>>(
-                serviceKey,
-                (provider, key) => (IConfiglueInspection<TModel>)getRuntime(provider, key)
             );
             services.AddKeyedScoped<IConfiglueEditSessions<TModel>>(
                 serviceKey,
@@ -798,9 +762,6 @@ public static class ConfiglueServiceCollectionExtensions
             services.AddScoped<ISubjectState<TModel>>(provider =>
                 (ISubjectState<TModel>)getRuntime(provider)
             );
-            services.AddScoped<IConfiglueDiagnostics<TModel>>(provider =>
-                (IConfiglueDiagnostics<TModel>)getRuntime(provider)
-            );
             services.AddScoped<IConfiglueSources<TModel>>(provider =>
                 (IConfiglueSources<TModel>)getRuntime(provider)
             );
@@ -815,10 +776,6 @@ public static class ConfiglueServiceCollectionExtensions
             services.AddKeyedScoped<ISubjectState<TModel>>(
                 serviceKey,
                 (provider, key) => (ISubjectState<TModel>)getRuntime(provider, key)
-            );
-            services.AddKeyedScoped<IConfiglueDiagnostics<TModel>>(
-                serviceKey,
-                (provider, key) => (IConfiglueDiagnostics<TModel>)getRuntime(provider, key)
             );
             services.AddKeyedScoped<IConfiglueSources<TModel>>(
                 serviceKey,

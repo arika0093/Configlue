@@ -542,6 +542,7 @@ namespace Configlue
     }
     public interface IConfiglueDiagnostics<T>
     {
+        Configlue.ConfiglueCheckOperation Check(System.Threading.CancellationToken cancellationToken = default);
         Configlue.ConfiglueStateDiagnostics GetDiagnostics();
     }
     public interface IConfiglueEditSessions<T>
@@ -559,10 +560,6 @@ namespace Configlue
         bool IsEmpty { get; }
         TSelf ApplyChanges(TSelf changes);
         TSelf Merge(TSelf higher);
-    }
-    public interface IConfiglueInspection<T>
-    {
-        Configlue.ConfiglueCheckOperation Check(System.Threading.CancellationToken cancellationToken = default);
     }
     public interface IConfiglueMergeContributionPlanner
     {

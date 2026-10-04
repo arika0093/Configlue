@@ -1114,6 +1114,9 @@ public sealed class StateComponentsTests
 
         public ConfiglueStateDiagnostics GetDiagnostics() => throw new NotSupportedException();
 
+        public ConfiglueCheckOperation Check(CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
         public IDisposable OnReloadFailed(Action<Exception> listener)
         {
             _listener = listener;

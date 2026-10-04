@@ -7,10 +7,17 @@ namespace Configlue.Tests;
 public sealed class StateCheckTests
 {
     [Test]
-    public void InspectionSurfaceReplacesReadAsyncWithCheck()
+    public void DiagnosticsSurfaceExposesCheckAndHidesInspectionAcquisition()
     {
-        typeof(IConfiglueInspection<AppSettings>).GetMethod("ReadAsync").ShouldBeNull();
-        typeof(IConfiglueInspection<AppSettings>).GetMethod("Check").ShouldNotBeNull();
+        typeof(IConfiglueDiagnostics<AppSettings>).GetMethod("Check").ShouldNotBeNull();
+        typeof(IConfiglueDiagnostics<AppSettings>)
+            .GetMethod("GetDiagnostics")
+            .ShouldNotBeNull();
+        typeof(ConfiglueContext).GetMethod("GetInspection").ShouldBeNull();
+        typeof(ConfiglueApp).GetMethod("GetInspection").ShouldBeNull();
+        typeof(Configlue.IConfiglueDiagnostics<AppSettings>).Assembly
+            .GetType("Configlue.IConfiglueInspection`1")
+            .ShouldBeNull();
     }
 
     [Test]
@@ -303,9 +310,9 @@ public sealed class StateCheckTests
             builder.Build(),
             onChangeDebounce: TimeSpan.Zero
         );
-        var inspection = (IConfiglueInspection<AppSettings>)runtime.ForSubject(subject);
+        var diagnostics = (IConfiglueDiagnostics<AppSettings>)runtime.ForSubject(subject);
 
-        var check = inspection.Check();
+        var check = diagnostics.Check();
         var streamed = new List<ConfiglueSourceCheckResult>();
         await foreach (var source in check)
         {
@@ -349,9 +356,9 @@ public sealed class StateCheckTests
         using var scope = provider.CreateScope();
         scope.ServiceProvider.GetRequiredService<CheckAccessor>().Set(subject);
         var state = scope.ServiceProvider.GetRequiredService<IReadOnlyState<AppSettings>>();
-        var inspection = (IConfiglueInspection<AppSettings>)state;
+        var diagnostics = (IConfiglueDiagnostics<AppSettings>)state;
 
-        var check = inspection.Check();
+        var check = diagnostics.Check();
         var streamed = new List<ConfiglueSourceCheckResult>();
         await foreach (var source in check)
         {

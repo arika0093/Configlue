@@ -60,10 +60,6 @@ public sealed class ConfiglueContext : IDisposable, IAsyncDisposable
         );
     }
 
-    /// <summary>Reads resolved state and generated provenance details.</summary>
-    public IConfiglueInspection<TModel> GetInspection<TModel>(string? stateName = null) =>
-        (IConfiglueInspection<TModel>)GetState<TModel>(stateName);
-
     /// <summary>Gets the subject-scoping entry point for one state instance.</summary>
     /// <remarks>Subjects scope operations inside the addressed state instance; they never select another instance.</remarks>
     public ISubjectState<TModel> GetSubjectState<TModel>(string? stateName = null) =>

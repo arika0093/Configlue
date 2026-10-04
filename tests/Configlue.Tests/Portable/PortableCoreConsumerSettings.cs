@@ -17,11 +17,11 @@ public static class PortableConsumerOperations
         );
 
     public static async Task<bool> CanResolveAsync(
-        IConfiglueInspection<PortableSettings> inspection,
+        IConfiglueDiagnostics<PortableSettings> diagnostics,
         CancellationToken cancellationToken = default
     )
     {
-        var check = inspection.Check(cancellationToken);
+        var check = diagnostics.Check(cancellationToken);
         await foreach (var source in check)
         {
             _ = source.Status;

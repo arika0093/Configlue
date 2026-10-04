@@ -6,7 +6,6 @@ namespace Configlue
         public static Configlue.ConfiglueContext CreateContext(System.Action<Configlue.ConfiglueBuilder> configure) { }
         public static Configlue.IConfiglueDiagnostics<TModel> GetDiagnostics<TModel>(string? stateName = null) { }
         public static Configlue.IConfiglueEditSessions<TModel> GetEditSessions<TModel>(string? stateName = null) { }
-        public static Configlue.IConfiglueInspection<TModel> GetInspection<TModel>(string? stateName = null) { }
         public static Configlue.IConfiglueProfiledState<TModel> GetProfiledState<TModel>() { }
         public static Configlue.IConfiglueSources<TModel> GetSources<TModel>(string? stateName = null) { }
         public static Configlue.IWritableState<TModel> GetState<TModel>(string? stateName = null) { }
@@ -35,7 +34,6 @@ namespace Configlue
         public System.Threading.Tasks.ValueTask DisposeAsync() { }
         public Configlue.IConfiglueDiagnostics<TModel> GetDiagnostics<TModel>(string? stateName = null) { }
         public Configlue.IConfiglueEditSessions<TModel> GetEditSessions<TModel>(string? stateName = null) { }
-        public Configlue.IConfiglueInspection<TModel> GetInspection<TModel>(string? stateName = null) { }
         public Configlue.IConfiglueProfiledState<TModel> GetProfiledState<TModel>() { }
         public Configlue.IConfiglueSources<TModel> GetSources<TModel>(string? stateName = null) { }
         public Configlue.IWritableState<TModel> GetState<TModel>(string? stateName = null) { }

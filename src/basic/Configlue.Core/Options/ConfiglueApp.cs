@@ -61,10 +61,6 @@ public static class ConfiglueApp
     public static IConfiglueProfiledState<TModel> GetProfiledState<TModel>() =>
         GetDefaultContext().GetProfiledState<TModel>();
 
-    /// <summary>Reads resolved state and generated provenance details.</summary>
-    public static IConfiglueInspection<TModel> GetInspection<TModel>(string? stateName = null) =>
-        (IConfiglueInspection<TModel>)GetDefaultContext().GetState<TModel>(stateName);
-
     /// <summary>Opens long-lived drafts of resolved configuration.</summary>
     public static IConfiglueEditSessions<TModel> GetEditSessions<TModel>(
         string? stateName = null

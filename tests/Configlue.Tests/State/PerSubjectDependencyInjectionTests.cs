@@ -62,7 +62,7 @@ public sealed class PerSubjectDependencyInjectionTests
         );
         var sharedSubjectOptions = provider.GetRequiredService<ISubjectState<AppSettings>>();
         Should.Throw<InvalidOperationException>(() =>
-            provider.GetRequiredService<IConfiglueInspection<AppSettings>>()
+            provider.GetRequiredService<IConfiglueDiagnostics<AppSettings>>()
         );
         Should.Throw<InvalidOperationException>(() =>
             provider.GetRequiredService<IConfiglueEditSessions<AppSettings>>()
@@ -82,13 +82,13 @@ public sealed class PerSubjectDependencyInjectionTests
         ReferenceEquals(readA, writeA).ShouldBeTrue();
         ReferenceEquals(readB, writeB).ShouldBeTrue();
         ReferenceEquals(readA, readB).ShouldBeFalse();
-        var inspectionA = scopeA.ServiceProvider.GetRequiredService<
-            IConfiglueInspection<AppSettings>
+        var diagnosticsA = scopeA.ServiceProvider.GetRequiredService<
+            IConfiglueDiagnostics<AppSettings>
         >();
         var sessionsA = scopeA.ServiceProvider.GetRequiredService<
             IConfiglueEditSessions<AppSettings>
         >();
-        ReferenceEquals(readA, inspectionA).ShouldBeTrue();
+        ReferenceEquals(readA, diagnosticsA).ShouldBeTrue();
         ReferenceEquals(readA, sessionsA).ShouldBeTrue();
         ReferenceEquals(
                 sharedSubjectOptions,
@@ -286,7 +286,7 @@ public sealed class PerSubjectDependencyInjectionTests
     [Arguments(true, false)]
     [Arguments(false, true)]
     [Arguments(true, true)]
-    public async Task InjectedEditSessionsAndInspectionResolveCurrentSubject(
+    public async Task InjectedEditSessionsAndDiagnosticsResolveCurrentSubject(
         bool named,
         bool scopedRuntime
     )
@@ -335,7 +335,7 @@ public sealed class PerSubjectDependencyInjectionTests
         if (named)
         {
             Should.Throw<InvalidOperationException>(() =>
-                provider.GetRequiredKeyedService<IConfiglueInspection<AppSettings>>("tenant")
+                provider.GetRequiredKeyedService<IConfiglueDiagnostics<AppSettings>>("tenant")
             );
             Should.Throw<InvalidOperationException>(() =>
                 provider.GetRequiredKeyedService<IConfiglueEditSessions<AppSettings>>("tenant")
@@ -344,7 +344,7 @@ public sealed class PerSubjectDependencyInjectionTests
         else
         {
             Should.Throw<InvalidOperationException>(() =>
-                provider.GetRequiredService<IConfiglueInspection<AppSettings>>()
+                provider.GetRequiredService<IConfiglueDiagnostics<AppSettings>>()
             );
             Should.Throw<InvalidOperationException>(() =>
                 provider.GetRequiredService<IConfiglueEditSessions<AppSettings>>()
@@ -362,14 +362,14 @@ public sealed class PerSubjectDependencyInjectionTests
                 "tenant"
             )
             : scope.ServiceProvider.GetRequiredService<IConfiglueEditSessions<AppSettings>>();
-        IConfiglueInspection<AppSettings> injectedInspection = named
-            ? scope.ServiceProvider.GetRequiredKeyedService<IConfiglueInspection<AppSettings>>(
+        IConfiglueDiagnostics<AppSettings> injectedDiagnostics = named
+            ? scope.ServiceProvider.GetRequiredKeyedService<IConfiglueDiagnostics<AppSettings>>(
                 "tenant"
             )
-            : scope.ServiceProvider.GetRequiredService<IConfiglueInspection<AppSettings>>();
+            : scope.ServiceProvider.GetRequiredService<IConfiglueDiagnostics<AppSettings>>();
 
         ReferenceEquals(state, injectedSessions).ShouldBeTrue();
-        ReferenceEquals(state, injectedInspection).ShouldBeTrue();
+        ReferenceEquals(state, injectedDiagnostics).ShouldBeTrue();
 
         (await state.GetValueAsync()).RetryCount.ShouldBe(7);
 
@@ -389,7 +389,7 @@ public sealed class PerSubjectDependencyInjectionTests
         users.Read(subject.Key).Value!.RetryCount.Value.ShouldBe(9);
         (await users.ReadAsync()).Value!.RetryCount.Value.ShouldBe(1);
 
-        var check = injectedInspection.Check();
+        var check = injectedDiagnostics.Check();
         var streamed = new List<ConfiglueSourceCheckResult>();
         await foreach (var source in check)
         {
@@ -515,10 +515,10 @@ public sealed class PerSubjectDependencyInjectionTests
         var injectedSessions = scope.ServiceProvider.GetRequiredService<
             IConfiglueEditSessions<AppSettings>
         >();
-        var injectedInspection = scope.ServiceProvider.GetRequiredService<
-            IConfiglueInspection<AppSettings>
+        var injectedDiagnostics = scope.ServiceProvider.GetRequiredService<
+            IConfiglueDiagnostics<AppSettings>
         >();
-        var stateInspection = (IConfiglueInspection<AppSettings>)state;
+        var stateDiagnostics = (IConfiglueDiagnostics<AppSettings>)state;
         var stateSessions = (IConfiglueEditSessions<AppSettings>)state;
 
         // Unresolved subject: no subject has been set on this scope's accessor.
@@ -529,8 +529,8 @@ public sealed class PerSubjectDependencyInjectionTests
             await injectedSessions.OpenEditSessionAsync()
         );
         injectedSessionError.Message.ShouldBe(stateReadError.Message);
-        (await stateInspection.Check().Result).Exception.ShouldBeOfType<InvalidOperationException>();
-        (await injectedInspection.Check().Result)
+        (await stateDiagnostics.Check().Result).Exception.ShouldBeOfType<InvalidOperationException>();
+        (await injectedDiagnostics.Check().Result)
             .Exception.ShouldBeOfType<InvalidOperationException>();
 
         // Cancellation surfaces identically.

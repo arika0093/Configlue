@@ -517,13 +517,6 @@ public sealed partial class RuntimeLifetimeTests
             .ShouldBeTrue();
         ReferenceEquals(
                 first,
-                scope.ServiceProvider.GetRequiredKeyedService<IConfiglueInspection<AppSettings>>(
-                    "first"
-                )
-            )
-            .ShouldBeTrue();
-        ReferenceEquals(
-                first,
                 scope.ServiceProvider.GetRequiredKeyedService<IConfiglueEditSessions<AppSettings>>(
                     "first"
                 )

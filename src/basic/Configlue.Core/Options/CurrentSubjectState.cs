@@ -10,10 +10,22 @@ internal sealed class CurrentSubjectState<TModel>(
     : IWritableState<TModel>,
         IConfiglueDetailsRuntime,
         IConfiglueStateSnapshotRuntime<TModel>,
-        IConfiglueInspection<TModel>,
+        IConfiglueDiagnostics<TModel>,
         IConfiglueEditSessions<TModel>,
         IConfiglueWritePreview<TModel>
 {
+    public ConfiglueStateDiagnostics GetDiagnostics()
+    {
+        if (subjectOptions is IConfiglueDiagnostics<TModel> diagnostics)
+        {
+            return diagnostics.GetDiagnostics();
+        }
+
+        throw new NotSupportedException(
+            "This options implementation does not expose state diagnostics."
+        );
+    }
+
     public ConfiglueCheckOperation Check(CancellationToken cancellationToken = default) =>
         new(
             (reportSource, token) => CheckWithCurrentSubjectAsync(reportSource, token),
@@ -30,14 +42,14 @@ internal sealed class CurrentSubjectState<TModel>(
             .GetCurrentSubjectAsync(cancellationToken)
             .ConfigureAwait(false);
         var options = subjectOptions.ForSubject(subject);
-        if (options is not IConfiglueInspection<TModel> inspection)
+        if (options is not IConfiglueDiagnostics<TModel> diagnostics)
         {
             throw new NotSupportedException(
                 "This options implementation does not expose state checks."
             );
         }
 
-        var operation = inspection.Check(cancellationToken);
+        var operation = diagnostics.Check(cancellationToken);
         var result = operation.Result;
         await foreach (var source in operation.ConfigureAwait(false))
         {
