@@ -129,12 +129,13 @@ internal sealed class StateSourceResolver<T> : ISourceReader<T>
         var revisions = ArrayPool<StateRevision>.Shared.Rent(_sourceSet.Count);
         var revisionCount = 0;
         // Scratch observation state: pooled per read and never retained. The retained
-        // topology (sources + effective contexts) is deduplicated against the previous
-        // resolution, while per-resolution observed revisions are copied once into the
-        // new resolution. Escaping arrays are always freshly owned, never pooled.
+        // topology and unchanged revision observations are reused from the previous
+        // resolution. Changed observations are copied into freshly owned escaping arrays,
+        // never retained in pooled scratch storage.
         var watchScratch = ArrayPool<WatchScratchEntry>.Shared.Rent(_sourceSet.Count);
         var watchTargetCount = 0;
-        var previousTopology = PeekResolution(subject, context)?.Topology;
+        var previousResolution = PeekResolution(subject, context);
+        var previousTopology = previousResolution?.Topology;
         var topologyMatches = previousTopology is not null;
         KeyValuePair<SourceId, StateRevisionVector>[]? nestedRevisions = null;
         var nestedRevisionCount = 0;
@@ -152,7 +153,8 @@ internal sealed class StateSourceResolver<T> : ISourceReader<T>
                 watchScratch[watchTargetCount] = new WatchScratchEntry(
                     source,
                     effectiveContext,
-                    result.Revision
+                    result.Revision,
+                    result.Revisions
                 );
                 if (topologyMatches)
                 {
@@ -180,25 +182,18 @@ internal sealed class StateSourceResolver<T> : ISourceReader<T>
 
                 if (result.Status == StateReadStatus.Success)
                 {
-                    var revisionVector = CreateRevisionVector(
+                    var resolution = CreateOrReuseResolution(
+                        previousResolution,
+                        topologyMatches,
+                        watchScratch,
+                        watchTargetCount,
+                        source,
                         revisions,
-                        revisionCount,
                         nestedRevisions,
                         nestedRevisionCount
                     );
-                    SetResolution(
-                        subject,
-                        context,
-                        CreateResolution(
-                            previousTopology,
-                            topologyMatches,
-                            watchScratch,
-                            watchTargetCount,
-                            source,
-                            revisionVector
-                        )
-                    );
-                    return result with { Revisions = revisionVector };
+                    SetResolution(subject, context, resolution);
+                    return result with { Revisions = resolution.Revisions };
                 }
 
                 var canFallBack = CanFallBack(source.FallbackCondition, result.Status);
@@ -208,49 +203,35 @@ internal sealed class StateSourceResolver<T> : ISourceReader<T>
                 }
                 if (!canFallBack)
                 {
-                    var revisionVector = CreateRevisionVector(
+                    var resolution = CreateOrReuseResolution(
+                        previousResolution,
+                        topologyMatches,
+                        watchScratch,
+                        watchTargetCount,
+                        null,
                         revisions,
-                        revisionCount,
                         nestedRevisions,
                         nestedRevisionCount
                     );
-                    SetResolution(
-                        subject,
-                        context,
-                        CreateResolution(
-                            previousTopology,
-                            topologyMatches,
-                            watchScratch,
-                            watchTargetCount,
-                            null,
-                            revisionVector
-                        )
-                    );
-                    return result with { Revisions = revisionVector };
+                    SetResolution(subject, context, resolution);
+                    return result with { Revisions = resolution.Revisions };
                 }
 
                 lastResult = result;
             }
 
-            var finalVector = CreateRevisionVector(
+            var finalResolution = CreateOrReuseResolution(
+                previousResolution,
+                topologyMatches,
+                watchScratch,
+                watchTargetCount,
+                null,
                 revisions,
-                revisionCount,
                 nestedRevisions,
                 nestedRevisionCount
             );
-            SetResolution(
-                subject,
-                context,
-                CreateResolution(
-                    previousTopology,
-                    topologyMatches,
-                    watchScratch,
-                    watchTargetCount,
-                    null,
-                    finalVector
-                )
-            );
-            return lastResult with { Revisions = finalVector };
+            SetResolution(subject, context, finalResolution);
+            return lastResult with { Revisions = finalResolution.Revisions };
         }
         finally
         {
@@ -284,12 +265,11 @@ internal sealed class StateSourceResolver<T> : ISourceReader<T>
         {
             ResolverLogging.Read(logger, source.Id, result.Status, null);
         }
-        var revision = new StateRevision(source.Id, result.Revision);
-        var revisionVector = StateRevisionVector.FromSingle(revision, result.Revisions);
-
         // Single-source topology is stored inline (no heap array). When routing is
         // unchanged the previous immutable topology instance is reused outright.
-        var previousTopology = PeekResolution(subject, context)?.Topology;
+        var previousResolution = PeekResolution(subject, context);
+        var previousTopology = previousResolution?.Topology;
+        var activeSource = result.Status == StateReadStatus.Success ? source : null;
         ResolverWatchTopology<T> topology;
         if (
             previousTopology is not null
@@ -298,21 +278,35 @@ internal sealed class StateSourceResolver<T> : ISourceReader<T>
         )
         {
             topology = previousTopology;
+            previousResolution!.Revisions.TryGetNestedRevisions(source.Id, out var nested);
+            if (
+                ReferenceEquals(previousResolution.ActiveSource, activeSource)
+                && string.Equals(
+                    previousResolution.SingleObservedRevision,
+                    result.Revision,
+                    StringComparison.Ordinal
+                )
+                && ReferenceEquals(nested, result.Revisions)
+            )
+            {
+                // Only immutable watch/revision identity is reused. Source reads and result values stay fresh.
+                SetResolution(subject, context, previousResolution);
+                return result with { Revisions = previousResolution.Revisions };
+            }
         }
         else
         {
             topology = new ResolverWatchTopology<T>(source, effectiveContext);
         }
 
+        var revisionVector = StateRevisionVector.FromSingle(
+            new(source.Id, result.Revision),
+            result.Revisions
+        );
         SetResolution(
             subject,
             context,
-            new Resolution(
-                result.Status == StateReadStatus.Success ? source : null,
-                revisionVector,
-                topology,
-                result.Revision
-            )
+            new Resolution(activeSource, revisionVector, topology, result.Revision)
         );
         return result with { Revisions = revisionVector };
     }
@@ -328,16 +322,19 @@ internal sealed class StateSourceResolver<T> : ISourceReader<T>
         public StateSource<T>? Source;
         public ConfiglueResourceContext Context;
         public string? Revision;
+        public StateRevisionVector? NestedRevisions;
 
         public WatchScratchEntry(
             StateSource<T>? source,
             ConfiglueResourceContext context,
-            string? revision
+            string? revision,
+            StateRevisionVector? nestedRevisions
         )
         {
             Source = source;
             Context = context;
             Revision = revision;
+            NestedRevisions = nestedRevisions;
         }
     }
 
@@ -355,6 +352,64 @@ internal sealed class StateSourceResolver<T> : ISourceReader<T>
 
         return ReferenceEquals(topology.GetSource(index), source)
             && topology.GetContext(index).Equals(context);
+    }
+
+    private static Resolution CreateOrReuseResolution(
+        Resolution? previousResolution,
+        bool topologyMatches,
+        WatchScratchEntry[] scratch,
+        int count,
+        StateSource<T>? activeSource,
+        StateRevision[] revisions,
+        KeyValuePair<SourceId, StateRevisionVector>[]? nestedRevisions,
+        int nestedRevisionCount
+    )
+    {
+        if (
+            topologyMatches
+            && previousResolution is not null
+            && previousResolution.Topology.Count == count
+            && ReferenceEquals(previousResolution.ActiveSource, activeSource)
+        )
+        {
+            var observationsMatch = true;
+            for (var index = 0; index < count; index++)
+            {
+                var previousRevision =
+                    count == 1
+                        ? previousResolution.SingleObservedRevision
+                        : previousResolution.ObservedRevisions![index];
+                previousResolution.Revisions.TryGetNestedRevisions(
+                    scratch[index].Source!.Id,
+                    out var nested
+                );
+                if (
+                    !string.Equals(
+                        previousRevision,
+                        scratch[index].Revision,
+                        StringComparison.Ordinal
+                    ) || !ReferenceEquals(nested, scratch[index].NestedRevisions)
+                )
+                {
+                    observationsMatch = false;
+                    break;
+                }
+            }
+
+            if (observationsMatch)
+            {
+                return previousResolution;
+            }
+        }
+
+        return CreateResolution(
+            previousResolution?.Topology,
+            topologyMatches,
+            scratch,
+            count,
+            activeSource,
+            CreateRevisionVector(revisions, count, nestedRevisions, nestedRevisionCount)
+        );
     }
 
     private static Resolution CreateResolution(

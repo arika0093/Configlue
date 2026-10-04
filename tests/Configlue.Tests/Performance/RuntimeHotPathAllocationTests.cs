@@ -15,6 +15,38 @@ public sealed class RuntimeHotPathAllocationTests
 {
     [Test]
     [Arguments(1)]
+    [Arguments(4)]
+    [Arguments(16)]
+    public void StableResolverRead_DoesNotAllocateRevisionOrWatchSnapshots(int sourceCount)
+    {
+        var sources = new StateSourceSet<int>(
+            Enumerable
+                .Range(0, sourceCount)
+                .Select(index => new StateSource<int>(
+                    $"source-{index}",
+                    new CachedReader(
+                        index == sourceCount - 1
+                            ? StateReadResult<int>.Success(42, "r")
+                            : StateReadResult<int>.NotFound()
+                    ),
+                    new StateSourceOptions<int>
+                    {
+                        Priority = sourceCount - index,
+                        FallbackCondition = StateFallbackCondition.NotFound,
+                    }
+                ))
+        );
+        var resolver = new StateSourceResolver<int>(sources);
+        var result = default(StateReadResult<int>);
+        var allocated = Measure(() =>
+            result = resolver.ReadAsync(ConfiglueResourceContext.Default).GetAwaiter().GetResult()
+        );
+        result.Value.ShouldBe(42);
+        allocated.ShouldBe(0);
+    }
+
+    [Test]
+    [Arguments(1)]
     [Arguments(16)]
     public void ResolverLogging_DoesNotAllocateBeyondUnloggedRead(int sourceCount)
     {

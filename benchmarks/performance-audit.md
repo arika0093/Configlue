@@ -33,11 +33,29 @@ dotnet test tests/Configlue.Tests/Configlue.Tests.csproj -c Release -f net10.0 -
 dotnet build src/basic/Configlue.Core/Configlue.Core.csproj -c Release
 ```
 
+## Round 2: unchanged resolver snapshots
+
+The same ShortRun configuration and unchanged benchmark inputs are retained in `artifacts/perf-round2/before` and `after`.
+
+| Path | Before mean | After mean | Before allocation | After allocation |
+| --- | ---: | ---: | ---: | ---: |
+| Stable resolver, 1 source | 181.224 ns | 169.156 ns | 168 B | 24 B |
+| Stable resolver, 2 sources | 267.432 ns | 243.407 ns | 288 B | 48 B |
+| Stable resolver, 4 sources | 433.527 ns | 383.676 ns | 384 B | 96 B |
+| Stable resolver, 16 sources | 1,489.964 ns | 1,286.290 ns | 1,328 B | 384 B |
+| Subject resolver, 1 source | 643.7 ns | 620.3 ns | 2,848 B | 2,704 B |
+| Subject resolver, 4 sources | 1,605.9 ns | 1,495.4 ns | 7,888 B | 7,600 B |
+| Subject resolver, 16 sources | 5,007.6 ns | 5,226.0 ns | 28,129 B | 27,185 B |
+
+Every source is still read on every operation. Only the immutable resolution, revision vector, and watch observations are reused when routing, active source, revisions, and nested vector references match. Fresh values/statuses are returned. Changed snapshots own their arrays; escaped old revision/watch snapshots remain unchanged. Subject residency updates and eviction hooks still run on every successful resolution publication. The remaining 24 B per source in the stable benchmark is source-reader work; the warmed resolver with cached reader results allocates exactly 0 B for 1/4/16 sources in regression tests. Standalone revision-vector construction remains an allocation control, not an optimized operation. The 16-source subject timing does not improve and has a wide interval; subject key recomputation remains a measured candidate.
+
+Eight new semantic cases cover fresh values, all-source reads, changed/nested/removed revisions, nested metadata from missing sources, failover, status changes, and retained watch immutability. Three exact allocation budgets cover stable reads.
+
 ## Remaining audit
 
 These are outstanding, not claims of saturation:
 
-- Resolver: unchanged revision/watch snapshots still allocate per read. Measure stable default and subject reads, cold topology, changed revisions, and nested vectors before attempting reuse. Preserve fresh source reads, failover, immutable escaped snapshots, and subject residency/eviction semantics.
+- Resolver: unchanged revision/watch snapshots now reuse immutable state. Audit changed-revision and cold costs, subject key construction and context equality, and reader allocations. Preserve fresh source reads, failover, immutable escaped snapshots, and subject residency/eviction semantics.
 - JSON: plain schema-bearing object serialization still sorts and checks properties every call. Measure this path separately from generated-fragment serialization; cache only immutable metadata and preserve callbacks, polymorphism, converters, ordering, and all serializer options.
 - Runtime reads, validation, diagnostics, and watch notification: sample disabled, snapshot, history, listener, and telemetry modes; check for internal use of materializing public revision views.
 - Generated fragments: audit merge, collection merge, clone/diff/equality, sparse routing, nested paths, and member lookup against existing benchmarks and tests.
@@ -45,3 +63,4 @@ These are outstanding, not claims of saturation:
 - Sources and codecs: audit environment, command line, JSON/JSONC sections, YAML, XML, MessagePack, and schema metadata decode.
 - Resources and transformers: audit file reads/writes, stream fingerprinting, S3 streaming, Redis identities/reads/writes, AES, compression, mixed transformer pipelines, and large payloads. Separate storage/network/OS-cache variability from managed hot-path costs.
 - Final audit: establish coverage with actual report/test evidence, identify remaining costs as necessary work or unresolved candidates, integrate the verified changes with current main, and rerun relevant checks. Keep the goal active while any candidate or material coverage gap remains.
+`nRound 2 final verification: Release net10.0 passes 1,653 tests, zero failures, 17 external-service skips. Core builds all three target frameworks with zero warnings/errors. Formatting and whitespace checks pass.

@@ -19,7 +19,7 @@ using Configlue.Testing;
 /// <see cref="ResolverStableRepeatBenchmarks219.ConstructRevisionVector"/>;</item>
 /// <item>retained watcher topology/state: the <c>ColdTopologyReadAsync</c> (fresh resolver,
 /// topology rebuilt) minus <c>StableRepeatReadAsync</c> (same resolver, routing unchanged,
-/// immutable topology reused) delta. The single-source stable case needs no heap array for
+/// immutable topology and revision observations reused) delta. The single-source stable case needs no heap array for
 /// its one watch target.</item>
 /// </list>
 /// </summary>
@@ -66,8 +66,8 @@ public class ResolverStableRepeatBenchmarks219
 
     /// <summary>
     /// Repeated reads with unchanged source/context routing. Retained topology is reused;
-    /// per-read retained state is the <c>Resolution</c>, the revision vector, and the compact
-    /// observed-revision state (a single inline revision for one source, an exact-size array
+    /// unchanged revision observations reuse the <c>Resolution</c>, the revision vector, and the compact
+    /// observed-revision state. Changed observations create fresh snapshots (an inline revision for one source, an exact-size array
     /// otherwise). Temporary scratch buffers are pooled and cancel out of comparisons.
     /// </summary>
     [Benchmark]
