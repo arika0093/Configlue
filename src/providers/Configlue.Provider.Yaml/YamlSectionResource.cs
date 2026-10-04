@@ -34,7 +34,8 @@ public sealed class YamlSectionResource
     private readonly string _batchScope;
     private readonly ResourceId? _configuredResourceId;
     private readonly Encoding? _textEncoding;
-    private readonly byte[] _schemaShape;
+    private readonly byte[] _legacySchemaShape;
+    private readonly YamlSchemaShape? _schemaShape;
     private readonly object _sectionCacheGate = new();
     private string? _cachedSectionRevision;
     private ResourceKey _cachedSectionKey;
@@ -84,6 +85,26 @@ public sealed class YamlSectionResource
             schemaShape
         ) { }
 
+    internal YamlSectionResource(
+        IResourceReader reader,
+        IResourceWriter? writer,
+        string sectionPath,
+        ISourceWatcher? watcher,
+        ResourceId? fixedResourceId,
+        Encoding? textEncoding,
+        YamlSchemaShape? schemaShape
+    )
+        : this(
+            reader,
+            writer,
+            ParseSectionPath(sectionPath),
+            watcher,
+            fixedResourceId,
+            textEncoding,
+            [],
+            schemaShape
+        ) { }
+
     private YamlSectionResource(
         IResourceReader reader,
         IResourceWriter? writer,
@@ -91,7 +112,8 @@ public sealed class YamlSectionResource
         ISourceWatcher? watcher,
         ResourceId? fixedResourceId,
         Encoding? textEncoding,
-        byte[] schemaShape
+        byte[] legacySchemaShape,
+        YamlSchemaShape? schemaShape = null
     )
     {
         ArgumentNullException.ThrowIfNull(reader);
@@ -101,6 +123,7 @@ public sealed class YamlSectionResource
         _textEncoding = textEncoding;
         _configuredResourceId = fixedResourceId;
         _path = path;
+        _legacySchemaShape = legacySchemaShape;
         _schemaShape = schemaShape;
         _batchScope = "yaml/" + string.Join("/", _path.Select(Uri.EscapeDataString));
     }
@@ -113,6 +136,15 @@ public sealed class YamlSectionResource
         Encoding? textEncoding,
         byte[] schemaShape
     ) => new(reader, writer, [], watcher, fixedResourceId, textEncoding, schemaShape);
+
+    internal static YamlSectionResource CreateRoot(
+        IResourceReader reader,
+        IResourceWriter? writer,
+        ISourceWatcher? watcher,
+        ResourceId? fixedResourceId,
+        Encoding? textEncoding,
+        YamlSchemaShape? schemaShape
+    ) => new(reader, writer, [], watcher, fixedResourceId, textEncoding, [], schemaShape);
 
     private static string[] ParseSectionPath(string sectionPath)
     {
@@ -432,6 +464,7 @@ public sealed class YamlSectionResource
                 : ReadOnlyMemory<byte>.Empty,
             sectionContent,
             _path,
+            _legacySchemaShape,
             _schemaShape,
             _textEncoding
         );

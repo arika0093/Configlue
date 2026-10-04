@@ -260,7 +260,7 @@ public static class JsonFileSourceRegistration
             var fallbackCondition = options.FallbackConditionOverride ?? options.FallbackCondition;
             var explicitOnly = options.ExplicitOnlyOverride ?? options.ExplicitOnly;
             var serializerOptions = options.SerializerOptionsOverride ?? options.SerializerOptions;
-            var schemaShape = JsoncDocumentEditor.CreateSchemaShape<TFragment>(
+            var schemaShape = JsonSchemaShape.Create<TFragment>(
                 modelSchema,
                 serializerOptions,
                 options.DocumentLayout,

@@ -10,12 +10,18 @@ internal sealed class JsoncDocumentEditor
 {
     private readonly JsoncSyntaxTree _document;
     private readonly JsonSerializerOptions _serializerOptions;
+    private readonly JsonSchemaShape? _schemaShape;
     private readonly List<TextEdit> _edits = [];
 
-    private JsoncDocumentEditor(JsoncSyntaxTree document, JsonSerializerOptions serializerOptions)
+    private JsoncDocumentEditor(
+        JsoncSyntaxTree document,
+        JsonSerializerOptions serializerOptions,
+        JsonSchemaShape? schemaShape = null
+    )
     {
         _document = document;
         _serializerOptions = serializerOptions;
+        _schemaShape = schemaShape;
     }
 
     private byte[] Source => _document.Source;
@@ -25,6 +31,18 @@ internal sealed class JsoncDocumentEditor
         ReadOnlyMemory<byte> updated,
         IReadOnlyList<string> path,
         ReadOnlyMemory<byte> schemaShape,
+        JsonSerializerOptions serializerOptions
+    )
+    {
+        return Update(current, updated, path, schemaShape, null, serializerOptions);
+    }
+
+    internal static byte[] Update(
+        ReadOnlyMemory<byte> current,
+        ReadOnlyMemory<byte> updated,
+        IReadOnlyList<string> path,
+        ReadOnlyMemory<byte> legacySchemaShape,
+        JsonSchemaShape? schemaShape,
         JsonSerializerOptions serializerOptions
     )
     {
@@ -38,17 +56,32 @@ internal sealed class JsoncDocumentEditor
             sourceBytes = current.ToArray();
         }
 
-        var editor = new JsoncDocumentEditor(JsoncSyntaxTree.Parse(sourceBytes), serializerOptions);
+        var editor = new JsoncDocumentEditor(
+            JsoncSyntaxTree.Parse(sourceBytes),
+            serializerOptions,
+            schemaShape
+        );
         var updatedEditor = JsoncSyntaxTree.Parse(updated.ToArray());
-        var shapeEditor = schemaShape.IsEmpty ? null : JsoncSyntaxTree.Parse(schemaShape.ToArray());
+        JsoncValueNode? shapeRoot = null;
+        ConfiglueModelSchema? shapeSchema = null;
+        if (schemaShape is not null)
+        {
+            shapeRoot = schemaShape.RootNode;
+            shapeSchema = schemaShape.RootSchema;
+        }
+        else if (!legacySchemaShape.IsEmpty)
+        {
+            shapeRoot = JsoncSyntaxTree.Parse(legacySchemaShape.ToArray()).Root;
+        }
 
         if (path.Count == 0)
         {
             editor.AddDiff(
                 editor._document.Root,
                 updatedEditor.Root,
-                shapeEditor?.Root,
-                updatedEditor.Source
+                shapeRoot,
+                updatedEditor.Source,
+                shapeSchema
             );
         }
         else
@@ -59,8 +92,9 @@ internal sealed class JsoncDocumentEditor
                 editor.AddDiff(
                     currentSection,
                     updatedEditor.Root,
-                    shapeEditor?.Root,
-                    updatedEditor.Source
+                    shapeRoot,
+                    updatedEditor.Source,
+                    shapeSchema
                 );
             }
             else
@@ -106,7 +140,7 @@ internal sealed class JsoncDocumentEditor
     )
         where TFragment : class, IConfiglueFragment<TFragment>
     {
-        var fragment = CreatePresentFragment(schema);
+        var fragment = CreateShallowPresentFragment(schema);
         if (fragment is not TFragment typedFragment)
         {
             throw new InvalidOperationException(
@@ -162,20 +196,19 @@ internal sealed class JsoncDocumentEditor
         return stream.ToArray();
     }
 
-    private static IConfiglueFragment CreatePresentFragment(ConfiglueModelSchema schema)
+    private static IConfiglueFragment CreateShallowPresentFragment(ConfiglueModelSchema schema)
     {
         var fragment = schema.CreateEmptyFragment();
         foreach (var member in schema.Members)
         {
-            object? value;
-            if (member.NestedSchemaFactory is { } nestedSchemaFactory)
-            {
-                value = CreatePresentFragment(nestedSchemaFactory());
-            }
-            else
-            {
-                value = member.DefaultValueFactory?.Invoke();
-            }
+            // One level only: nested members stay null so recursive schemas never
+            // expand into an infinite present-fragment tree. The codec serializes
+            // the null as a present null property, which still yields the correct
+            // wire name for this level. Deeper levels are resolved lazily from the
+            // actual (finite) document via JsonSchemaShape.
+            object? value = member.NestedSchemaFactory is not null
+                ? null
+                : member.DefaultValueFactory?.Invoke();
 
             fragment = fragment.WithMember(member.Id, value);
         }
@@ -209,7 +242,8 @@ internal sealed class JsoncDocumentEditor
         JsoncValueNode current,
         JsoncValueNode updated,
         JsoncValueNode? shape,
-        byte[] updatedSource
+        byte[] updatedSource,
+        ConfiglueModelSchema? currentSchema = null
     )
     {
         if (current.Kind != updated.Kind)
@@ -221,10 +255,10 @@ internal sealed class JsoncDocumentEditor
         switch (current.Kind)
         {
             case JsonValueKind.Object:
-                AddObjectDiff(current, updated, shape, updatedSource);
+                AddObjectDiff(current, updated, shape, updatedSource, currentSchema);
                 break;
             case JsonValueKind.Array:
-                AddArrayDiff(current, updated, updatedSource);
+                AddArrayDiff(current, updated, updatedSource, currentSchema);
                 break;
             case JsonValueKind.String:
             case JsonValueKind.Number:
@@ -246,7 +280,8 @@ internal sealed class JsoncDocumentEditor
         JsoncValueNode current,
         JsoncValueNode updated,
         JsoncValueNode? shape,
-        byte[] updatedSource
+        byte[] updatedSource,
+        ConfiglueModelSchema? currentSchema = null
     )
     {
         var currentProperties = current.Properties!;
@@ -275,7 +310,20 @@ internal sealed class JsoncDocumentEditor
             var property = currentProperties[index];
             if (!updatedByName.TryGetValue(property.Name, out var updatedProperty))
             {
-                if (shapeByName is null || shapeByName.ContainsKey(property.Name))
+                bool isOwned;
+                if (_schemaShape is null)
+                {
+                    isOwned = shapeByName is null || shapeByName.ContainsKey(property.Name);
+                }
+                else
+                {
+                    // Schema-aware mode: only owned members recorded in the (possibly
+                    // lazily resolved) shape may be removed. Unknown members at any
+                    // depth are retained. A null shape means an unknown subtree.
+                    isOwned = shapeByName is not null && shapeByName.ContainsKey(property.Name);
+                }
+
+                if (isOwned)
                 {
                     AddPropertyRemoval(property);
                 }
@@ -297,7 +345,12 @@ internal sealed class JsoncDocumentEditor
                 shapeValue = shapeProperty.Value;
             }
 
-            AddDiff(property.Value, updatedProperty.Value, shapeValue, updatedSource);
+            var (childShape, childSchema) = ResolveChildShape(
+                property.Name,
+                shapeValue,
+                currentSchema
+            );
+            AddDiff(property.Value, updatedProperty.Value, childShape, updatedSource, childSchema);
         }
 
         var currentNames = currentProperties
@@ -318,14 +371,72 @@ internal sealed class JsoncDocumentEditor
         }
     }
 
-    private void AddArrayDiff(JsoncValueNode current, JsoncValueNode updated, byte[] updatedSource)
+    private (JsoncValueNode? ChildShape, ConfiglueModelSchema? ChildSchema) ResolveChildShape(
+        string wireName,
+        JsoncValueNode? shapeValue,
+        ConfiglueModelSchema? currentSchema
+    )
+    {
+        if (_schemaShape is null || currentSchema is null)
+        {
+            return (shapeValue, null);
+        }
+
+        // The detailed envelope stores the model payload under "$value". That child
+        // keeps the same schema; other envelope/metadata keys have no nested schema.
+        if (
+            string.Equals(wireName, "$value", StringComparison.Ordinal)
+            && ReferenceEquals(currentSchema, _schemaShape.RootSchema)
+            && shapeValue?.Kind == JsonValueKind.Object
+        )
+        {
+            return (shapeValue, currentSchema);
+        }
+
+        if (
+            _schemaShape.TryGetNested(currentSchema, wireName, out var nested) && nested is not null
+        )
+        {
+            if (shapeValue is null || shapeValue.Kind == JsonValueKind.Null)
+            {
+                // Shallow shapes record nested members as null. Fetch exactly one more
+                // level for the finite document subtree. No recursion at shape-creation
+                // time, so recursive schemas cannot overflow the stack. Shared DAG
+                // schemas share one cache entry keyed by schema identity.
+                return (_schemaShape.GetBareRootNode(nested), nested);
+            }
+
+            return (shapeValue, nested);
+        }
+
+        return (shapeValue, null);
+    }
+
+    private void AddArrayDiff(
+        JsoncValueNode current,
+        JsoncValueNode updated,
+        byte[] updatedSource,
+        ConfiglueModelSchema? elementSchema = null
+    )
     {
         var currentItems = current.Items!;
         var updatedItems = updated.Items!;
         var sharedCount = Math.Min(currentItems.Count, updatedItems.Count);
+        JsoncValueNode? elementShape = null;
+        if (elementSchema is not null && _schemaShape is not null)
+        {
+            elementShape = _schemaShape.GetBareRootNode(elementSchema);
+        }
+
         for (var index = 0; index < sharedCount; index++)
         {
-            AddDiff(currentItems[index], updatedItems[index], null, updatedSource);
+            AddDiff(
+                currentItems[index],
+                updatedItems[index],
+                elementShape,
+                updatedSource,
+                elementSchema
+            );
         }
 
         if (updatedItems.Count < currentItems.Count)
@@ -777,5 +888,165 @@ internal sealed class JsoncDocumentEditor
         public int Length { get; } = length;
 
         public byte[] Content { get; } = content;
+    }
+}
+
+internal sealed class JsonSchemaShape
+{
+    private readonly JsonSerializerOptions _bareOptions;
+    private readonly System.Collections.Concurrent.ConcurrentDictionary<
+        string,
+        BareLevel
+    > _bareCache = new(StringComparer.Ordinal);
+
+    private JsonSchemaShape(
+        ConfiglueModelSchema rootSchema,
+        byte[] rootShapeBytes,
+        JsoncValueNode rootNode,
+        JsonSerializerOptions bareOptions
+    )
+    {
+        RootSchema = rootSchema;
+        RootShapeBytes = rootShapeBytes;
+        RootNode = rootNode;
+        _bareOptions = bareOptions;
+    }
+
+    internal ConfiglueModelSchema RootSchema { get; }
+
+    internal byte[] RootShapeBytes { get; }
+
+    internal JsoncValueNode RootNode { get; }
+
+    internal static JsonSchemaShape Create<TFragment>(
+        ConfiglueModelSchema schema,
+        JsonSerializerOptions? serializerOptions,
+        DocumentLayoutOptions? layout,
+        string? schemaReferenceBaseUri
+    )
+        where TFragment : class, IConfiglueFragment<TFragment>
+    {
+        var rootBytes = JsoncDocumentEditor.CreateSchemaShape<TFragment>(
+            schema,
+            serializerOptions,
+            layout,
+            schemaReferenceBaseUri
+        );
+        var rootNode = JsoncSyntaxTree.Parse(rootBytes).Root;
+        var bareOptions = serializerOptions is null
+            ? new JsonSerializerOptions()
+            : new JsonSerializerOptions(serializerOptions);
+        JsonStateCodecOperations.EnsureTypeInfoResolver(bareOptions);
+        return new JsonSchemaShape(schema, rootBytes, rootNode, bareOptions);
+    }
+
+    internal bool TryGetNested(
+        ConfiglueModelSchema parent,
+        string wireName,
+        out ConfiglueModelSchema? nested
+    )
+    {
+        nested = null;
+        var level = GetBareLevel(parent);
+        return level.NestedByWire.TryGetValue(wireName, out nested);
+    }
+
+    internal JsoncValueNode GetBareRootNode(ConfiglueModelSchema schema) =>
+        GetBareLevel(schema).Root;
+
+    private BareLevel GetBareLevel(ConfiglueModelSchema schema) =>
+        _bareCache.GetOrAdd(
+            CacheKey(schema),
+            static (_, state) => CreateBareLevel(state.Options, state.Schema),
+            (Options: _bareOptions, Schema: schema)
+        );
+
+    private static string CacheKey(ConfiglueModelSchema schema) =>
+        string.Concat(
+            schema.Id,
+            "\0",
+            schema.Version,
+            "\0",
+            schema.ModelType.FullName ?? schema.ModelType.Name
+        );
+
+    private static BareLevel CreateBareLevel(
+        JsonSerializerOptions bareOptions,
+        ConfiglueModelSchema schema
+    )
+    {
+        var fragment = CreateShallowFragment(schema);
+        byte[] bytes;
+        using (var stream = new MemoryStream())
+        {
+            using var writer = new Utf8JsonWriter(stream);
+            JsonSerializer.Serialize(writer, fragment, fragment.GetType(), bareOptions);
+            writer.Flush();
+            bytes = stream.ToArray();
+        }
+
+        using var document = JsonDocument.Parse(bytes, JsoncSyntaxTree.DocumentOptions);
+        if (document.RootElement.ValueKind != JsonValueKind.Object)
+        {
+            throw new JsonException("The generated JSON bare shape must be an object.");
+        }
+
+        var wireNames = document.RootElement.EnumerateObject().Select(static p => p.Name).ToArray();
+        if (wireNames.Length != schema.Members.Count)
+        {
+            throw new JsonException(
+                $"The generated JSON bare shape for schema '{schema.Id}' has an unexpected member count."
+            );
+        }
+
+        var nestedByWire = new Dictionary<string, ConfiglueModelSchema>(StringComparer.Ordinal);
+        for (var i = 0; i < schema.Members.Count; i++)
+        {
+            var member = schema.Members[i];
+            if (member.NestedSchemaFactory is { } factory)
+            {
+                ConfiglueModelSchema nested;
+                try
+                {
+                    nested = factory();
+                }
+                catch (Exception exception) when (exception is not StackOverflowException)
+                {
+                    throw new InvalidOperationException(
+                        $"Failed to resolve nested schema for member '{member.Name}' in schema '{schema.Id}'.",
+                        exception
+                    );
+                }
+
+                nestedByWire[wireNames[i]] = nested;
+            }
+        }
+
+        var tree = JsoncSyntaxTree.Parse(bytes);
+        return new BareLevel(tree.Root, nestedByWire);
+    }
+
+    private static IConfiglueFragment CreateShallowFragment(ConfiglueModelSchema schema)
+    {
+        var fragment = schema.CreateEmptyFragment();
+        foreach (var member in schema.Members)
+        {
+            object? value = member.NestedSchemaFactory is not null
+                ? null
+                : member.DefaultValueFactory?.Invoke();
+            fragment = fragment.WithMember(member.Id, value);
+        }
+
+        return fragment;
+    }
+
+    private sealed class BareLevel(
+        JsoncValueNode root,
+        Dictionary<string, ConfiglueModelSchema> nestedByWire
+    )
+    {
+        public JsoncValueNode Root { get; } = root;
+
+        public Dictionary<string, ConfiglueModelSchema> NestedByWire { get; } = nestedByWire;
     }
 }

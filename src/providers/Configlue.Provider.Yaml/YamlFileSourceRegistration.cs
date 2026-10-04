@@ -132,7 +132,7 @@ public static class YamlFileSourceRegistration
                 resource = transformed;
                 writer = options.ReadOnly ? null : transformed.Writer;
             }
-            var schemaShape = YamlDocumentEditor.CreateSchemaShape(
+            var schemaShape = YamlSchemaShape.Create(
                 modelSchema,
                 options.PropertyNamingPolicy,
                 options.SerializerOptions,
