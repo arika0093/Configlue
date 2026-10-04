@@ -27,14 +27,28 @@ public sealed record JsonFileSourceSelector
             canonicalPath = canonicalPath.ToUpperInvariant();
         }
 
-        canonicalPath = canonicalPath.Normalize(NormalizationForm.FormKC);
-        var canonicalSection =
-            sectionPath?.Trim().Normalize(NormalizationForm.FormKC) ?? string.Empty;
-        var canonicalMount = mountPath?.Trim().Normalize(NormalizationForm.FormKC) ?? string.Empty;
+        var canonicalSection = CanonicalizeSectionPath(sectionPath);
+        var canonicalMount = mountPath?.Trim() ?? string.Empty;
         var identity =
             $"configlue-json-file-v1\n{canonicalPath}\n{canonicalSection}\n{canonicalMount}";
         var hash = System.Security.Cryptography.SHA256.HashData(Encoding.UTF8.GetBytes(identity));
         return $"json-file:{Convert.ToHexString(hash).ToLowerInvariant()}";
+    }
+
+    private static string CanonicalizeSectionPath(string? sectionPath)
+    {
+        if (sectionPath is null)
+        {
+            return string.Empty;
+        }
+
+        var segments = sectionPath
+            .Replace("__", ":")
+            .Split([':'], StringSplitOptions.RemoveEmptyEntries)
+            .Select(static segment => segment.Trim())
+            .Where(static segment => segment.Length > 0)
+            .ToArray();
+        return segments.Length == 0 ? sectionPath.Trim() : string.Join(":", segments);
     }
 }
 

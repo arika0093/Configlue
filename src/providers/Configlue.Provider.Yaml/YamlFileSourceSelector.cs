@@ -22,12 +22,26 @@ public sealed record YamlFileSourceSelector
             canonicalPath = canonicalPath.ToUpperInvariant();
         }
 
-        canonicalPath = canonicalPath.Normalize(NormalizationForm.FormKC);
-        var canonicalSection =
-            sectionPath?.Trim().Normalize(NormalizationForm.FormKC) ?? string.Empty;
+        var canonicalSection = CanonicalizeSectionPath(sectionPath);
         var identity = $"configlue-yaml-file-v1\n{canonicalPath}\n{canonicalSection}";
         var hash = System.Security.Cryptography.SHA256.HashData(Encoding.UTF8.GetBytes(identity));
         return $"yaml-file:{Convert.ToHexString(hash).ToLowerInvariant()}";
+    }
+
+    private static string CanonicalizeSectionPath(string? sectionPath)
+    {
+        if (sectionPath is null)
+        {
+            return string.Empty;
+        }
+
+        var segments = sectionPath
+            .Replace("__", ":")
+            .Split([':'], StringSplitOptions.RemoveEmptyEntries)
+            .Select(static segment => segment.Trim())
+            .Where(static segment => segment.Length > 0)
+            .ToArray();
+        return segments.Length == 0 ? sectionPath.Trim() : string.Join(":", segments);
     }
 }
 
