@@ -86,6 +86,7 @@
     <ProjectReference Include="../../src/sources/Configlue.Source.Consul/Configlue.Source.Consul.csproj" />
     <ProjectReference Include="../../src/resources/Configlue.Resource.Redis/Configlue.Resource.Redis.csproj" />
     <ProjectReference Include="../../src/resources/Configlue.Resource.Vault/Configlue.Resource.Vault.csproj" />
+    <ProjectReference Include="../../src/resources/Configlue.Resource.AzureAppConfiguration/Configlue.Resource.AzureAppConfiguration.csproj" />
     <ProjectReference Include="../../src/basic/Configlue.Testing/Configlue.Testing.csproj" />
   </ItemGroup>
   <ItemGroup Condition="'$(TargetFramework)' == 'net10.0'">
