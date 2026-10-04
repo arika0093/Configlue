@@ -10,7 +10,8 @@ internal static class SparseJsonNaming
     public const int JsonIgnoreNever = 0;
     public const int JsonIgnoreAlways = 1;
 
-    public const string JsonPropertyNameAttribute = "System.Text.Json.Serialization.JsonPropertyNameAttribute";
+    public const string JsonPropertyNameAttribute =
+        "System.Text.Json.Serialization.JsonPropertyNameAttribute";
     public const string JsonIgnoreAttribute = "System.Text.Json.Serialization.JsonIgnoreAttribute";
 
     public static string GetJsonPropertyName(
@@ -36,7 +37,10 @@ internal static class SparseJsonNaming
         return property.Name;
     }
 
-    public static int GetJsonIgnoreCondition(IPropertySymbol property, CancellationToken cancellationToken)
+    public static int GetJsonIgnoreCondition(
+        IPropertySymbol property,
+        CancellationToken cancellationToken
+    )
     {
         foreach (var attribute in property.GetAttributes())
         {

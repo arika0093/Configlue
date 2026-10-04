@@ -15,9 +15,19 @@ internal static class SparseNaming
     public const int CustomMergeMode = 4;
 
     public static bool IsCoreGeneratedName(string name) =>
-        name is "Fragment" or "FragmentBuilder" or "Empty" or "IsEmpty" or "Merge"
-            or "ApplyChanges" or "Diff" or "DeepClone" or "From" or "ToModel"
-            or "ToBuilder" or "Build"
+        name
+            is "Fragment"
+                or "FragmentBuilder"
+                or "Empty"
+                or "IsEmpty"
+                or "Merge"
+                or "ApplyChanges"
+                or "Diff"
+                or "DeepClone"
+                or "From"
+                or "ToModel"
+                or "ToBuilder"
+                or "Build"
         || name.StartsWith("__", System.StringComparison.Ordinal);
 
     public static readonly SymbolDisplayFormat TypeFormat =

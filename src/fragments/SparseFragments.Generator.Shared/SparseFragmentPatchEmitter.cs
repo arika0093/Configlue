@@ -152,24 +152,62 @@ internal static class SparseFragmentPatchEmitter
     {
         var operation = Operation(dialect);
         var kind = Kind(dialect);
-        code.AppendLineAt(2, "private " + operation + "<Fragment?> " + dialect.WholeFieldName + ";");
         code.AppendLineAt(
             2,
-            "private bool " + dialect.MembersEmptyName + " => " + MembersEmptyExpression(members, dialect) + ";"
+            "private " + operation + "<Fragment?> " + dialect.WholeFieldName + ";"
         );
         code.AppendLineAt(
             2,
-            "bool " + emptyContract + ".IsEmpty => " + dialect.WholeFieldName + ".Kind == " + kind + ".Unchanged && " + dialect.MembersEmptyName + ";"
+            "private bool "
+                + dialect.MembersEmptyName
+                + " => "
+                + MembersEmptyExpression(members, dialect)
+                + ";"
         );
         code.AppendLineAt(
             2,
-            "void " + contract + ".Set(" + modelType + " value) => " + dialect.WholeFieldName + " = " + operation + "<Fragment?>.Set(Fragment.From(value));"
+            "bool "
+                + emptyContract
+                + ".IsEmpty => "
+                + dialect.WholeFieldName
+                + ".Kind == "
+                + kind
+                + ".Unchanged && "
+                + dialect.MembersEmptyName
+                + ";"
         );
         code.AppendLineAt(
             2,
-            "void " + contract + ".SetNull() => " + dialect.WholeFieldName + " = " + operation + "<Fragment?>.Set(null);"
+            "void "
+                + contract
+                + ".Set("
+                + modelType
+                + " value) => "
+                + dialect.WholeFieldName
+                + " = "
+                + operation
+                + "<Fragment?>.Set(Fragment.From(value));"
         );
-        code.AppendLineAt(2, "void " + contract + ".Unset() => " + dialect.WholeFieldName + " = " + operation + "<Fragment?>.Unset;");
+        code.AppendLineAt(
+            2,
+            "void "
+                + contract
+                + ".SetNull() => "
+                + dialect.WholeFieldName
+                + " = "
+                + operation
+                + "<Fragment?>.Set(null);"
+        );
+        code.AppendLineAt(
+            2,
+            "void "
+                + contract
+                + ".Unset() => "
+                + dialect.WholeFieldName
+                + " = "
+                + operation
+                + "<Fragment?>.Unset;"
+        );
         foreach (var method in new[] { "Set", "SetNull", "Unset", "IsEmpty" })
         {
             if (members.Any(member => member.Property.Name == method))
@@ -179,13 +217,27 @@ internal static class SparseFragmentPatchEmitter
             var declaration =
                 method == "IsEmpty"
                     ? "public bool IsEmpty => ((" + emptyContract + ")this).IsEmpty;"
-                    : "public void " + method + "(" + parameter + ") => ((" + contract + ")this)." + method + "(" + argument + ");";
+                    : "public void "
+                        + method
+                        + "("
+                        + parameter
+                        + ") => (("
+                        + contract
+                        + ")this)."
+                        + method
+                        + "("
+                        + argument
+                        + ");";
             code.AppendLineAt(2, declaration);
         }
 
         code.AppendLineAt(
             2,
-            "public static implicit operator Patch(" + operation + "<Fragment?> operation) => new Patch { " + dialect.WholeFieldName + " = operation };"
+            "public static implicit operator Patch("
+                + operation
+                + "<Fragment?> operation) => new Patch { "
+                + dialect.WholeFieldName
+                + " = operation };"
         );
     }
 
@@ -200,7 +252,10 @@ internal static class SparseFragmentPatchEmitter
         code.AppendLineAt(2, "public Patch() { }");
         code.AppendLineAt(2, "public Patch(Fragment fragment)");
         code.AppendLineAt(2, "{");
-        code.AppendLineAt(3, "if (fragment is null) throw new global::System.ArgumentNullException(nameof(fragment));");
+        code.AppendLineAt(
+            3,
+            "if (fragment is null) throw new global::System.ArgumentNullException(nameof(fragment));"
+        );
         foreach (var member in members)
         {
             var name = SparseNaming.EscapeIdentifier(member.Property.Name);
@@ -208,7 +263,16 @@ internal static class SparseFragmentPatchEmitter
             if (member.ChildModel is null)
                 code.AppendLineAt(
                     3,
-                    field + " = fragment." + name + ".IsPresent ? " + operation + "<" + ValueType(member) + ">.Set(fragment." + name + ".Value) : default;"
+                    field
+                        + " = fragment."
+                        + name
+                        + ".IsPresent ? "
+                        + operation
+                        + "<"
+                        + ValueType(member)
+                        + ">.Set(fragment."
+                        + name
+                        + ".Value) : default;"
                 );
             else
             {
@@ -216,11 +280,26 @@ internal static class SparseFragmentPatchEmitter
                 code.AppendLineAt(3, "{");
                 code.AppendLineAt(
                     4,
-                    field + " = fragment." + name + ".Value is null ? new " + ChildPatch(member) + "() : new " + ChildPatch(member) + "(fragment." + name + ".Value);"
+                    field
+                        + " = fragment."
+                        + name
+                        + ".Value is null ? new "
+                        + ChildPatch(member)
+                        + "() : new "
+                        + ChildPatch(member)
+                        + "(fragment."
+                        + name
+                        + ".Value);"
                 );
                 code.AppendLineAt(
                     4,
-                    "if (fragment." + name + ".Value is null) ((" + dialect.NestedContract(member) + ")" + field + ").SetNull();"
+                    "if (fragment."
+                        + name
+                        + ".Value is null) (("
+                        + dialect.NestedContract(member)
+                        + ")"
+                        + field
+                        + ").SetNull();"
                 );
                 code.AppendLineAt(3, "}");
             }
@@ -249,12 +328,32 @@ internal static class SparseFragmentPatchEmitter
             else if (dialect.CastNestedApply)
             {
                 expression =
-                    field + " is null ? current." + name + " : ((" + dialect.NestedContract(member) + ")" + field + ")." + dialect.NestedApplyMethod + "(current." + name + ")";
+                    field
+                    + " is null ? current."
+                    + name
+                    + " : (("
+                    + dialect.NestedContract(member)
+                    + ")"
+                    + field
+                    + ")."
+                    + dialect.NestedApplyMethod
+                    + "(current."
+                    + name
+                    + ")";
             }
             else
             {
                 expression =
-                    field + " is null ? current." + name + " : " + field + "." + dialect.NestedApplyMethod + "(current." + name + ")";
+                    field
+                    + " is null ? current."
+                    + name
+                    + " : "
+                    + field
+                    + "."
+                    + dialect.NestedApplyMethod
+                    + "(current."
+                    + name
+                    + ")";
             }
             code.AppendLineAt(3, name + " = " + expression + ",");
         }
@@ -274,7 +373,10 @@ internal static class SparseFragmentPatchEmitter
         code.AppendLineAt(2, "{");
         code.AppendLineAt(3, "current = " + dialect.WholeFieldName + ".Apply(current);");
         code.AppendLineAt(3, "if (" + dialect.MembersEmptyName + ") return current;");
-        code.AppendLineAt(3, "var basis = current.IsPresent && current.Value is not null ? current.Value : new Fragment();");
+        code.AppendLineAt(
+            3,
+            "var basis = current.IsPresent && current.Value is not null ? current.Value : new Fragment();"
+        );
         code.AppendLineAt(3, "return " + optional + ".Present(ApplyMembers(basis));");
         code.AppendLineAt(2, "}");
     }

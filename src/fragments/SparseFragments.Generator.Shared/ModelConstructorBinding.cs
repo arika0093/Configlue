@@ -31,7 +31,8 @@ internal sealed record ModelConstructorBinding(
 
     public override int GetHashCode()
     {
-        var hash = (SetsRequiredMembers ? 1 : 0) + (IsImplicitParameterlessClassConstructor ? 2 : 0);
+        var hash =
+            (SetsRequiredMembers ? 1 : 0) + (IsImplicitParameterlessClassConstructor ? 2 : 0);
         foreach (var parameter in Parameters)
             hash = unchecked(hash * 31 + parameter.GetHashCode());
         return hash;
@@ -81,7 +82,11 @@ internal sealed record ModelConstructorBinding(
             if (constructorParameters.IsEmpty)
             {
                 if (model.TypeKind == TypeKind.Class && constructor.IsImplicitlyDeclared)
-                    return new(ImmutableArray<ConstructorParameterBinding>.Empty, setsRequiredMembers, true);
+                    return new(
+                        ImmutableArray<ConstructorParameterBinding>.Empty,
+                        setsRequiredMembers,
+                        true
+                    );
                 return setsRequiredMembers
                     ? new(ImmutableArray<ConstructorParameterBinding>.Empty, true)
                     : Parameterless;

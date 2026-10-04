@@ -1064,7 +1064,9 @@ internal sealed class SparseFragmentCoreEmitter(
     private static string FromMemberPath(SparseMemberModel member)
     {
         var escaped = member.Property.Name.Replace("\\", "\\\\").Replace("\"", "\\\"");
-        return "(__sparse_from_path.Length == 0 ? \"" + escaped + "\" : __sparse_from_path + \"."
+        return "(__sparse_from_path.Length == 0 ? \""
+            + escaped
+            + "\" : __sparse_from_path + \"."
             + escaped
             + "\")";
     }
@@ -1072,7 +1074,9 @@ internal sealed class SparseFragmentCoreEmitter(
     private static string DiffMemberPath(SparseMemberModel member)
     {
         var escaped = member.Property.Name.Replace("\\", "\\\\").Replace("\"", "\\\"");
-        return "(__sparse_diff_path.Length == 0 ? \"" + escaped + "\" : __sparse_diff_path + \"."
+        return "(__sparse_diff_path.Length == 0 ? \""
+            + escaped
+            + "\" : __sparse_diff_path + \"."
             + escaped
             + "\")";
     }
@@ -1506,9 +1510,7 @@ internal sealed class SparseFragmentCoreEmitter(
             code.AppendIndent(3)
                 .Append("var difference = ")
                 .Append(fragment)
-                .AppendLine(
-                    ".Diff(before, after, __sparse_diff_context, __sparse_diff_path);"
-                );
+                .AppendLine(".Diff(before, after, __sparse_diff_context, __sparse_diff_path);");
             code.AppendIndent(3)
                 .Append("return difference.IsEmpty ? default : ")
                 .Append(Optional)
@@ -1535,14 +1537,8 @@ internal sealed class SparseFragmentCoreEmitter(
             AppendNullGuard(code, 3, "after");
         }
 
-        code.AppendLineAt(
-            3,
-            "var __sparse_diff_context = new " + diffContextType + "();"
-        );
-        code.AppendLineAt(
-            3,
-            "return Diff(before, after, __sparse_diff_context, \"\");"
-        );
+        code.AppendLineAt(3, "var __sparse_diff_context = new " + diffContextType + "();");
+        code.AppendLineAt(3, "return Diff(before, after, __sparse_diff_context, \"\");");
         code.AppendLineAt(2, "}");
         code.AppendLine();
         code.AppendIndent(2)
@@ -1567,7 +1563,10 @@ internal sealed class SparseFragmentCoreEmitter(
                 "for (var __sparse_diff_index = 0; __sparse_diff_index < __sparse_diff_context.Count; __sparse_diff_index++)"
             );
             code.AppendLineAt(3, "{");
-            code.AppendLineAt(4, "var __sparse_diff_pair = __sparse_diff_context[__sparse_diff_index];");
+            code.AppendLineAt(
+                4,
+                "var __sparse_diff_pair = __sparse_diff_context[__sparse_diff_index];"
+            );
             code.AppendLineAt(
                 4,
                 "if (global::System.Object.ReferenceEquals(__sparse_diff_pair.Key, (object)before) && global::System.Object.ReferenceEquals(__sparse_diff_pair.Value, (object)after))"
@@ -1634,7 +1633,11 @@ internal sealed class SparseFragmentCoreEmitter(
                     $"__Diff_{member.Id}({before}, {after}, __sparse_diff_context, {DiffMemberPath(member)})";
             }
 
-            code.AppendIndent(indent + 1).Append(name).Append(" = ").Append(condition).AppendLine(",");
+            code.AppendIndent(indent + 1)
+                .Append(name)
+                .Append(" = ")
+                .Append(condition)
+                .AppendLine(",");
         }
 
         code.AppendLineAt(indent, "};");
