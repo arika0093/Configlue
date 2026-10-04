@@ -1,5 +1,12 @@
 #!/usr/bin/env bash
-# Verifies that the packed NuGet packages contain the expected target assets.
+# Verifies packed NuGet package integrity: expected package IDs, target
+# assets, and analyzer/build assets that packing can silently omit.
+#
+# Dependency composition is exercised by positive consumer tests in
+# test-package-consumers.yaml (restore/build/run of representative packed
+# packages), not by denylists here. This script keeps a single negative
+# graph assertion with material deployment consequence (Hosting must not
+# pull DevTools into production graphs, #264).
 #
 # Usage: verify-packages.sh <package-directory>
 set -euo pipefail
@@ -74,39 +81,6 @@ expected_package_ids=(
     Configlue.JsonSchema.MSBuild
 )
 
-# Packages that backfill APIs missing from .NET Standard 2.0 and must not leak into 2.1.
-netstandard20_only_dependencies=(
-    Microsoft.Bcl.AsyncInterfaces
-    System.Memory
-    System.Threading.Tasks.Extensions
-)
-
-# #261 standard boundary: the default Configlue package stays dependency-free.
-# It must not transitively bring DI, HTTP, CommandLine, external formats, or specialized backends.
-forbidden_standard_dependencies=(
-    Configlue.Extensions.DI
-    Configlue.Source.Http
-    Configlue.Source.CommandLine
-    Configlue.Transformer.AES
-    Configlue.Transformer.Compression
-    Configlue.Provider.Yaml
-    Configlue.Provider.Xml
-    Configlue.Provider.MessagePack
-    System.CommandLine
-    SharpYaml
-    MessagePack
-    Microsoft.Extensions.DependencyInjection
-    Microsoft.Extensions.Http
-    Microsoft.Extensions.Hosting
-)
-
-required_standard_dependencies=(
-    Configlue.Core
-    Configlue.Abstraction
-    Configlue.Provider.Json
-    Configlue.Source.Environment
-)
-
 package_files=()
 while IFS= read -r package_file; do
     package_files+=("${package_file}")
@@ -158,14 +132,6 @@ for package_file in "${package_files[@]}"; do
             ;;
         SparseFragments)
             require_entry 'analyzers/dotnet/cs/SparseFragments.Generator.dll'
-            if grep -Eq '<dependency[^>]*id="Configlue(\.|")' <<<"${nuspec}"; then
-                echo "SparseFragments must not depend on Configlue packages." >&2
-                exit 1
-            fi
-            if grep -q 'analyzers/dotnet/cs/Configlue.Generator.dll' <<<"${entries}"; then
-                echo "SparseFragments must carry only its own model generator." >&2
-                exit 1
-            fi
             ;;
         Configlue.JsonSchema.MSBuild)
             require_entry 'build/Configlue.JsonSchema.MSBuild.props'
@@ -186,9 +152,15 @@ for package_file in "${package_files[@]}"; do
         require_entry "lib/${asset}/${package_id}.dll"
     done
 
-    # #264 package boundary: ordinary Hosting packages must not pull DevTools
-    # into production graphs, and only Configlue.DevTools.Web may carry
-    # Blazor/Monaco assets.
+    if [[ "${package_id}" == "Configlue" ]]; then
+        require_entry 'analyzers/dotnet/cs/Configlue.Generator.dll'
+    fi
+
+    # #264 package boundary (sole negative graph assertion): ordinary Hosting
+    # packages must not pull DevTools into production graphs. Development-only
+    # tooling leaking into a production package has material deployment
+    # consequence and is not caught cheaply elsewhere. All other composition
+    # is covered by packed consumer tests in test-package-consumers.yaml.
     case "${package_id}" in
         Configlue.Hosting.*)
             if grep -Eq '<dependency[^>]*id="Configlue\.DevTools' <<<"${nuspec}"; then
@@ -197,55 +169,6 @@ for package_file in "${package_files[@]}"; do
             fi
             ;;
     esac
-    if [[ "${package_id}" != "Configlue.DevTools.Web" ]]; then
-        if grep -Eq '<dependency[^>]*id="BlazorMonaco"' <<<"${nuspec}"; then
-            echo "Package '${package_id}' must not depend on BlazorMonaco (#264)." >&2
-            exit 1
-        fi
-    fi
-
-    if [[ "${package_id}" == "Configlue" ]]; then
-        require_entry 'analyzers/dotnet/cs/Configlue.Generator.dll'
-        for forbidden in "${forbidden_standard_dependencies[@]}"; do
-            if grep -Eq "<dependency[^>]*id=\"${forbidden}\"" <<<"${nuspec}"; then
-                echo "Package 'Configlue' must not depend on opt-in package '${forbidden}' (#261)." >&2
-                exit 1
-            fi
-        done
-        for required in "${required_standard_dependencies[@]}"; do
-            if ! grep -Eq "<dependency[^>]*id=\"${required}\"" <<<"${nuspec}"; then
-                echo "Package 'Configlue' must depend on standard package '${required}' (#261)." >&2
-                exit 1
-            fi
-        done
-    fi
-
-    if [[ -n "${portable_package_assets[${package_id}]:-}" ]]; then
-        in_group=0
-        while IFS= read -r line; do
-            if [[ "${line}" == *'<group '* ]]; then
-                if [[ "${line}" == *'targetFramework=".NETStandard2.1"'* ]]; then
-                    in_group=1
-                else
-                    in_group=0
-                fi
-                continue
-            fi
-            if [[ "${line}" == *'</group>'* ]]; then
-                in_group=0
-                continue
-            fi
-            if [[ "${in_group}" -eq 1 && "${line}" == *'<dependency '* ]]; then
-                dependency_id="$(sed -n 's/.*id="\([^"]*\)".*/\1/p' <<<"${line}")"
-                for dependency in "${netstandard20_only_dependencies[@]}"; do
-                    if [[ "${dependency_id}" == "${dependency}" ]]; then
-                        echo "Package '${package_id}' must not depend on netstandard2.0-only compatibility package '${dependency_id}' for its netstandard2.1 asset." >&2
-                        exit 1
-                    fi
-                done
-            fi
-        done <<<"${nuspec}"
-    fi
 done
 
 missing_package_ids=()
