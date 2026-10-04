@@ -1,0 +1,26 @@
+name: Build and test
+
+# Tier 1 / PR fast gate aggregator (#273). A normal pull request runs only
+# this workflow (single-OS unit suite via test.yaml) plus the narrowly
+# path-filtered checks whose areas changed (integration backends, Unity,
+# Godot, packed consumers, DevTools browser). The full verification matrix
+# — test-strict.yaml (3-OS, coverage, Windows hosts, nested Godot/NativeAOT),
+# release.yaml gates, and the scheduled stress workflow — runs on main,
+# release, or schedule instead of every PR.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quick-tests:
+    uses: ./.github/workflows/test.yaml

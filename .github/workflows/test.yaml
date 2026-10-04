@@ -1,22 +1,35 @@
-name: Strict tests
+name: Quick tests
+
+# CI tiers (#273):
+# - Tier 1 / PR fast gate: this workflow. Single primary OS (ubuntu-latest)
+#   runs the full unit suite once; the multi-OS matrix, observational
+#   coverage, integration, native-host and stress checks live in Tier 2/3.
+# - Tier 2 / main + release gate: test-strict.yaml (3-OS matrix, coverage,
+#   Windows host tests, nested Godot/NativeAOT) plus integration, Unity,
+#   Godot and packed-consumer workflows, all wired into release.yaml.
+# - Tier 3 / scheduled + manual: test-stress.yaml (weekly schedule) and
+#   workflow_dispatch entry points.
 
 on:
   workflow_call:
   push:
     branches: [main]
+  pull_request:
   workflow_dispatch:
 
 permissions:
   contents: read
 
+concurrency:
+  group: ${{ github.workflow }}-quick-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  build-and-test:
+  quick-test:
     timeout-minutes: 30
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
-    runs-on: ${{ matrix.os }}
+    # Single primary OS for the PR fast gate. The full three-OS matrix runs
+    # in the Tier 2 main/release gate (test-strict.yaml on main + release).
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
         uses: actions/checkout@v7
@@ -38,104 +51,28 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-nuget-
 
-      - name: Restore .NET tools
-        if: matrix.os == 'ubuntu-latest'
-        run: dotnet tool restore
-
       - name: Restore dependencies
         run: dotnet restore Configlue.slnx
 
       - name: Build
         run: dotnet build Configlue.slnx --no-restore --configuration Release
 
+      # Integration tests (Redis/PostgreSQL/S3) self-skip without their
+      # opt-in environment variables, so this stays a fast unit-only run.
       - name: Run tests
         run: >
           dotnet test --solution Configlue.slnx --no-build --no-restore
           --configuration Release --framework net10.0
           -- --timeout 5m --report-trx --results-directory TestResults --no-progress
 
-      - name: Collect code coverage (observation)
-        if: matrix.os == 'ubuntu-latest'
-        run: >
-          dotnet test tests/Configlue.Tests/Configlue.Tests.csproj
-          --no-build --no-restore --configuration Release --framework net10.0
-          -- --timeout 5m --coverage --coverage-settings tests/coverage.config
-          --coverage-output coverage.cobertura.xml --coverage-output-format cobertura
-          --results-directory TestResults/coverage --no-progress
-
-      - name: Upload coverage report
-        if: matrix.os == 'ubuntu-latest' && !cancelled()
-        uses: actions/upload-artifact@v7
-        with:
-          name: coverage-report
-          path: TestResults/coverage/**
-          if-no-files-found: ignore
-          retention-days: 7
-
       - name: Upload failure test artifacts
         if: failure() || cancelled()
         uses: actions/upload-artifact@v7
         with:
-          name: strict-test-results-${{ matrix.os }}
+          name: quick-test-results-ubuntu
           path: |
             TestResults/**/*.trx
             TestResults/**/*.xml
             tests/**/TestResults/**/*.trx
           if-no-files-found: ignore
           retention-days: 7
-
-      - name: Build .NET Framework consumption smoke
-        if: matrix.os == 'windows-latest'
-        # net48 is a compile-consumption target, not a runtime re-execution target
-        # (see docs/compat-matrix.md). Build the Portable smoke — the generator still
-        # executes at compile time, so generation failures fail the build. Runtime
-        # coverage stays on net10.0; legacy-consumer builds additionally run in
-        # test-package-consumers.yaml (netstandard2.0/net48).
-        run: >
-          dotnet build tests/Configlue.Tests/Configlue.Tests.csproj
-          --framework net48 --configuration Release
-
-      - name: Build Windows host integrations
-        if: matrix.os == 'windows-latest'
-        run: >
-          dotnet build Configlue.Hosting.Windows.slnx --configuration Release
-          -p:ShouldUnsetParentConfigurationAndPlatform=false
-
-      - name: Run WPF and Windows Forms native UI tests
-        if: matrix.os == 'windows-latest'
-        run: >
-          dotnet run --project tests/Configlue.Hosting.Desktop.Tests
-          --no-build --no-restore --configuration Release
-          -- --timeout 5m --report-trx --no-progress
-
-      - name: Run WinUI native queue tests
-        if: matrix.os == 'windows-latest'
-        run: >
-          dotnet run --project tests/Configlue.Hosting.WinUI.Tests
-          --no-build --no-restore --configuration Release
-          -- --timeout 5m --report-trx --no-progress
-
-      - name: Pack NuGet packages
-        run: >
-          dotnet pack Configlue.slnx --no-build --no-restore
-          --configuration Release --output artifacts
-
-      - name: Run native MAUI Windows smoke tests
-        if: matrix.os == 'windows-latest'
-        run: >
-          dotnet run --project tests/Configlue.Hosting.Maui.Windows.Tests
-          --no-build --no-restore --configuration Release
-          -- --timeout 5m --report-trx --no-progress
-
-      - name: Verify packed target assets
-        if: matrix.os == 'ubuntu-latest'
-        run: bash ./.github/workflows/scripts/verify-packages.sh artifacts
-
-      - name: Pack Windows host integrations
-        if: matrix.os == 'windows-latest'
-        run: >
-          dotnet pack Configlue.Hosting.Windows.slnx --no-build --no-restore
-          --configuration Release --output artifacts
-
-  native-godot:
-    uses: ./.github/workflows/test-godot-smoke.yaml
