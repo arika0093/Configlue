@@ -66,19 +66,9 @@ public sealed class JsonFileSourceOptions
 
     internal string? SectionPathOverride { get; set; }
 
-    internal int? PriorityOverride { get; set; }
-
-    internal StateFallbackCondition? FallbackConditionOverride { get; set; }
-
-    internal bool? ReadOnlyOverride { get; set; }
-
     internal bool? WatchChangesOverride { get; set; }
 
     internal JsonSerializerOptions? SerializerOptionsOverride { get; set; }
-
-    internal bool? ExplicitOnlyOverride { get; set; }
-
-    internal string? IdOverride { get; set; }
 }
 
 /// <summary>Registers facade sources backed by JSON files.</summary>
@@ -94,8 +84,8 @@ public static class JsonFileSourceRegistration
         ArgumentNullException.ThrowIfNull(sources);
         ArgumentException.ThrowIfNullOrWhiteSpace(path);
         var options = new JsonFileSourceOptions { Path = path };
-        sources.FromJsonFile(options);
-        return new JsonFileRegistration<TModel>(options, sources);
+        var registration = sources.FromJsonFile(options);
+        return new JsonFileRegistration<TModel>(options, sources, registration);
     }
 
     /// <summary>Registers the default JSON settings file beside the application executable.</summary>
@@ -253,12 +243,9 @@ public static class JsonFileSourceRegistration
             );
             ownResource(file);
 
-            var readOnly = options.ReadOnlyOverride ?? options.ReadOnly;
+            var readOnly = options.ReadOnly;
             var watchChanges = options.WatchChangesOverride ?? options.WatchChanges;
             var sectionPath = options.SectionPathOverride ?? options.SectionPath;
-            var priority = options.PriorityOverride ?? options.Priority;
-            var fallbackCondition = options.FallbackConditionOverride ?? options.FallbackCondition;
-            var explicitOnly = options.ExplicitOnlyOverride ?? options.ExplicitOnly;
             var serializerOptions = options.SerializerOptionsOverride ?? options.SerializerOptions;
             var schemaShape = JsonSchemaShape.Create<TFragment>(
                 modelSchema,
@@ -307,26 +294,15 @@ public static class JsonFileSourceRegistration
                 writer: sourceWriter,
                 watcher: resourceWatcher
             );
-            var fixedResourceId = options.FixedResourceId;
-            var sourceId =
-                options.IdOverride
-                ?? options.Id
-                ?? JsonFileSourceSelector.CreateSourceId(
-                    options.Path,
-                    sectionPath,
-                    options.MountPath
-                );
-            return new StateSource<TFragment>(
-                sourceId,
+            return ConfiglueSourceCompletion.WithDerivedIdentity(
                 serialized,
-                new StateSourceOptions<TFragment>
-                {
-                    Priority = priority,
-                    FallbackCondition = fallbackCondition,
-                    PhysicalOrigin = file.Path,
-                    FixedResourceId = fixedResourceId,
-                    ExplicitOnly = explicitOnly,
-                }
+                options.Id,
+                JsonFileSourceSelector.CreateSourceId(options.Path, sectionPath, options.MountPath),
+                options.Priority,
+                options.FallbackCondition,
+                file.Path,
+                options.FixedResourceId,
+                options.ExplicitOnly
             );
         }
 
@@ -386,22 +362,23 @@ public sealed class JsonFileRegistration<TModel>
 {
     private readonly JsonFileSourceOptions _options;
     private readonly ConfiglueSourceSetBuilder<TModel> _sources;
+    private readonly ConfiglueSourceRegistration _registration;
 
     internal JsonFileRegistration(
         JsonFileSourceOptions options,
-        ConfiglueSourceSetBuilder<TModel> sources
+        ConfiglueSourceSetBuilder<TModel> sources,
+        ConfiglueSourceRegistration registration
     )
     {
         _options = options;
         _sources = sources;
+        _registration = registration;
     }
 
     /// <summary>Assigns a stable application-defined logical source name.</summary>
     public JsonFileRegistration<TModel> Named(string name)
     {
-        EnsureMutable();
-        ArgumentException.ThrowIfNullOrWhiteSpace(name);
-        _options.IdOverride = name;
+        _registration.Named(name);
         return this;
     }
 
@@ -436,37 +413,21 @@ public sealed class JsonFileRegistration<TModel>
     /// <summary>Sets the read priority for this file source.</summary>
     public JsonFileRegistration<TModel> Priority(int priority)
     {
-        EnsureMutable();
-        _options.PriorityOverride = priority;
+        _registration.Priority(priority);
         return this;
     }
 
     /// <summary>Sets which read statuses allow resolution to fall back to lower-priority sources.</summary>
     public JsonFileRegistration<TModel> FallbackWhen(StateFallbackCondition condition)
     {
-        EnsureMutable();
-        if (
-            (
-                condition
-                & ~(
-                    StateFallbackCondition.NotFoundOrUnavailable
-                    | StateFallbackCondition.InvalidPayload
-                )
-            ) != 0
-        )
-        {
-            throw new ArgumentOutOfRangeException(nameof(condition));
-        }
-
-        _options.FallbackConditionOverride = condition;
+        _registration.FallbackWhen(condition);
         return this;
     }
 
     /// <summary>Sets whether this file source is read-only.</summary>
     public JsonFileRegistration<TModel> ReadOnly(bool readOnly = true)
     {
-        EnsureMutable();
-        _options.ReadOnlyOverride = readOnly;
+        _registration.ReadOnly(readOnly);
         return this;
     }
 
@@ -493,8 +454,7 @@ public sealed class JsonFileRegistration<TModel>
     /// <summary>Excludes this source from ordinary inferred write routing.</summary>
     public JsonFileRegistration<TModel> ExplicitOnly(bool explicitOnly = true)
     {
-        EnsureMutable();
-        _options.ExplicitOnlyOverride = explicitOnly;
+        _registration.ExplicitOnly(explicitOnly);
         return this;
     }
 

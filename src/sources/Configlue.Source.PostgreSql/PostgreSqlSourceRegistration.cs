@@ -139,32 +139,15 @@ public static class PostgreSqlSourceRegistration
             context.Own(source);
 
             var physicalOrigin = $"postgresql:{options.ResourceNamespace}";
-            var stateSource = options.Id is { } id
-                ? new StateSource<TFragment>(
-                    id,
-                    source,
-                    new StateSourceOptions<TFragment>
-                    {
-                        Priority = options.Priority,
-                        FallbackCondition = options.FallbackCondition,
-                        PhysicalOrigin = physicalOrigin,
-                        FixedResourceId = options.TableOptions?.FixedResourceId,
-                    }
-                )
-                : new StateSource<TFragment>(
-                    source,
-                    new StateSourceOptions<TFragment>
-                    {
-                        Priority = options.Priority,
-                        FallbackCondition = options.FallbackCondition,
-                        PhysicalOrigin = physicalOrigin,
-                        LogicalDescriptor =
-                            options.TableOptions?.SchemaName
-                            + "."
-                            + options.TableOptions?.TableName,
-                        FixedResourceId = options.TableOptions?.FixedResourceId,
-                    }
-                );
+            var stateSource = ConfiglueSourceCompletion.WithDescribedIdentity(
+                source,
+                options.Id,
+                options.TableOptions?.SchemaName + "." + options.TableOptions?.TableName,
+                options.Priority,
+                options.FallbackCondition,
+                physicalOrigin,
+                options.TableOptions?.FixedResourceId
+            );
             return context.Complete(stateSource);
         }
     }

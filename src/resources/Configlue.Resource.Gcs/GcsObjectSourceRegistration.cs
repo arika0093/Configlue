@@ -123,36 +123,22 @@ public static class GcsObjectSourceRegistration
             );
             // Diagnostics carry bucket and object names only, never credentials or signed URLs.
             var physicalOrigin = $"gcs:{options.BucketName}";
-            return options.Id is { } id
-                ? new StateSource<TFragment>(
-                    id,
-                    serialized,
-                    new StateSourceOptions<TFragment>
-                    {
-                        Priority = options.Priority,
-                        FallbackCondition = options.FallbackCondition,
-                        PhysicalOrigin = physicalOrigin,
-                        FixedResourceId = options.ResourceOptions?.FixedResourceId,
-                    }
-                )
-                : new StateSource<TFragment>(
-                    serialized,
-                    new StateSourceOptions<TFragment>
-                    {
-                        Priority = options.Priority,
-                        FallbackCondition = options.FallbackCondition,
-                        PhysicalOrigin = physicalOrigin,
-                        FixedResourceId = options.ResourceOptions?.FixedResourceId,
-                        LogicalDescriptor = string.Join(
-                            "\n",
-                            options.BucketName,
-                            options.ObjectName,
-                            options.ResourceOptions?.BucketNameSelector?.Method.ToString(),
-                            options.ResourceOptions?.ObjectNameSelector?.Method.ToString(),
-                            options.ResourceOptions?.ClientSelector?.Method.ToString()
-                        ),
-                    }
-                );
+            return ConfiglueSourceCompletion.WithDescribedIdentity(
+                serialized,
+                options.Id,
+                string.Join(
+                    "\n",
+                    options.BucketName,
+                    options.ObjectName,
+                    options.ResourceOptions?.BucketNameSelector?.Method.ToString(),
+                    options.ResourceOptions?.ObjectNameSelector?.Method.ToString(),
+                    options.ResourceOptions?.ClientSelector?.Method.ToString()
+                ),
+                options.Priority,
+                options.FallbackCondition,
+                physicalOrigin,
+                options.ResourceOptions?.FixedResourceId
+            );
         }
     }
 }

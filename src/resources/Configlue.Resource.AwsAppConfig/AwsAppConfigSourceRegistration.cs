@@ -237,20 +237,20 @@ public static class AwsAppConfigSourceRegistration
                 watcher: resource
             );
             return context.Complete(
-                CreateStateSource<TFragment>(
+                ConfiglueSourceCompletion.WithDescribedIdentity(
                     serialized,
                     options.Id,
-                    $"appconfig:{options.ApplicationId}/{options.EnvironmentId}/{options.ConfigurationProfileId}",
-                    options.Priority,
-                    options.FallbackCondition,
-                    options.ResourceOptions?.FixedResourceId,
                     string.Join(
                         "\n",
                         options.ApplicationId,
                         options.EnvironmentId,
                         options.ConfigurationProfileId,
                         options.ResourceOptions?.ClientId
-                    )
+                    ),
+                    options.Priority,
+                    options.FallbackCondition,
+                    $"appconfig:{options.ApplicationId}/{options.EnvironmentId}/{options.ConfigurationProfileId}",
+                    options.ResourceOptions?.FixedResourceId
                 )
             );
         }
@@ -315,56 +315,22 @@ public static class AwsAppConfigSourceRegistration
                 watcher: resource
             );
             return context.Complete(
-                CreateStateSource<TFragment>(
+                ConfiglueSourceCompletion.WithDescribedIdentity(
                     serialized,
                     options.Id,
-                    $"appconfig-agent:{options.ApplicationId}/{options.EnvironmentId}/{options.ConfigurationProfileId}",
-                    options.Priority,
-                    options.FallbackCondition,
-                    options.ResourceOptions?.FixedResourceId,
                     string.Join(
                         "\n",
                         options.ApplicationId,
                         options.EnvironmentId,
                         options.ConfigurationProfileId,
                         options.ResourceOptions?.ClientId
-                    )
+                    ),
+                    options.Priority,
+                    options.FallbackCondition,
+                    $"appconfig-agent:{options.ApplicationId}/{options.EnvironmentId}/{options.ConfigurationProfileId}",
+                    options.ResourceOptions?.FixedResourceId
                 )
             );
         }
     }
-
-    private static StateSource<TFragment> CreateStateSource<TFragment>(
-        SerializedSource<TFragment> serialized,
-        string? id,
-        string physicalOrigin,
-        int priority,
-        StateFallbackCondition fallbackCondition,
-        ResourceId? fixedResourceId,
-        string logicalDescriptor
-    )
-        where TFragment : class, IConfiglueFragment<TFragment> =>
-        id is { } sourceId
-            ? new StateSource<TFragment>(
-                sourceId,
-                serialized,
-                new StateSourceOptions<TFragment>
-                {
-                    Priority = priority,
-                    FallbackCondition = fallbackCondition,
-                    PhysicalOrigin = physicalOrigin,
-                    FixedResourceId = fixedResourceId,
-                }
-            )
-            : new StateSource<TFragment>(
-                serialized,
-                new StateSourceOptions<TFragment>
-                {
-                    Priority = priority,
-                    FallbackCondition = fallbackCondition,
-                    PhysicalOrigin = physicalOrigin,
-                    FixedResourceId = fixedResourceId,
-                    LogicalDescriptor = logicalDescriptor,
-                }
-            );
 }

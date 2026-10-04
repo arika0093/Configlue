@@ -37,40 +37,24 @@ public static class AzureAppConfigurationSourceRegistration
             var source = CreateSourceCore<TFragment>(context.ModelSchema, context.Services);
             context.Own(source);
             var physicalOrigin = DescribePhysicalOrigin(options);
-            return options.Id is { } id
-                ? context.Complete(
-                    new StateSource<TFragment>(
-                        id,
-                        source,
-                        new StateSourceOptions<TFragment>
-                        {
-                            Priority = options.Priority,
-                            FallbackCondition = options.FallbackCondition,
-                            PhysicalOrigin = physicalOrigin,
-                            FixedResourceId = options.FixedResourceId,
-                        }
-                    )
+            return context.Complete(
+                ConfiglueSourceCompletion.WithDescribedIdentity(
+                    source,
+                    options.Id,
+                    string.Join(
+                        "\n",
+                        options.KeyFilter,
+                        options.LabelFilter ?? "<unlabeled>",
+                        options.TrimKeyPrefix ?? string.Empty,
+                        options.SnapshotName ?? string.Empty,
+                        options.SentinelKey ?? string.Empty
+                    ),
+                    options.Priority,
+                    options.FallbackCondition,
+                    physicalOrigin,
+                    options.FixedResourceId
                 )
-                : context.Complete(
-                    new StateSource<TFragment>(
-                        source,
-                        new StateSourceOptions<TFragment>
-                        {
-                            Priority = options.Priority,
-                            FallbackCondition = options.FallbackCondition,
-                            PhysicalOrigin = physicalOrigin,
-                            FixedResourceId = options.FixedResourceId,
-                            LogicalDescriptor = string.Join(
-                                "\n",
-                                options.KeyFilter,
-                                options.LabelFilter ?? "<unlabeled>",
-                                options.TrimKeyPrefix ?? string.Empty,
-                                options.SnapshotName ?? string.Empty,
-                                options.SentinelKey ?? string.Empty
-                            ),
-                        }
-                    )
-                );
+            );
         }
 
         private AzureAppConfigurationSource<TFragment> CreateSourceCore<TFragment>(

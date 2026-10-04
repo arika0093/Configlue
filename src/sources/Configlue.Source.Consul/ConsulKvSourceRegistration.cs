@@ -182,36 +182,22 @@ public static class ConsulKvSourceRegistration
             context.Own(source);
             var physicalOrigin =
                 $"consul:{ConsulKeyNormalization.NormalizePrefix(options.KeyPrefix)}";
-            var stateSource = options.Id is { } id
-                ? new StateSource<TFragment>(
-                    id,
-                    source,
-                    new StateSourceOptions<TFragment>
-                    {
-                        Priority = options.Priority,
-                        FallbackCondition = options.FallbackCondition,
-                        PhysicalOrigin = physicalOrigin,
-                        FixedResourceId = options.PrefixOptions?.FixedResourceId,
-                    }
-                )
-                : new StateSource<TFragment>(
-                    source,
-                    new StateSourceOptions<TFragment>
-                    {
-                        Priority = options.Priority,
-                        FallbackCondition = options.FallbackCondition,
-                        PhysicalOrigin = physicalOrigin,
-                        FixedResourceId = options.PrefixOptions?.FixedResourceId,
-                        LogicalDescriptor = string.Join(
-                            "\n",
-                            options.KeyPrefix,
-                            options.PrefixOptions?.Datacenter,
-                            options.PrefixOptions?.Namespace,
-                            options.PrefixOptions?.Partition,
-                            options.PrefixOptions?.Consistency.ToString()
-                        ),
-                    }
-                );
+            var stateSource = ConfiglueSourceCompletion.WithDescribedIdentity(
+                source,
+                options.Id,
+                string.Join(
+                    "\n",
+                    options.KeyPrefix,
+                    options.PrefixOptions?.Datacenter,
+                    options.PrefixOptions?.Namespace,
+                    options.PrefixOptions?.Partition,
+                    options.PrefixOptions?.Consistency.ToString()
+                ),
+                options.Priority,
+                options.FallbackCondition,
+                physicalOrigin,
+                options.PrefixOptions?.FixedResourceId
+            );
             return context.Complete(stateSource);
         }
     }
@@ -238,35 +224,21 @@ public static class ConsulKvSourceRegistration
                 watcher: resource
             );
             var physicalOrigin = $"consul:{ConsulKeyNormalization.NormalizeKey(options.Key)}";
-            var stateSource = options.Id is { } id
-                ? new StateSource<TFragment>(
-                    id,
-                    serialized,
-                    new StateSourceOptions<TFragment>
-                    {
-                        Priority = options.Priority,
-                        FallbackCondition = options.FallbackCondition,
-                        PhysicalOrigin = physicalOrigin,
-                        FixedResourceId = options.ResourceOptions?.FixedResourceId,
-                    }
-                )
-                : new StateSource<TFragment>(
-                    serialized,
-                    new StateSourceOptions<TFragment>
-                    {
-                        Priority = options.Priority,
-                        FallbackCondition = options.FallbackCondition,
-                        PhysicalOrigin = physicalOrigin,
-                        FixedResourceId = options.ResourceOptions?.FixedResourceId,
-                        LogicalDescriptor = string.Join(
-                            "\n",
-                            options.Key,
-                            options.ResourceOptions?.Datacenter,
-                            options.ResourceOptions?.Namespace,
-                            options.ResourceOptions?.Partition
-                        ),
-                    }
-                );
+            var stateSource = ConfiglueSourceCompletion.WithDescribedIdentity(
+                serialized,
+                options.Id,
+                string.Join(
+                    "\n",
+                    options.Key,
+                    options.ResourceOptions?.Datacenter,
+                    options.ResourceOptions?.Namespace,
+                    options.ResourceOptions?.Partition
+                ),
+                options.Priority,
+                options.FallbackCondition,
+                physicalOrigin,
+                options.ResourceOptions?.FixedResourceId
+            );
             return context.Complete(stateSource);
         }
     }

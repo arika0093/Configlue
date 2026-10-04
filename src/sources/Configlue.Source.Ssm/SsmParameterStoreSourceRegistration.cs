@@ -95,36 +95,22 @@ public static class SsmParameterStoreSourceRegistration
 
             context.Own(source);
             var physicalOrigin = $"ssm:{rootPath}";
-            var stateSource = options.Id is { } id
-                ? new StateSource<TFragment>(
-                    id,
-                    source,
-                    new StateSourceOptions<TFragment>
-                    {
-                        Priority = options.Priority,
-                        FallbackCondition = options.FallbackCondition,
-                        PhysicalOrigin = physicalOrigin,
-                        FixedResourceId = resourceOptions.FixedResourceId,
-                    }
-                )
-                : new StateSource<TFragment>(
-                    source,
-                    new StateSourceOptions<TFragment>
-                    {
-                        Priority = options.Priority,
-                        FallbackCondition = options.FallbackCondition,
-                        PhysicalOrigin = physicalOrigin,
-                        FixedResourceId = resourceOptions.FixedResourceId,
-                        LogicalDescriptor = string.Join(
-                            "\n",
-                            rootPath,
-                            resourceOptions.Recursive.ToString(),
-                            resourceOptions.WithDecryption.ToString(),
-                            options.Writable.ToString(),
-                            options.WatchChanges.ToString()
-                        ),
-                    }
-                );
+            var stateSource = ConfiglueSourceCompletion.WithDescribedIdentity(
+                source,
+                options.Id,
+                string.Join(
+                    "\n",
+                    rootPath,
+                    resourceOptions.Recursive.ToString(),
+                    resourceOptions.WithDecryption.ToString(),
+                    options.Writable.ToString(),
+                    options.WatchChanges.ToString()
+                ),
+                options.Priority,
+                options.FallbackCondition,
+                physicalOrigin,
+                resourceOptions.FixedResourceId
+            );
             return context.Complete(stateSource);
         }
     }

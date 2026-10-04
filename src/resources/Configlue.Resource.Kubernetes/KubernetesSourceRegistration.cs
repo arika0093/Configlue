@@ -242,35 +242,21 @@ public static class KubernetesSourceRegistration
                 options.Kind == KubernetesResourceKind.ConfigMap
                     ? $"k8s:configmap:{options.Namespace}/{options.Name}/{scope}"
                     : $"k8s:secret:{options.Namespace}/{options.Name}/{scope}";
-            StateSource<TFragment> source = options.Id is { } id
-                ? new StateSource<TFragment>(
-                    id,
-                    serialized,
-                    new StateSourceOptions<TFragment>
-                    {
-                        Priority = options.Priority,
-                        FallbackCondition = options.FallbackCondition,
-                        PhysicalOrigin = physicalOrigin,
-                        FixedResourceId = options.ResourceOptions?.FixedResourceId,
-                    }
-                )
-                : new StateSource<TFragment>(
-                    serialized,
-                    new StateSourceOptions<TFragment>
-                    {
-                        Priority = options.Priority,
-                        FallbackCondition = options.FallbackCondition,
-                        PhysicalOrigin = physicalOrigin,
-                        FixedResourceId = options.ResourceOptions?.FixedResourceId,
-                        LogicalDescriptor = string.Join(
-                            "\n",
-                            options.Kind.ToString(),
-                            options.Namespace,
-                            options.Name,
-                            options.Key ?? string.Empty
-                        ),
-                    }
-                );
+            StateSource<TFragment> source = ConfiglueSourceCompletion.WithDescribedIdentity(
+                serialized,
+                options.Id,
+                string.Join(
+                    "\n",
+                    options.Kind.ToString(),
+                    options.Namespace,
+                    options.Name,
+                    options.Key ?? string.Empty
+                ),
+                options.Priority,
+                options.FallbackCondition,
+                physicalOrigin,
+                options.ResourceOptions?.FixedResourceId
+            );
             return context.Complete(source);
         }
     }

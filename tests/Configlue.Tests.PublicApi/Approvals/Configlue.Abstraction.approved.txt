@@ -1086,6 +1086,13 @@ namespace Configlue.Resources
 }
 namespace Configlue.Sources
 {
+    public static class ConfiglueSourceCompletion
+    {
+        public static Configlue.Sources.StateSource<TFragment> WithDerivedIdentity<TFragment>(Configlue.Sources.ISourceReader<TFragment> reader, string? id, string derivedId, int priority, Configlue.Sources.StateFallbackCondition fallbackCondition, string? physicalOrigin, Configlue.Resources.ResourceId? fixedResourceId, bool explicitOnly = false)
+            where TFragment :  class, Configlue.IConfiglueFragment<TFragment> { }
+        public static Configlue.Sources.StateSource<TFragment> WithDescribedIdentity<TFragment>(Configlue.Sources.ISourceReader<TFragment> reader, string? id, string? logicalDescriptor, int priority, Configlue.Sources.StateFallbackCondition fallbackCondition, string? physicalOrigin, Configlue.Resources.ResourceId? fixedResourceId)
+            where TFragment :  class, Configlue.IConfiglueFragment<TFragment> { }
+    }
     public interface IAsyncSourceWriteBatchParticipant<T>
     {
         System.Threading.Tasks.ValueTask<Configlue.State.StateWriteBatchPlan?> TryCreateBatchWriteAsync(Configlue.Resources.ConfiglueResourceContext context, Configlue.State.StateWriteRequest<T> request, System.Threading.CancellationToken cancellationToken = default);

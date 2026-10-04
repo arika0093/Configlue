@@ -67,27 +67,15 @@ public static class EnvironmentFacadeSourceRegistration
             );
             var physicalOrigin =
                 $"environment:{EnvironmentStateReader<TFragment>.NormalizePrefix(options.Prefix)}";
-            return options.Id is { } id
-                ? new StateSource<TFragment>(
-                    id,
-                    reader,
-                    new StateSourceOptions<TFragment>
-                    {
-                        Priority = options.Priority,
-                        FallbackCondition = options.FallbackCondition,
-                        PhysicalOrigin = physicalOrigin,
-                    }
-                )
-                : new StateSource<TFragment>(
-                    reader,
-                    new StateSourceOptions<TFragment>
-                    {
-                        Priority = options.Priority,
-                        FallbackCondition = options.FallbackCondition,
-                        PhysicalOrigin = physicalOrigin,
-                        LogicalDescriptor = "environment-prefix",
-                    }
-                );
+            return ConfiglueSourceCompletion.WithDescribedIdentity(
+                reader,
+                options.Id,
+                "environment-prefix",
+                options.Priority,
+                options.FallbackCondition,
+                physicalOrigin,
+                null
+            );
         }
     }
 }

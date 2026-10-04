@@ -229,30 +229,15 @@ public static class MessagePackFileSourceRegistration
             watcher: options.WatchChanges ? file : null
         );
         var fixedResourceId = options.FixedResourceId;
-        return options.Id is { } id
-            ? new StateSource<TFragment>(
-                id,
-                serialized,
-                new StateSourceOptions<TFragment>
-                {
-                    Priority = options.Priority,
-                    FallbackCondition = options.FallbackCondition,
-                    PhysicalOrigin = file.Path,
-                    FixedResourceId = fixedResourceId,
-                    ExplicitOnly = options.ExplicitOnly,
-                }
-            )
-            : new StateSource<TFragment>(
-                CreateSourceId(options.Path),
-                serialized,
-                new StateSourceOptions<TFragment>
-                {
-                    Priority = options.Priority,
-                    FallbackCondition = options.FallbackCondition,
-                    PhysicalOrigin = file.Path,
-                    FixedResourceId = fixedResourceId,
-                    ExplicitOnly = options.ExplicitOnly,
-                }
-            );
+        return ConfiglueSourceCompletion.WithDerivedIdentity(
+            serialized,
+            options.Id,
+            CreateSourceId(options.Path),
+            options.Priority,
+            options.FallbackCondition,
+            file.Path,
+            fixedResourceId,
+            options.ExplicitOnly
+        );
     }
 }

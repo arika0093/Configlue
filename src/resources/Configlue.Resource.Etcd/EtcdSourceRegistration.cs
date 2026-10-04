@@ -198,16 +198,15 @@ public static class EtcdSourceRegistration
 
             context.Own(source);
             var physicalOrigin = $"etcd:{options.ResourceOptions?.KeyPrefix ?? "configlue"}";
-            var sourceOptions = new StateSourceOptions<TFragment>
-            {
-                Priority = options.Priority,
-                FallbackCondition = options.FallbackCondition,
-                PhysicalOrigin = physicalOrigin,
-                FixedResourceId = options.ResourceOptions?.FixedResourceId,
-            };
-            StateSource<TFragment> stateSource = options.Id is { } id
-                ? new StateSource<TFragment>(id, source, sourceOptions)
-                : new StateSource<TFragment>(source, sourceOptions);
+            StateSource<TFragment> stateSource = ConfiglueSourceCompletion.WithDescribedIdentity(
+                source,
+                options.Id,
+                null,
+                options.Priority,
+                options.FallbackCondition,
+                physicalOrigin,
+                options.ResourceOptions?.FixedResourceId
+            );
             return context.Complete(stateSource);
         }
     }
@@ -255,37 +254,23 @@ public static class EtcdSourceRegistration
                 writer: options.Writable ? resource : null
             );
             var physicalOrigin = $"etcd:{options.ResourceOptions?.KeyPrefix ?? "configlue"}";
-            StateSource<TFragment> stateSource = options.Id is { } id
-                ? new StateSource<TFragment>(
-                    id,
-                    serialized,
-                    new StateSourceOptions<TFragment>
-                    {
-                        Priority = options.Priority,
-                        FallbackCondition = options.FallbackCondition,
-                        PhysicalOrigin = physicalOrigin,
-                        FixedResourceId = options.ResourceOptions?.FixedResourceId,
-                    }
-                )
-                : new StateSource<TFragment>(
-                    serialized,
-                    new StateSourceOptions<TFragment>
-                    {
-                        Priority = options.Priority,
-                        FallbackCondition = options.FallbackCondition,
-                        PhysicalOrigin = physicalOrigin,
-                        FixedResourceId = options.ResourceOptions?.FixedResourceId,
-                        LogicalDescriptor = string.Join(
-                            "\n",
-                            options.ResourceOptions?.KeyPrefix,
-                            options.ResourceOptions?.KeyPrefixSelector?.Method.ToString(),
-                            string.Join(
-                                ",",
-                                options.ResourceOptions?.Endpoints ?? ["http://127.0.0.1:2379"]
-                            )
-                        ),
-                    }
-                );
+            StateSource<TFragment> stateSource = ConfiglueSourceCompletion.WithDescribedIdentity(
+                serialized,
+                options.Id,
+                string.Join(
+                    "\n",
+                    options.ResourceOptions?.KeyPrefix,
+                    options.ResourceOptions?.KeyPrefixSelector?.Method.ToString(),
+                    string.Join(
+                        ",",
+                        options.ResourceOptions?.Endpoints ?? ["http://127.0.0.1:2379"]
+                    )
+                ),
+                options.Priority,
+                options.FallbackCondition,
+                physicalOrigin,
+                options.ResourceOptions?.FixedResourceId
+            );
             return context.Complete(stateSource);
         }
     }

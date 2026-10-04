@@ -123,38 +123,24 @@ public static class SecretsManagerSourceRegistration
                 watcher: resource.IsWatchSupported ? resource : null
             );
             var physicalOrigin = $"secretsmanager:{options.SecretId}";
-            return options.Id is { } id
-                ? new StateSource<TFragment>(
-                    id,
-                    serialized,
-                    new StateSourceOptions<TFragment>
-                    {
-                        Priority = options.Priority,
-                        FallbackCondition = options.FallbackCondition,
-                        PhysicalOrigin = physicalOrigin,
-                        FixedResourceId = options.ResourceOptions?.FixedResourceId,
-                    }
-                )
-                : new StateSource<TFragment>(
-                    serialized,
-                    new StateSourceOptions<TFragment>
-                    {
-                        Priority = options.Priority,
-                        FallbackCondition = options.FallbackCondition,
-                        PhysicalOrigin = physicalOrigin,
-                        FixedResourceId = options.ResourceOptions?.FixedResourceId,
-                        LogicalDescriptor = string.Join(
-                            "\n",
-                            options.SecretId,
-                            options.ResourceOptions?.VersionId,
-                            options.ResourceOptions?.VersionStage,
-                            options.ResourceOptions?.SecretIdSelector?.Method.ToString(),
-                            options.ResourceOptions?.VersionIdSelector?.Method.ToString(),
-                            options.ResourceOptions?.VersionStageSelector?.Method.ToString(),
-                            options.ResourceOptions?.ClientSelector?.Method.ToString()
-                        ),
-                    }
-                );
+            return ConfiglueSourceCompletion.WithDescribedIdentity(
+                serialized,
+                options.Id,
+                string.Join(
+                    "\n",
+                    options.SecretId,
+                    options.ResourceOptions?.VersionId,
+                    options.ResourceOptions?.VersionStage,
+                    options.ResourceOptions?.SecretIdSelector?.Method.ToString(),
+                    options.ResourceOptions?.VersionIdSelector?.Method.ToString(),
+                    options.ResourceOptions?.VersionStageSelector?.Method.ToString(),
+                    options.ResourceOptions?.ClientSelector?.Method.ToString()
+                ),
+                options.Priority,
+                options.FallbackCondition,
+                physicalOrigin,
+                options.ResourceOptions?.FixedResourceId
+            );
         }
     }
 }

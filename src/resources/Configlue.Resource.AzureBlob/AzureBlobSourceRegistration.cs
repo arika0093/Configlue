@@ -158,36 +158,22 @@ public static class AzureBlobSourceRegistration
                 watcher: options.ResourceOptions?.EnableWatching == true ? resource : null
             );
             var physicalOrigin = $"azureblob:{options.ContainerName}";
-            return options.Id is { } id
-                ? new StateSource<TFragment>(
-                    id,
-                    serialized,
-                    new StateSourceOptions<TFragment>
-                    {
-                        Priority = options.Priority,
-                        FallbackCondition = options.FallbackCondition,
-                        PhysicalOrigin = physicalOrigin,
-                        FixedResourceId = options.ResourceOptions?.FixedResourceId,
-                    }
-                )
-                : new StateSource<TFragment>(
-                    serialized,
-                    new StateSourceOptions<TFragment>
-                    {
-                        Priority = options.Priority,
-                        FallbackCondition = options.FallbackCondition,
-                        PhysicalOrigin = physicalOrigin,
-                        FixedResourceId = options.ResourceOptions?.FixedResourceId,
-                        LogicalDescriptor = string.Join(
-                            "\n",
-                            options.ContainerName,
-                            options.BlobName,
-                            options.ResourceOptions?.ContainerNameSelector?.Method.ToString(),
-                            options.ResourceOptions?.BlobNameSelector?.Method.ToString(),
-                            options.ResourceOptions?.BlobClientSelector?.Method.ToString()
-                        ),
-                    }
-                );
+            return ConfiglueSourceCompletion.WithDescribedIdentity(
+                serialized,
+                options.Id,
+                string.Join(
+                    "\n",
+                    options.ContainerName,
+                    options.BlobName,
+                    options.ResourceOptions?.ContainerNameSelector?.Method.ToString(),
+                    options.ResourceOptions?.BlobNameSelector?.Method.ToString(),
+                    options.ResourceOptions?.BlobClientSelector?.Method.ToString()
+                ),
+                options.Priority,
+                options.FallbackCondition,
+                physicalOrigin,
+                options.ResourceOptions?.FixedResourceId
+            );
         }
 
         private BlobClient ResolveClient(IServiceProvider? serviceProvider)

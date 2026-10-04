@@ -148,40 +148,26 @@ public static class GoogleSecretManagerSourceRegistration
             var physicalOrigin = string.IsNullOrEmpty(resourceOptions.Location)
                 ? $"googlesecrets:{options.ProjectId}/{options.SecretId}"
                 : $"googlesecrets:{options.ProjectId}/{resourceOptions.Location}/{options.SecretId}";
-            var source = options.Id is { } id
-                ? new StateSource<TFragment>(
-                    id,
-                    serialized,
-                    new StateSourceOptions<TFragment>
-                    {
-                        Priority = options.Priority,
-                        FallbackCondition = options.FallbackCondition,
-                        PhysicalOrigin = physicalOrigin,
-                        FixedResourceId = resourceOptions.FixedResourceId,
-                    }
-                )
-                : new StateSource<TFragment>(
-                    serialized,
-                    new StateSourceOptions<TFragment>
-                    {
-                        Priority = options.Priority,
-                        FallbackCondition = options.FallbackCondition,
-                        PhysicalOrigin = physicalOrigin,
-                        FixedResourceId = resourceOptions.FixedResourceId,
-                        LogicalDescriptor = string.Join(
-                            "\n",
-                            options.ProjectId,
-                            resourceOptions.Location ?? string.Empty,
-                            options.SecretId,
-                            resourceOptions.Version,
-                            resourceOptions.ProjectIdSelector?.Method.ToString(),
-                            resourceOptions.SecretIdSelector?.Method.ToString(),
-                            resourceOptions.LocationSelector?.Method.ToString(),
-                            resourceOptions.VersionSelector?.Method.ToString(),
-                            resourceOptions.ClientSelector?.Method.ToString()
-                        ),
-                    }
-                );
+            var source = ConfiglueSourceCompletion.WithDescribedIdentity(
+                serialized,
+                options.Id,
+                string.Join(
+                    "\n",
+                    options.ProjectId,
+                    resourceOptions.Location ?? string.Empty,
+                    options.SecretId,
+                    resourceOptions.Version,
+                    resourceOptions.ProjectIdSelector?.Method.ToString(),
+                    resourceOptions.SecretIdSelector?.Method.ToString(),
+                    resourceOptions.LocationSelector?.Method.ToString(),
+                    resourceOptions.VersionSelector?.Method.ToString(),
+                    resourceOptions.ClientSelector?.Method.ToString()
+                ),
+                options.Priority,
+                options.FallbackCondition,
+                physicalOrigin,
+                resourceOptions.FixedResourceId
+            );
             return context.Complete(source);
         }
     }

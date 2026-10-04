@@ -137,36 +137,22 @@ public static class RedisStateSourceRegistration
                 writer: options.Writable ? resource : null
             );
             var physicalOrigin = $"redis:{options.ResourceNamespace}";
-            var source = options.Id is { } id
-                ? new StateSource<TFragment>(
-                    id,
-                    serialized,
-                    new StateSourceOptions<TFragment>
-                    {
-                        Priority = options.Priority,
-                        FallbackCondition = options.FallbackCondition,
-                        PhysicalOrigin = physicalOrigin,
-                        FixedResourceId = options.ResourceOptions?.FixedResourceId,
-                    }
-                )
-                : new StateSource<TFragment>(
-                    serialized,
-                    new StateSourceOptions<TFragment>
-                    {
-                        Priority = options.Priority,
-                        FallbackCondition = options.FallbackCondition,
-                        PhysicalOrigin = physicalOrigin,
-                        FixedResourceId = options.ResourceOptions?.FixedResourceId,
-                        LogicalDescriptor = string.Join(
-                            "\n",
-                            options.ResourceNamespace,
-                            options.ResourceOptions?.KeyPrefix,
-                            options.ResourceOptions?.KeyPrefixSelector?.Method.ToString(),
-                            options.ResourceOptions?.Database.ToString(),
-                            options.ResourceOptions?.DatabaseSelector?.Method.ToString()
-                        ),
-                    }
-                );
+            var source = ConfiglueSourceCompletion.WithDescribedIdentity(
+                serialized,
+                options.Id,
+                string.Join(
+                    "\n",
+                    options.ResourceNamespace,
+                    options.ResourceOptions?.KeyPrefix,
+                    options.ResourceOptions?.KeyPrefixSelector?.Method.ToString(),
+                    options.ResourceOptions?.Database.ToString(),
+                    options.ResourceOptions?.DatabaseSelector?.Method.ToString()
+                ),
+                options.Priority,
+                options.FallbackCondition,
+                physicalOrigin,
+                options.ResourceOptions?.FixedResourceId
+            );
             return context.Complete(source);
         }
     }

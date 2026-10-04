@@ -175,31 +175,16 @@ public static class YamlFileSourceRegistration
                 watcher: resourceWatcher
             );
             var fixedResourceId = options.FixedResourceId;
-            return options.Id is { } id
-                ? new StateSource<TFragment>(
-                    id,
-                    serialized,
-                    new StateSourceOptions<TFragment>
-                    {
-                        Priority = options.Priority,
-                        FallbackCondition = options.FallbackCondition,
-                        PhysicalOrigin = file.Path,
-                        FixedResourceId = fixedResourceId,
-                        ExplicitOnly = options.ExplicitOnly,
-                    }
-                )
-                : new StateSource<TFragment>(
-                    YamlFileSourceSelector.CreateSourceId(file.Path, options.SectionPath),
-                    serialized,
-                    new StateSourceOptions<TFragment>
-                    {
-                        Priority = options.Priority,
-                        FallbackCondition = options.FallbackCondition,
-                        PhysicalOrigin = file.Path,
-                        FixedResourceId = fixedResourceId,
-                        ExplicitOnly = options.ExplicitOnly,
-                    }
-                );
+            return ConfiglueSourceCompletion.WithDerivedIdentity(
+                serialized,
+                options.Id,
+                YamlFileSourceSelector.CreateSourceId(file.Path, options.SectionPath),
+                options.Priority,
+                options.FallbackCondition,
+                file.Path,
+                fixedResourceId,
+                options.ExplicitOnly
+            );
         }
     }
 }

@@ -113,36 +113,22 @@ public static class S3ObjectSourceRegistration
                 writer: options.Writable ? resource : null
             );
             var physicalOrigin = $"s3:{options.BucketName}";
-            return options.Id is { } id
-                ? new StateSource<TFragment>(
-                    id,
-                    serialized,
-                    new StateSourceOptions<TFragment>
-                    {
-                        Priority = options.Priority,
-                        FallbackCondition = options.FallbackCondition,
-                        PhysicalOrigin = physicalOrigin,
-                        FixedResourceId = options.ResourceOptions?.FixedResourceId,
-                    }
-                )
-                : new StateSource<TFragment>(
-                    serialized,
-                    new StateSourceOptions<TFragment>
-                    {
-                        Priority = options.Priority,
-                        FallbackCondition = options.FallbackCondition,
-                        PhysicalOrigin = physicalOrigin,
-                        FixedResourceId = options.ResourceOptions?.FixedResourceId,
-                        LogicalDescriptor = string.Join(
-                            "\n",
-                            options.BucketName,
-                            options.Key,
-                            options.ResourceOptions?.BucketNameSelector?.Method.ToString(),
-                            options.ResourceOptions?.KeySelector?.Method.ToString(),
-                            options.ResourceOptions?.ClientSelector?.Method.ToString()
-                        ),
-                    }
-                );
+            return ConfiglueSourceCompletion.WithDescribedIdentity(
+                serialized,
+                options.Id,
+                string.Join(
+                    "\n",
+                    options.BucketName,
+                    options.Key,
+                    options.ResourceOptions?.BucketNameSelector?.Method.ToString(),
+                    options.ResourceOptions?.KeySelector?.Method.ToString(),
+                    options.ResourceOptions?.ClientSelector?.Method.ToString()
+                ),
+                options.Priority,
+                options.FallbackCondition,
+                physicalOrigin,
+                options.ResourceOptions?.FixedResourceId
+            );
         }
     }
 }

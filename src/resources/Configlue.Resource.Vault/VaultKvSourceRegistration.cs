@@ -112,38 +112,24 @@ public static class VaultKvSourceRegistration
                 watcher: options.EnableWatch ? resource : null
             );
             var physicalOrigin = $"vault:{options.Mount}/{options.Path}";
-            StateSource<TFragment> source = options.Id is { } id
-                ? new StateSource<TFragment>(
-                    id,
-                    serialized,
-                    new StateSourceOptions<TFragment>
-                    {
-                        Priority = options.Priority,
-                        FallbackCondition = options.FallbackCondition,
-                        PhysicalOrigin = physicalOrigin,
-                        FixedResourceId = options.ResourceOptions?.FixedResourceId,
-                    }
-                )
-                : new StateSource<TFragment>(
-                    serialized,
-                    new StateSourceOptions<TFragment>
-                    {
-                        Priority = options.Priority,
-                        FallbackCondition = options.FallbackCondition,
-                        PhysicalOrigin = physicalOrigin,
-                        FixedResourceId = options.ResourceOptions?.FixedResourceId,
-                        LogicalDescriptor = string.Join(
-                            "\n",
-                            options.Mount,
-                            options.Path,
-                            options.ResourceOptions?.KvVersion.ToString(),
-                            options.ResourceOptions?.PollingInterval.ToString(),
-                            options.ResourceOptions?.MountSelector?.Method.ToString(),
-                            options.ResourceOptions?.PathSelector?.Method.ToString(),
-                            options.ResourceOptions?.ClientSelector?.Method.ToString()
-                        ),
-                    }
-                );
+            StateSource<TFragment> source = ConfiglueSourceCompletion.WithDescribedIdentity(
+                serialized,
+                options.Id,
+                string.Join(
+                    "\n",
+                    options.Mount,
+                    options.Path,
+                    options.ResourceOptions?.KvVersion.ToString(),
+                    options.ResourceOptions?.PollingInterval.ToString(),
+                    options.ResourceOptions?.MountSelector?.Method.ToString(),
+                    options.ResourceOptions?.PathSelector?.Method.ToString(),
+                    options.ResourceOptions?.ClientSelector?.Method.ToString()
+                ),
+                options.Priority,
+                options.FallbackCondition,
+                physicalOrigin,
+                options.ResourceOptions?.FixedResourceId
+            );
             return context.Complete(source);
         }
     }
