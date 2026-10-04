@@ -207,6 +207,86 @@ public sealed class ConfiglueSchemaMsBuildTests
     }
 
     [Test]
+    public async Task Generate_DoesNotRewriteUnchangedSchemas()
+    {
+        var projectDirectory = CreateTempDirectory();
+        var outputDirectory = CreateTempDirectory();
+        try
+        {
+            var options = new ConfiglueSchemaGenerationOptions
+            {
+                AssemblyPath = FixtureAssemblyPath,
+                ProjectDirectory = projectDirectory,
+                OutputPath = outputDirectory,
+            };
+
+            var first = ConfiglueSchemaGenerator.Generate(options);
+            (first.Succeeded).ShouldBeTrue();
+            (first.WrittenFiles.Count).ShouldBe(first.Documents.Count);
+            (first.UpToDateFiles).ShouldBeEmpty();
+
+            var second = ConfiglueSchemaGenerator.Generate(options);
+            (second.Succeeded).ShouldBeTrue();
+            (second.WrittenFiles).ShouldBeEmpty();
+            (second.UpToDateFiles.Count).ShouldBe(second.Documents.Count);
+        }
+        finally
+        {
+            DeleteDirectory(projectDirectory);
+            DeleteDirectory(outputDirectory);
+        }
+    }
+
+    [Test]
+    public async Task Generate_ReportsInvalidDocumentLayout()
+    {
+        var projectDirectory = CreateTempDirectory();
+        try
+        {
+            var result = ConfiglueSchemaGenerator.Generate(
+                new ConfiglueSchemaGenerationOptions
+                {
+                    AssemblyPath = FixtureAssemblyPath,
+                    ProjectDirectory = projectDirectory,
+                    OutputPath = projectDirectory,
+                    DocumentLayout = "Fancy",
+                }
+            );
+
+            (result.Succeeded).ShouldBeFalse();
+            (result.Diagnostics.Single().Code).ShouldBe("CWSC102");
+        }
+        finally
+        {
+            DeleteDirectory(projectDirectory);
+        }
+    }
+
+    [Test]
+    public async Task Generate_ReportsMissingAssembly()
+    {
+        var projectDirectory = CreateTempDirectory();
+        try
+        {
+            var result = ConfiglueSchemaGenerator.Generate(
+                new ConfiglueSchemaGenerationOptions
+                {
+                    AssemblyPath = Path.Combine(projectDirectory, "missing.dll"),
+                    ProjectDirectory = projectDirectory,
+                    OutputPath = projectDirectory,
+                }
+            );
+
+            (result.Succeeded).ShouldBeFalse();
+            (result.Diagnostics.Single().Code).ShouldBe("CWSC101");
+        }
+        finally
+        {
+            DeleteDirectory(projectDirectory);
+        }
+    }
+
+    [Test]
     public void RuntimeGraph_DoesNotReferenceSchemaTooling()
     {
         var runtimeAssemblies = new[]
@@ -250,6 +330,28 @@ public sealed class ConfiglueSchemaMsBuildTests
 
             (results[0]).ShouldBe("true");
             (results[1]).ShouldBeEmpty();
+        }
+        finally
+        {
+            DeleteDirectory(directory);
+        }
+    }
+
+    [Test]
+    public async Task SchemaGenerationTarget_RespectsOptOutFlag()
+    {
+        var directory = CreateTempDirectory();
+        try
+        {
+            var optedOut = WriteMsBuildHarness(
+                directory,
+                "netstandard2.0",
+                "<ConfiglueGenerateSchemas>false</ConfiglueGenerateSchemas>"
+            );
+
+            var result = await EvaluateMsBuildPropertyAsync(optedOut, "_ConfiglueSchemaShouldRun");
+
+            (result).ShouldBeEmpty();
         }
         finally
         {
