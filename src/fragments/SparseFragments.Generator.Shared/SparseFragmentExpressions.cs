@@ -16,13 +16,9 @@ internal sealed class SparseFragmentExpressions(
         var collection = member.Collection;
         return collection.CloneKind switch
         {
-            SparseCloneCollectionKind.Set
-            or SparseCloneCollectionKind.SortedSet
-            or SparseCloneCollectionKind.ImmutableSet =>
+            SparseCloneCollectionKind.Set =>
                 $"{ValueComparer}.AreSetEqual<{collection.ElementType.Name}>({left}, {right})",
-            SparseCloneCollectionKind.Dictionary
-            or SparseCloneCollectionKind.ImmutableDictionary
-                when collection.ValueType is not null =>
+            SparseCloneCollectionKind.Dictionary when collection.ValueType is not null =>
                 $"{ValueComparer}.AreDictionaryEqual<{collection.ElementType.Name}, {collection.ValueType.Value.Name}>({left}, {right})",
             _ => $"{ValueComparer}.AreEqual({left}, {right})",
         };
@@ -97,37 +93,15 @@ internal sealed class SparseFragmentExpressions(
         }
 
         var elementType = collection.ElementType.Name;
-        var elements = access;
-        if (
-            collection.ElementType.IsFragmentModel
-            || collection.ElementType.PocoCloneHelperName is not null
-        )
-        {
-            elements =
-                $"global::System.Linq.Enumerable.Select({access}, item => {CloneValueExpression(collection.ElementType, "item")})";
-        }
 
         if (collection.ValueType is not null)
         {
-            if (collection.CloneKind == SparseCloneCollectionKind.PriorityQueue)
-            {
-                return $"__ClonePriorityQueue({access}, {CloneContext}, item => {CloneValueExpression(collection.ElementType, "item")}, item => {CloneValueExpression(collection.ValueType.Value, "item")})";
-            }
-
             if (collection.CloneKind == SparseCloneCollectionKind.Dictionary)
             {
                 var keySelector = $"key => {CloneValueExpression(collection.ElementType, "key")}";
                 var valueSelector =
                     $"value => {CloneValueExpression(collection.ValueType.Value, "value")}";
                 return $"__CloneDictionary<{collection.ElementType.Name}, {collection.ValueType.Value.Name}, {member.Property.Type.Name}>({access}, {CloneContext}, {keySelector}, {valueSelector})";
-            }
-
-            if (collection.CloneKind == SparseCloneCollectionKind.ImmutableDictionary)
-            {
-                var keySelector = $"key => {CloneValueExpression(collection.ElementType, "key")}";
-                var valueSelector =
-                    $"value => {CloneValueExpression(collection.ValueType.Value, "value")}";
-                return $"__CloneImmutableDictionary<{collection.ElementType.Name}, {collection.ValueType.Value.Name}, {member.Property.Type.Name}>({access}, {CloneContext}, {keySelector}, {valueSelector})";
             }
 
             return access;
@@ -139,32 +113,10 @@ internal sealed class SparseFragmentExpressions(
                 $"__CloneArray<{elementType}, {member.Property.Type.Name}>({access}, {CloneContext}, item => {CloneValueExpression(collection.ElementType, "item")})",
             SparseCloneCollectionKind.List =>
                 $"__CloneList<{elementType}, {member.Property.Type.Name}>({access}, {CloneContext}, item => {CloneValueExpression(collection.ElementType, "item")})",
-            SparseCloneCollectionKind.Set or SparseCloneCollectionKind.SortedSet =>
-                member.PortableSetView && IsInterfaceSet(collection.NamedTypeDefinition)
-                    ? $"__CloneSetView<{elementType}, {member.Property.Type.Name}>({access}, {CloneContext}, item => {CloneValueExpression(collection.ElementType, "item")})"
-                    : $"__CloneSet<{elementType}, {member.Property.Type.Name}>({access}, {CloneContext}, item => {CloneValueExpression(collection.ElementType, "item")})",
-            SparseCloneCollectionKind.ImmutableSet =>
-                $"__CloneImmutableSet<{elementType}, {member.Property.Type.Name}>({access}, {CloneContext}, item => {CloneValueExpression(collection.ElementType, "item")})",
-            SparseCloneCollectionKind.Queue =>
-                $"__CloneQueue<{elementType}, {member.Property.Type.Name}>({access}, {CloneContext}, item => {CloneValueExpression(collection.ElementType, "item")})",
-            SparseCloneCollectionKind.Stack =>
-                $"__CloneStack<{elementType}, {member.Property.Type.Name}>({access}, {CloneContext}, item => {CloneValueExpression(collection.ElementType, "item")})",
-            SparseCloneCollectionKind.ConcurrentQueue =>
-                $"__CloneConcurrentQueue<{elementType}, {member.Property.Type.Name}>({access}, {CloneContext}, item => {CloneValueExpression(collection.ElementType, "item")})",
-            SparseCloneCollectionKind.ConcurrentStack =>
-                $"__CloneConcurrentStack<{elementType}, {member.Property.Type.Name}>({access}, {CloneContext}, item => {CloneValueExpression(collection.ElementType, "item")})",
-            SparseCloneCollectionKind.BlockingCollection =>
-                $"__CloneBlockingCollection<{elementType}, {member.Property.Type.Name}>({access}, {CloneContext}, item => {CloneValueExpression(collection.ElementType, "item")})",
-            SparseCloneCollectionKind.LinkedList =>
-                $"__CloneLinkedList<{elementType}, {member.Property.Type.Name}>({access}, {CloneContext}, item => {CloneValueExpression(collection.ElementType, "item")})",
-            SparseCloneCollectionKind.ObservableCollection =>
-                $"__CloneObservableCollection<{elementType}, {member.Property.Type.Name}>({access}, {CloneContext}, item => {CloneValueExpression(collection.ElementType, "item")})",
-            SparseCloneCollectionKind.ReadOnlyCollection =>
-                $"__CloneReadOnlyCollection<{elementType}, {member.Property.Type.Name}>({access}, {CloneContext}, item => {CloneValueExpression(collection.ElementType, "item")})",
-            SparseCloneCollectionKind.ImmutableArray =>
-                $"{access}.IsDefault ? {access} : global::System.Collections.Immutable.ImmutableArray.CreateRange({elements})",
-            SparseCloneCollectionKind.ImmutableList =>
-                $"__CloneImmutableList<{elementType}, {member.Property.Type.Name}>({access}, {CloneContext}, item => {CloneValueExpression(collection.ElementType, "item")})",
+            SparseCloneCollectionKind.Set => member.PortableSetView
+            && IsInterfaceSet(collection.NamedTypeDefinition)
+                ? $"__CloneSetView<{elementType}, {member.Property.Type.Name}>({access}, {CloneContext}, item => {CloneValueExpression(collection.ElementType, "item")})"
+                : $"__CloneSet<{elementType}, {member.Property.Type.Name}>({access}, {CloneContext}, item => {CloneValueExpression(collection.ElementType, "item")})",
             _ => access,
         };
     }
@@ -201,29 +153,17 @@ internal sealed class SparseFragmentExpressions(
     }
 
     /// <summary>Builds an expression that materializes a sequence of elements into the member's collection type.</summary>
+    /// <remarks>
+    /// Narrowed (issue #280): sets normalize to <c>HashSet{T}</c>, sequences to
+    /// arrays/lists. Sorted, observable, read-only-wrapper, queue/stack,
+    /// concurrent and immutable shapes are unsupported and handled as
+    /// <c>Unsupported</c> by the analyzer.
+    /// </remarks>
     public static string MaterializeCollection(SparseMemberModel member, string elements)
     {
         var elementType = member.Collection.ElementType.Name;
-        var definition = member.Collection.NamedTypeDefinition;
-        if (definition == "System.Collections.Immutable.ImmutableHashSet<T>")
-        {
-            return $"global::System.Collections.Immutable.ImmutableHashSet.CreateRange<{elementType}>({elements})";
-        }
-
-        if (definition == "System.Collections.Immutable.ImmutableArray<T>")
-        {
-            return $"global::System.Collections.Immutable.ImmutableArray.CreateRange<{elementType}>({elements})";
-        }
-
-        if (definition == "System.Collections.Immutable.ImmutableList<T>")
-        {
-            return $"global::System.Collections.Immutable.ImmutableList.CreateRange<{elementType}>({elements})";
-        }
-
         return member.Collection.CloneKind switch
         {
-            SparseCloneCollectionKind.SortedSet =>
-                $"new global::System.Collections.Generic.SortedSet<{elementType}>({elements})",
             SparseCloneCollectionKind.Set =>
                 $"new global::System.Collections.Generic.HashSet<{elementType}>({elements})",
             SparseCloneCollectionKind.Array =>

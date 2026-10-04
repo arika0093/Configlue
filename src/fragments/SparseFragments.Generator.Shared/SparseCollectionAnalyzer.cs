@@ -14,6 +14,14 @@ internal enum SparseCollectionKind
 }
 
 /// <summary>Clone-relevant collection category used by generated fragments.</summary>
+/// <remarks>
+/// Intentionally narrow (issue #280): first-class configuration-model shapes are
+/// arrays, lists, sets and dictionaries. Stateful or specialized BCL containers
+/// (queues, stacks, concurrent collections, <c>BlockingCollection</c>,
+/// <c>PriorityQueue</c>, <c>LinkedList</c>, sorted/observable/read-only wrappers
+/// and immutable collections) are <see cref="Unsupported"/> and require an
+/// explicit custom clone/merge policy.
+/// </remarks>
 internal enum SparseCloneCollectionKind
 {
     Unsupported,
@@ -21,20 +29,6 @@ internal enum SparseCloneCollectionKind
     List,
     Set,
     Dictionary,
-    Queue,
-    Stack,
-    ConcurrentQueue,
-    ConcurrentStack,
-    BlockingCollection,
-    PriorityQueue,
-    LinkedList,
-    SortedSet,
-    ObservableCollection,
-    ReadOnlyCollection,
-    ImmutableArray,
-    ImmutableList,
-    ImmutableSet,
-    ImmutableDictionary,
 }
 
 /// <summary>Describes a discovered collection type.</summary>
@@ -128,30 +122,11 @@ internal static class SparseCollectionAnalyzer
             or "System.Collections.Generic.IDictionary<TKey, TValue>"
             or "System.Collections.Generic.IReadOnlyDictionary<TKey, TValue>" =>
                 SparseCloneCollectionKind.Dictionary,
-            "System.Collections.Generic.Queue<T>" => SparseCloneCollectionKind.Queue,
-            "System.Collections.Generic.Stack<T>" => SparseCloneCollectionKind.Stack,
-            "System.Collections.Concurrent.ConcurrentQueue<T>" =>
-                SparseCloneCollectionKind.ConcurrentQueue,
-            "System.Collections.Concurrent.ConcurrentStack<T>" =>
-                SparseCloneCollectionKind.ConcurrentStack,
-            "System.Collections.Concurrent.BlockingCollection<T>" =>
-                SparseCloneCollectionKind.BlockingCollection,
-            "System.Collections.Generic.LinkedList<T>" => SparseCloneCollectionKind.LinkedList,
-            "System.Collections.Generic.SortedSet<T>" => SparseCloneCollectionKind.SortedSet,
-            "System.Collections.Generic.PriorityQueue<TElement, TPriority>" =>
-                SparseCloneCollectionKind.PriorityQueue,
-            "System.Collections.ObjectModel.ObservableCollection<T>" =>
-                SparseCloneCollectionKind.ObservableCollection,
-            "System.Collections.ObjectModel.ReadOnlyCollection<T>" =>
-                SparseCloneCollectionKind.ReadOnlyCollection,
-            "System.Collections.Immutable.ImmutableArray<T>" =>
-                SparseCloneCollectionKind.ImmutableArray,
-            "System.Collections.Immutable.ImmutableList<T>" =>
-                SparseCloneCollectionKind.ImmutableList,
-            "System.Collections.Immutable.ImmutableHashSet<T>" =>
-                SparseCloneCollectionKind.ImmutableSet,
-            "System.Collections.Immutable.ImmutableDictionary<TKey, TValue>" =>
-                SparseCloneCollectionKind.ImmutableDictionary,
+            // Narrowed (issue #280): Queue/Stack, concurrent collections,
+            // BlockingCollection, PriorityQueue, LinkedList, SortedSet,
+            // ObservableCollection/ReadOnlyCollection and immutable collections
+            // are intentionally unsupported. Use an array, List, HashSet or
+            // Dictionary shape, or provide a custom clone/merge policy.
             _ => SparseCloneCollectionKind.Unsupported,
         };
 

@@ -1,6 +1,4 @@
 using System.Buffers;
-using System.Collections.ObjectModel;
-using System.Collections.Immutable;
 using System.ComponentModel.DataAnnotations;
 using System.Text;
 using System.Xml.Linq;
@@ -142,6 +140,9 @@ public partial class OwnershipSettings
 [ConfiglueModel("xml-collection-shapes", Version = 1)]
 public partial class XmlCollectionShapesSettings
 {
+    // First-class XML shapes (issue #280). Queues, stacks, concurrent
+    // collections, linked/sorted/observable wrappers and immutable collections
+    // are intentionally unsupported and covered by rejection tests.
     public int[] ArrayValues { get; set; } = [];
     public List<int> ListValues { get; set; } = [];
     public IReadOnlyList<int> ReadOnlyListValues { get; set; } = [];
@@ -149,13 +150,22 @@ public partial class XmlCollectionShapesSettings
     public ISet<int> SetValues { get; set; } = new HashSet<int>();
     public IReadOnlySet<int> ReadOnlySetValues { get; set; } = new TestReadOnlySet<int>([]);
     public Dictionary<string, int> DictionaryValues { get; set; } = [];
-    public IReadOnlyDictionary<string, int> ReadOnlyDictionaryValues { get; set; } = new Dictionary<string, int>();
+    public IReadOnlyDictionary<string, int> ReadOnlyDictionaryValues { get; set; } =
+        new Dictionary<string, int>();
+    public SortedDictionary<string, int> SortedDictionaryValues { get; set; } = new();
+}
+
+[ConfiglueModel("xml-exotic-shapes", Version = 1)]
+public partial class XmlExoticShapesSettings
+{
+    // Exotic shapes (issue #280) are intentionally unsupported by the generated
+    // clone contract; the reference-safe policy keeps this model compilable so
+    // the XML codec can prove it rejects them with XmlException.
+    [ConfiglueCloneReferenceSafe]
     public Queue<int> QueueValues { get; set; } = new();
-    public ReadOnlyCollection<int> ReadOnlyCollectionValues { get; set; } = Array.AsReadOnly(Array.Empty<int>());
-    public ImmutableArray<int> ImmutableArrayValues { get; set; } = [];
-    public ImmutableList<int> ImmutableListValues { get; set; } = [];
-    public ImmutableHashSet<int> ImmutableSetValues { get; set; } = [];
-    public ImmutableDictionary<string, int> ImmutableDictionaryValues { get; set; } = ImmutableDictionary<string, int>.Empty;
+
+    [ConfiglueCloneReferenceSafe]
+    public LinkedList<int> LinkedListValues { get; set; } = new();
 }
 
 [ConfiglueModel("xml-null-dictionary", Version = 1)]
@@ -180,15 +190,25 @@ public sealed class TestReadOnlySet<T>(IEnumerable<T> values) : IReadOnlySet<T>
 {
     private readonly HashSet<T> _values = new(values);
     public int Count => _values.Count;
+
     public bool Contains(T item) => _values.Contains(item);
+
     public bool IsProperSubsetOf(IEnumerable<T> other) => _values.IsProperSubsetOf(other);
+
     public bool IsProperSupersetOf(IEnumerable<T> other) => _values.IsProperSupersetOf(other);
+
     public bool IsSubsetOf(IEnumerable<T> other) => _values.IsSubsetOf(other);
+
     public bool IsSupersetOf(IEnumerable<T> other) => _values.IsSupersetOf(other);
+
     public bool Overlaps(IEnumerable<T> other) => _values.Overlaps(other);
+
     public bool SetEquals(IEnumerable<T> other) => _values.SetEquals(other);
+
     public IEnumerator<T> GetEnumerator() => _values.GetEnumerator();
-    System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator() => GetEnumerator();
+
+    System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator() =>
+        GetEnumerator();
 }
 
 public sealed class GeneratedFragmentTests
@@ -585,7 +605,17 @@ public sealed class GeneratedFragmentTests
             new JsonStateCodec<HistoricalSettingsV1.Fragment>(),
             oldCodec
         );
-        var source = new StateSource<HistoricalSettings.Fragment>("legacy-v2", new SerializedSource<HistoricalSettings.Fragment>(resource, new JsonStateCodec<HistoricalSettings.Fragment>(), schemaDispatcher: dispatcher, writer: (IResourceReader)resource as IResourceWriter, watcher: (IResourceReader)resource as ISourceWatcher), new StateSourceOptions<HistoricalSettings.Fragment>());
+        var source = new StateSource<HistoricalSettings.Fragment>(
+            "legacy-v2",
+            new SerializedSource<HistoricalSettings.Fragment>(
+                resource,
+                new JsonStateCodec<HistoricalSettings.Fragment>(),
+                schemaDispatcher: dispatcher,
+                writer: (IResourceReader)resource as IResourceWriter,
+                watcher: (IResourceReader)resource as ISourceWatcher
+            ),
+            new StateSourceOptions<HistoricalSettings.Fragment>()
+        );
 
         var result = await source.Reader.ReadAsync();
 
@@ -628,7 +658,17 @@ public sealed class GeneratedFragmentTests
             new JsonStateCodec<HistoricalSettingsV1.Fragment>(),
             new JsonStateCodec<HistoricalSettingsV2.Fragment>()
         );
-        var source = new StateSource<HistoricalSettings.Fragment>("legacy", new SerializedSource<HistoricalSettings.Fragment>(resource, new JsonStateCodec<HistoricalSettings.Fragment>(), schemaDispatcher: dispatcher, writer: (IResourceReader)resource as IResourceWriter, watcher: (IResourceReader)resource as ISourceWatcher), new StateSourceOptions<HistoricalSettings.Fragment>());
+        var source = new StateSource<HistoricalSettings.Fragment>(
+            "legacy",
+            new SerializedSource<HistoricalSettings.Fragment>(
+                resource,
+                new JsonStateCodec<HistoricalSettings.Fragment>(),
+                schemaDispatcher: dispatcher,
+                writer: (IResourceReader)resource as IResourceWriter,
+                watcher: (IResourceReader)resource as ISourceWatcher
+            ),
+            new StateSourceOptions<HistoricalSettings.Fragment>()
+        );
 
         await Should.ThrowAsync<InvalidOperationException>(async () =>
             await source.Reader.ReadAsync()
@@ -675,7 +715,17 @@ public sealed class GeneratedFragmentTests
                 return builder.Build();
             }
         );
-        var source = new StateSource<HistoricalSettings.Fragment>("legacy", new SerializedSource<HistoricalSettings.Fragment>(resource, currentCodec, schemaDispatcher: dispatcher, writer: (IResourceReader)resource as IResourceWriter, watcher: (IResourceReader)resource as ISourceWatcher), new StateSourceOptions<HistoricalSettings.Fragment>());
+        var source = new StateSource<HistoricalSettings.Fragment>(
+            "legacy",
+            new SerializedSource<HistoricalSettings.Fragment>(
+                resource,
+                currentCodec,
+                schemaDispatcher: dispatcher,
+                writer: (IResourceReader)resource as IResourceWriter,
+                watcher: (IResourceReader)resource as ISourceWatcher
+            ),
+            new StateSourceOptions<HistoricalSettings.Fragment>()
+        );
 
         var fragmentResult = await source.Reader.ReadAsync();
         (fragmentResult.Status).ShouldBe(StateReadStatus.Success);

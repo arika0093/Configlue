@@ -71,7 +71,37 @@ The AWS-SDK surface is async-only: the removed `#if NET48` sync stubs have no
 replacement because net48 no longer compiles the SecretsManager resource;
 async APIs remain the single supported surface on the executed TFMs.
 
-## 6. Removed diagnostic matrices (intentionally unasserted, not transferred)
+## 6. Supported collection matrix (issue #280)
+
+First-class configuration-model shapes for generated fragments and the XML
+codec. Everything else requires a custom clone/merge policy (fragments:
+`[ConfiglueCloneReferenceSafe]` / `[SparseCloneReferenceSafe]` plus explicit
+handling; XML: `XmlException` until remodeled).
+
+| Category | Supported declarations | Clone / materialization |
+| --- | --- | --- |
+| Arrays | `T[]`, `IEnumerable<T>`, `IReadOnlyCollection<T>`, `IReadOnlyList<T>` | Alias-preserving deep clone to arrays; XML materializes declared interfaces as `List<T>`-backed assignable values, concrete arrays as arrays |
+| Lists | `List<T>`, `IList<T>` | Alias-preserving deep clone to `List<T>`; XML via `IEnumerable<T>` constructor or `Add` |
+| Sets | `HashSet<T>`, `ISet<T>`, `IReadOnlySet<T>` | Alias-preserving deep clone to `HashSet<T>` (comparer preserved); legacy-TFM `IReadOnlySet<T>` members use the generated static `__SparseReadOnlySet<T>` view |
+| Dictionaries | `Dictionary<TKey, TValue>`, `SortedDictionary<TKey, TValue>`, `SortedList<TKey, TValue>`, `IDictionary<TKey, TValue>`, `IReadOnlyDictionary<TKey, TValue>` | Alias-preserving deep clone preserving the concrete comparer-backed type; XML materializes interfaces as `Dictionary<TKey, TValue>` |
+
+Explicitly unsupported (removed with #280, no built-in clone helper or XML
+materialization): `Queue<T>` / `Stack<T>`, `ConcurrentQueue<T>` /
+`ConcurrentStack<T>`, `BlockingCollection<T>`, `PriorityQueue<TElement,
+TPriority>`, `LinkedList<T>`, `SortedSet<T>`, `ObservableCollection<T>` /
+`ReadOnlyCollection<T>`, and `ImmutableArray<T>` / `ImmutableList<T>` /
+`ImmutableHashSet<T>` / `ImmutableDictionary<TKey, TValue>`. These now report
+`SPF008` / `CFG011` (use `[CloneReferenceSafe]` or remodel to a first-class
+shape) and the XML codec throws `XmlException` naming the declared type.
+
+`netstandard2.0` note: the BCL ships no `IReadOnlySet<T>`, and the XML codec no
+longer emits a `System.Reflection.Emit` proxy to fake the contract. An
+`IReadOnlySet<T>` member on `netstandard2.0` is an unsupported XML shape
+(documented `XmlException`); on modern TFMs it materializes through the static
+`ReadOnlySetView<T>` wrapper. The `System.Reflection.Emit` package reference
+was removed from `Configlue.Provider.Xml`.
+
+## 7. Removed diagnostic matrices (intentionally unasserted, not transferred)
 
 The `GeneratorHostCompatibilityTests` exhaustive matrices removed with #281
 assert generator diagnostic IDs, not host-specific behavior, so they were

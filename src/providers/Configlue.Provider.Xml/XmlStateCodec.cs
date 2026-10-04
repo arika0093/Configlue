@@ -1,11 +1,8 @@
 using System.Buffers;
 using System.Collections;
-using System.Collections.Concurrent;
-using System.Collections.ObjectModel;
 using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Reflection;
-using System.Reflection.Emit;
 using System.Runtime.CompilerServices;
 using System.Text;
 using System.Xml;
@@ -17,10 +14,17 @@ namespace Configlue.Provider.Xml;
 
 /// <summary>
 /// An XML codec for ordinary models and generated sparse fragments. Sequence members use an
-/// explicit materialization contract: arrays, list and read-only-list interfaces, set interfaces,
-/// dictionaries, queues, stacks, linked and sorted collections, observable and read-only
-/// collections, and immutable arrays, lists, sets, and dictionaries are materialized with
-/// assignable values. Other enumerable shapes fail with <see cref="XmlException"/>.
+/// explicit materialization contract (issue #280): arrays, <c>List{T}</c> and
+/// read-only-list interfaces, <c>HashSet{T}</c>/set interfaces, and dictionaries
+/// (<c>Dictionary{TKey, TValue}</c>, <c>SortedDictionary{TKey, TValue}</c>,
+/// <c>SortedList{TKey, TValue}</c> and their read-only interfaces) are materialized
+/// with assignable values. Queues, stacks, concurrent collections,
+/// <c>BlockingCollection{T}</c>, <c>PriorityQueue{TElement, TPriority}</c>,
+/// <c>LinkedList{T}</c>, <c>SortedSet{T}</c>, observable/read-only wrappers and
+/// immutable collections are unsupported here and fail with <see cref="XmlException"/>;
+/// use a first-class shape or a custom policy instead.
+/// On <c>netstandard2.0</c>, an <c>IReadOnlySet{T}</c> contract has no BCL identity
+/// and no runtime proxy is emitted, so it is likewise unsupported.
 /// </summary>
 public sealed class XmlStateCodec
     : IStateCodec,
@@ -570,9 +574,9 @@ internal static class XmlStateCodecOperations
 
     /// <summary>
     /// XML fragment collections use the same public shapes recognized by the generated
-    /// fragment clone contract. Interface declarations are materialized as lists, sets,
-    /// or dictionaries; concrete supported collections use their
-    /// collection-specific constructor/factory. Other enumerable types are rejected here,
+    /// fragment clone contract (issue #280). Interface declarations are materialized as
+    /// lists, sets, or dictionaries; concrete supported collections use their
+    /// collection-specific constructor. Other enumerable types are rejected here,
     /// before a generated fragment can fail with a cast error.
     /// </summary>
     private static object MaterializeCollection(
@@ -626,7 +630,14 @@ internal static class XmlStateCodecOperations
             }
         }
 
-        if (!declaredType.IsAssignableFrom(concreteType) && !IsReadOnlySetType(definition))
+        bool assignable;
+#if !NETSTANDARD
+        assignable =
+            declaredType.IsAssignableFrom(concreteType) || definition == typeof(IReadOnlySet<>);
+#else
+        assignable = declaredType.IsAssignableFrom(concreteType);
+#endif
+        if (!assignable)
         {
             throw UnsupportedCollection(declaredType);
         }
@@ -649,131 +660,84 @@ internal static class XmlStateCodecOperations
         }
 
         var enumerable = typedItems;
-        if (definition == typeof(Stack<>))
-        {
-            Array.Reverse(typedItems);
-        }
 
-        object? collection = null;
-        if (IsNamedGenericType(definition, "System.Collections.Immutable.ImmutableArray`1"))
-        {
-            collection = InvokeImmutableFactory(
-                definition,
-                "System.Collections.Immutable.ImmutableArray",
-                "CreateRange",
-                [elementType],
-                enumerable
-            );
-        }
-        else if (IsNamedGenericType(definition, "System.Collections.Immutable.ImmutableList`1"))
-        {
-            collection = InvokeImmutableFactory(
-                definition,
-                "System.Collections.Immutable.ImmutableList",
-                "CreateRange",
-                [elementType],
-                enumerable
-            );
-        }
-        else if (IsNamedGenericType(definition, "System.Collections.Immutable.ImmutableHashSet`1"))
-        {
-            collection = InvokeImmutableFactory(
-                definition,
-                "System.Collections.Immutable.ImmutableHashSet",
-                "CreateRange",
-                [elementType],
-                enumerable
-            );
-        }
-        else if (
-            IsNamedGenericType(definition, "System.Collections.Immutable.ImmutableDictionary`2")
-        )
-        {
-            collection = InvokeImmutableFactory(
-                definition,
-                "System.Collections.Immutable.ImmutableDictionary",
-                "CreateRange",
-                arguments,
-                enumerable
-            );
-        }
-        else
-        {
-            var enumerableConstructor = concreteType
-                .GetConstructors()
-                .FirstOrDefault(constructor =>
-                    constructor.GetParameters() is [{ ParameterType: var parameterType }]
-                    && parameterType.IsInstanceOfType(typedItems)
-                );
-            if (enumerableConstructor is not null)
-            {
-                collection = enumerableConstructor.Invoke([enumerable]);
-            }
-            else
-            {
-                collection = Activator.CreateInstance(concreteType);
-                string methodName;
-                if (definition == typeof(Queue<>) || definition == typeof(ConcurrentQueue<>))
-                {
-                    methodName = "Enqueue";
-                }
-                else if (definition == typeof(Stack<>) || definition == typeof(ConcurrentStack<>))
-                {
-                    methodName = "Push";
-                }
-                else if (definition == typeof(LinkedList<>))
-                {
-                    methodName = "AddLast";
-                }
-                else
-                {
-                    methodName = "Add";
-                }
-                var add = isDictionary
-                    ? concreteType.GetMethod("Add", arguments)
-                    : concreteType.GetMethod(methodName, [elementType]);
-                if (collection is null || add is null)
-                {
-                    throw UnsupportedCollection(declaredType);
-                }
-                foreach (var item in typedItems)
-                {
-                    if (isDictionary)
-                    {
-                        add.Invoke(
-                            collection,
-                            [
-                                pairType!.GetProperty("Key")!.GetValue(item),
-                                pairType.GetProperty("Value")!.GetValue(item),
-                            ]
-                        );
-                    }
-                    else
-                    {
-                        add.Invoke(collection, [item]);
-                    }
-                }
-            }
-        }
+        object? collection = MaterializeIntoConcrete(
+            concreteType,
+            declaredType,
+            elementType,
+            arguments,
+            isDictionary,
+            pairType,
+            typedItems,
+            enumerable
+        );
 
         if (collection is null || !declaredType.IsInstanceOfType(collection))
         {
-            if (IsReadOnlySetType(definition) && collection is IEnumerable sequence)
+#if !NETSTANDARD
+            if (definition == typeof(IReadOnlySet<>) && collection is IEnumerable sequence)
             {
-#if NETSTANDARD
-                var view = CreateReadOnlySetProxy(declaredType, elementType, sequence);
-#else
                 var viewType = typeof(ReadOnlySetView<>).MakeGenericType(elementType);
                 var view = Activator.CreateInstance(viewType, [sequence]);
-#endif
                 if (view is not null && declaredType.IsInstanceOfType(view))
                 {
                     return view;
                 }
             }
+#endif
             throw UnsupportedCollection(declaredType);
         }
 
+        return collection;
+    }
+
+    private static object? MaterializeIntoConcrete(
+        Type concreteType,
+        Type declaredType,
+        Type elementType,
+        Type[] arguments,
+        bool isDictionary,
+        Type? pairType,
+        Array typedItems,
+        Array enumerable
+    )
+    {
+        var enumerableConstructor = concreteType
+            .GetConstructors()
+            .FirstOrDefault(constructor =>
+                constructor.GetParameters() is [{ ParameterType: var parameterType }]
+                && parameterType.IsInstanceOfType(typedItems)
+            );
+        if (enumerableConstructor is not null)
+        {
+            return enumerableConstructor.Invoke([enumerable]);
+        }
+
+        var collection = Activator.CreateInstance(concreteType);
+        var add = isDictionary
+            ? concreteType.GetMethod("Add", arguments)
+            : concreteType.GetMethod("Add", [elementType]);
+        if (collection is null || add is null)
+        {
+            throw UnsupportedCollection(declaredType);
+        }
+        foreach (var item in typedItems)
+        {
+            if (isDictionary)
+            {
+                add.Invoke(
+                    collection,
+                    [
+                        pairType!.GetProperty("Key")!.GetValue(item),
+                        pairType.GetProperty("Value")!.GetValue(item),
+                    ]
+                );
+            }
+            else
+            {
+                add.Invoke(collection, [item]);
+            }
+        }
         return collection;
     }
 
@@ -782,165 +746,18 @@ internal static class XmlStateCodecOperations
         || type == typeof(IDictionary<,>)
         || type == typeof(IReadOnlyDictionary<,>)
         || type == typeof(SortedDictionary<,>)
-        || type == typeof(SortedList<,>)
-        || IsNamedGenericType(type, "System.Collections.Immutable.ImmutableDictionary`2");
+        || type == typeof(SortedList<,>);
 
     private static bool IsSetType(Type type) =>
-        type == typeof(HashSet<>) || type == typeof(ISet<>) || IsReadOnlySetType(type);
-
-    private static bool IsReadOnlySetType(Type type)
-    {
+        type == typeof(HashSet<>)
+        || type == typeof(ISet<>)
 #if NETSTANDARD
-        return IsNamedGenericType(type, "System.Collections.Generic.IReadOnlySet`1");
+        || (
+            type.IsGenericTypeDefinition
+            && type.FullName == "System.Collections.Generic.IReadOnlySet`1"
+        );
 #else
-        return type == typeof(IReadOnlySet<>);
-#endif
-    }
-
-#if NETSTANDARD
-    // netstandard2.0 has no BCL IReadOnlySet<T> and the net48 test shim declares its own
-    // interface identity, so the contract type is only known at runtime. DispatchProxy
-    // cannot subclass a private/internal proxy base on .NET Framework (TypeBuilder throws
-    // "Access is denied"), so emit a small sealed wrapper that implements the contract
-    // by delegating every member to an inner HashSet<TElement> instead.
-    private static readonly ConcurrentDictionary<
-        (Type ContractType, Type ElementType),
-        Type
-    > ReadOnlySetProxyTypes = new();
-
-    private static object CreateReadOnlySetProxy(
-        Type contractType,
-        Type elementType,
-        IEnumerable values
-    )
-    {
-        ArgumentNullException.ThrowIfNull(contractType);
-        ArgumentNullException.ThrowIfNull(elementType);
-        ArgumentNullException.ThrowIfNull(values);
-        var hashSetType = typeof(HashSet<>).MakeGenericType(elementType);
-        var cast = typeof(Enumerable)
-            .GetMethod(nameof(Enumerable.Cast))!
-            .MakeGenericMethod(elementType);
-        var typedValues = cast.Invoke(null, [values]);
-        var hashSet = Activator.CreateInstance(hashSetType, [typedValues])!;
-        var proxyType = ReadOnlySetProxyTypes.GetOrAdd(
-            (contractType, elementType),
-            static key => BuildReadOnlySetProxyType(key.ContractType, key.ElementType)
-        );
-        return Activator.CreateInstance(proxyType, [hashSet])!;
-    }
-
-    private static Type BuildReadOnlySetProxyType(Type contractType, Type elementType)
-    {
-        var interfaces = new List<Type> { contractType };
-        var queue = new Queue<Type>(interfaces);
-        var seen = new HashSet<Type>(interfaces);
-        while (queue.Count > 0)
-        {
-            var current = queue.Dequeue();
-            foreach (var parent in current.GetInterfaces().Where(seen.Add))
-            {
-                interfaces.Add(parent);
-                queue.Enqueue(parent);
-            }
-        }
-
-        var hashSetType = typeof(HashSet<>).MakeGenericType(elementType);
-        var assembly = AssemblyBuilder.DefineDynamicAssembly(
-            new AssemblyName("Configlue.Xml.ReadOnlySetProxies"),
-            AssemblyBuilderAccess.Run
-        );
-        var module = assembly.DefineDynamicModule("Configlue.Xml.ReadOnlySetProxies");
-        var typeBuilder = module.DefineType(
-            $"ReadOnlySetProxy_{elementType.Name}_{Guid.NewGuid():N}",
-            TypeAttributes.Public | TypeAttributes.Sealed | TypeAttributes.BeforeFieldInit,
-            typeof(object),
-            [contractType]
-        );
-        var field = typeBuilder.DefineField(
-            "_values",
-            hashSetType,
-            FieldAttributes.Private | FieldAttributes.InitOnly
-        );
-        var constructor = typeBuilder.DefineConstructor(
-            MethodAttributes.Public,
-            CallingConventions.Standard,
-            [hashSetType]
-        );
-        var ctorIl = constructor.GetILGenerator();
-        ctorIl.Emit(OpCodes.Ldarg_0);
-        ctorIl.Emit(OpCodes.Call, typeof(object).GetConstructor(Type.EmptyTypes)!);
-        ctorIl.Emit(OpCodes.Ldarg_0);
-        ctorIl.Emit(OpCodes.Ldarg_1);
-        ctorIl.Emit(OpCodes.Stfld, field);
-        ctorIl.Emit(OpCodes.Ret);
-
-        var implemented = new HashSet<string>(StringComparer.Ordinal);
-        var methodIndex = 0;
-        foreach (var @interface in interfaces)
-        {
-            foreach (var method in @interface.GetMethods())
-            {
-                // Method.ToString includes the return type, so the generic and
-                // non-generic GetEnumerator overloads stay distinct.
-                var key = @interface.AssemblyQualifiedName + "::" + method;
-                if (!implemented.Add(key))
-                {
-                    continue;
-                }
-
-                var parameters = method
-                    .GetParameters()
-                    .Select(static parameter => parameter.ParameterType)
-                    .ToArray();
-
-                var target = hashSetType.GetMethod(method.Name, parameters);
-                if (target is null)
-                {
-                    throw new InvalidOperationException(
-                        $"Read-only set member '{method.Name}' is unsupported for element type '{elementType}'."
-                    );
-                }
-
-                // Each proxy method gets a unique name: the generic and non-generic
-                // GetEnumerator share a name and signature but differ in return type,
-                // so they cannot share one implementation method.
-                var proxy = typeBuilder.DefineMethod(
-                    "Proxy_" + methodIndex + "_" + method.Name,
-                    MethodAttributes.Public
-                        | MethodAttributes.Virtual
-                        | MethodAttributes.HideBySig
-                        | MethodAttributes.NewSlot
-                        | MethodAttributes.Final,
-                    method.ReturnType,
-                    parameters
-                );
-                methodIndex++;
-                var body = proxy.GetILGenerator();
-                body.Emit(OpCodes.Ldarg_0);
-                body.Emit(OpCodes.Ldfld, field);
-                for (var index = 0; index < parameters.Length; index++)
-                {
-                    body.Emit(OpCodes.Ldarg, index + 1);
-                }
-
-                body.Emit(OpCodes.Callvirt, target);
-                if (target.ReturnType.IsValueType && target.ReturnType != method.ReturnType)
-                {
-                    // HashSet<T>.GetEnumerator returns a struct enumerator while the
-                    // contract expects an interface reference, so box it explicitly.
-                    body.Emit(OpCodes.Box, target.ReturnType);
-                }
-
-                body.Emit(OpCodes.Ret);
-                typeBuilder.DefineMethodOverride(proxy, method);
-            }
-        }
-
-        var created = typeBuilder.CreateTypeInfo();
-        ArgumentNullException.ThrowIfNull(created);
-        return created.AsType();
-    }
+        || type == typeof(IReadOnlySet<>);
 #endif
 
     private static bool IsSupportedConcreteCollection(Type type, bool isDictionary) =>
@@ -950,61 +767,18 @@ internal static class XmlStateCodecOperations
                 type == typeof(Dictionary<,>)
                 || type == typeof(SortedDictionary<,>)
                 || type == typeof(SortedList<,>)
-                || IsNamedGenericType(type, "System.Collections.Immutable.ImmutableDictionary`2")
             )
         )
         || type == typeof(List<>)
-        || type == typeof(HashSet<>)
-        || type == typeof(Queue<>)
-        || type == typeof(Stack<>)
-        || type == typeof(ConcurrentQueue<>)
-        || type == typeof(ConcurrentStack<>)
-        || type == typeof(BlockingCollection<>)
-        || type == typeof(LinkedList<>)
-        || type == typeof(SortedSet<>)
-        || type == typeof(ObservableCollection<>)
-        || type == typeof(ReadOnlyCollection<>)
-        || IsNamedGenericType(type, "System.Collections.Immutable.ImmutableArray`1")
-        || IsNamedGenericType(type, "System.Collections.Immutable.ImmutableList`1")
-        || IsNamedGenericType(type, "System.Collections.Immutable.ImmutableHashSet`1");
+        || type == typeof(HashSet<>);
 
     private static XmlException UnsupportedCollection(Type type) =>
-        new($"XML collection materialization does not support declared collection type '{type}'.");
-
-    private static object? InvokeImmutableFactory(
-        Type collectionType,
-        string factoryTypeName,
-        string methodName,
-        Type[] arguments,
-        object values
-    )
-    {
-        var factoryType =
-            collectionType.Assembly.GetType(factoryTypeName)
-            ?? throw new InvalidOperationException(
-                $"Immutable collection factory '{factoryTypeName}' is unavailable."
-            );
-        var factory = factoryType
-            .GetMethods(BindingFlags.Public | BindingFlags.Static)
-            .FirstOrDefault(method =>
-                method.Name == methodName
-                && method.IsGenericMethodDefinition
-                && method.GetGenericArguments().Length == arguments.Length
-                && method.GetParameters() is [{ ParameterType: var parameterType }]
-                && parameterType.IsGenericType
-                && parameterType.GetGenericTypeDefinition() == typeof(IEnumerable<>)
-            );
-        if (factory is null)
-        {
-            throw new InvalidOperationException(
-                $"Immutable collection factory '{factoryType}.{methodName}' is unavailable."
-            );
-        }
-        return factory.MakeGenericMethod(arguments).Invoke(null, [values]);
-    }
-
-    private static bool IsNamedGenericType(Type type, string name) =>
-        type.IsGenericTypeDefinition && type.FullName == name;
+        new(
+            $"XML collection materialization does not support declared collection type '{type}'. "
+                + "Supported shapes are arrays, List<T>/IList<T>/IReadOnlyList<T>/IEnumerable<T>, "
+                + "HashSet<T>/ISet<T> (IReadOnlySet<T> on modern TFMs), and Dictionary<TKey, TValue> "
+                + "variants (including SortedDictionary/SortedList and read-only interfaces)."
+        );
 
 #if !NETSTANDARD
     private sealed class ReadOnlySetView<T>(IEnumerable<T> values) : IReadOnlySet<T>

@@ -73,24 +73,17 @@ internal sealed class PortableHashSet<T> : HashSet<T>, IReadOnlySet<T>
         : base(comparer) { }
 }
 
-internal sealed class PortableSortedSet<T> : SortedSet<T>, IReadOnlySet<T>
-{
-    public PortableSortedSet(IComparer<T> comparer)
-        : base(comparer) { }
-}
-
 public sealed class SharedSetCloneTests
 {
+    // Representative set matrix (issue #280): HashSet comparer semantics and
+    // mutable/read-only alias preservation in both member orders. SortedSet and
+    // other specialized containers are intentionally unsupported.
     [Test]
-    [Arguments(false, false)]
-    [Arguments(false, true)]
-    [Arguments(true, false)]
-    [Arguments(true, true)]
-    public void ReadOnlyAliasesPreserveComparerInBothMemberOrders(bool sorted, bool readOnlyFirst)
+    [Arguments(false)]
+    [Arguments(true)]
+    public void ReadOnlyAliasesPreserveComparerInBothMemberOrders(bool readOnlyFirst)
     {
-        ISet<string> shared = sorted
-            ? new PortableSortedSet<string>(StringComparer.OrdinalIgnoreCase)
-            : new PortableHashSet<string>(StringComparer.OrdinalIgnoreCase);
+        ISet<string> shared = new PortableHashSet<string>(StringComparer.OrdinalIgnoreCase);
         shared.Add("Z");
         shared.Add("a");
         ISet<string> mutable;
@@ -122,21 +115,15 @@ public sealed class SharedSetCloneTests
         ReferenceEquals(mutable, readOnly).ShouldBeTrue();
         readOnly.Contains("A").ShouldBeTrue();
         readOnly.SetEquals(new[] { "z", "A" }).ShouldBeTrue();
-        if (sorted)
-            readOnly.First().ShouldBe("a");
         mutable.Remove("A").ShouldBeTrue();
         readOnly.Contains("a").ShouldBeFalse();
         shared.Contains("a").ShouldBeTrue();
     }
 
     [Test]
-    [Arguments(false)]
-    [Arguments(true)]
-    public void ClonePreservesSetComparersForConcreteSources(bool sorted)
+    public void ClonePreservesSetComparerForConcreteSources()
     {
-        ISet<string> set = sorted
-            ? new SortedSet<string>(StringComparer.OrdinalIgnoreCase)
-            : new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        ISet<string> set = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         set.Add("Z");
         set.Add("a");
         var model = new SharedSetSettings
@@ -146,8 +133,6 @@ public sealed class SharedSetCloneTests
         };
         var clone = model.DeepClone();
         clone.Mutable.Contains("A").ShouldBeTrue();
-        if (sorted)
-            clone.Mutable.First().ShouldBe("a");
         clone.Mutable.Remove("A");
         set.Contains("a").ShouldBeTrue();
     }
@@ -166,13 +151,9 @@ public sealed class SharedSetCloneTests
     }
 
     [Test]
-    [Arguments(false)]
-    [Arguments(true)]
-    public void RecloningPreservesReadOnlySetComparer(bool sorted)
+    public void RecloningPreservesReadOnlySetComparer()
     {
-        ISet<string> set = sorted
-            ? new SortedSet<string>(StringComparer.OrdinalIgnoreCase)
-            : new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        ISet<string> set = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         set.Add("Z");
         set.Add("a");
         var model = new SharedSetSettings
@@ -182,8 +163,6 @@ public sealed class SharedSetCloneTests
         };
         var reclone = model.DeepClone().DeepClone();
         reclone.Mutable.Contains("A").ShouldBeTrue();
-        if (sorted)
-            reclone.Mutable.First().ShouldBe("a");
     }
 
     [Test]

@@ -3,6 +3,12 @@ using Configlue;
 
 namespace Configlue.Tests;
 
+/// <summary>
+/// Configlue-generator parity smoke for set cloning (issue #280). The
+/// representative set matrix (comparers, member orders, re-clone) lives once in
+/// <c>SparseFragments.Tests.SharedSetCloneTests</c>; this contract only proves the
+/// Configlue generator preserves the same mutable/read-only alias.
+/// </summary>
 [ConfiglueModel("shared-set-clone")]
 public partial class SharedSetSettings
 {
@@ -58,134 +64,8 @@ internal sealed class PortableSet<T> : ISet<T>, IReadOnlySet<T>
     public void UnionWith(IEnumerable<T> other) => _inner.UnionWith(other);
 }
 
-[ConfiglueModel("read-only-first-set")]
-public partial class ReadOnlyFirstSetSettings
-{
-    public IReadOnlySet<string> ReadOnly { get; set; } = new PortableHashSet<string>();
-    public ISet<string> Mutable { get; set; } = new HashSet<string>();
-}
-
-internal sealed class PortableHashSet<T> : HashSet<T>, IReadOnlySet<T>
-{
-    public PortableHashSet() { }
-
-    public PortableHashSet(IEqualityComparer<T> comparer)
-        : base(comparer) { }
-}
-
-internal sealed class PortableSortedSet<T> : SortedSet<T>, IReadOnlySet<T>
-{
-    public PortableSortedSet(IComparer<T> comparer)
-        : base(comparer) { }
-}
-
 public sealed class SharedSetCloneTests
 {
-    [Test]
-    [Arguments(false, false)]
-    [Arguments(false, true)]
-    [Arguments(true, false)]
-    [Arguments(true, true)]
-    public void ReadOnlyAliasesPreserveComparerInBothMemberOrders(bool sorted, bool readOnlyFirst)
-    {
-        ISet<string> shared = sorted
-            ? new PortableSortedSet<string>(StringComparer.OrdinalIgnoreCase)
-            : new PortableHashSet<string>(StringComparer.OrdinalIgnoreCase);
-        shared.Add("Z");
-        shared.Add("a");
-        ISet<string> mutable;
-        IReadOnlySet<string> readOnly;
-        if (readOnlyFirst)
-        {
-            var clone = new ReadOnlyFirstSetSettings
-            {
-                Mutable = shared,
-                ReadOnly = (IReadOnlySet<string>)shared,
-            }
-                .DeepClone()
-                .DeepClone();
-            mutable = clone.Mutable;
-            readOnly = clone.ReadOnly;
-        }
-        else
-        {
-            var clone = new SharedSetSettings
-            {
-                Mutable = shared,
-                ReadOnly = (IReadOnlySet<string>)shared,
-            }
-                .DeepClone()
-                .DeepClone();
-            mutable = clone.Mutable;
-            readOnly = clone.ReadOnly;
-        }
-        ReferenceEquals(mutable, readOnly).ShouldBeTrue();
-        readOnly.Contains("A").ShouldBeTrue();
-        readOnly.SetEquals(new[] { "z", "A" }).ShouldBeTrue();
-        if (sorted)
-            readOnly.First().ShouldBe("a");
-        mutable.Remove("A").ShouldBeTrue();
-        readOnly.Contains("a").ShouldBeFalse();
-        shared.Contains("a").ShouldBeTrue();
-    }
-
-    [Test]
-    [Arguments(false)]
-    [Arguments(true)]
-    public void ClonePreservesSetComparersForConcreteSources(bool sorted)
-    {
-        ISet<string> set = sorted
-            ? new SortedSet<string>(StringComparer.OrdinalIgnoreCase)
-            : new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        set.Add("Z");
-        set.Add("a");
-        var model = new SharedSetSettings
-        {
-            Mutable = set,
-            ReadOnly = new PortableSet<string>(new HashSet<string>()),
-        };
-        var clone = model.DeepClone();
-        clone.Mutable.Contains("A").ShouldBeTrue();
-        if (sorted)
-            clone.Mutable.First().ShouldBe("a");
-        clone.Mutable.Remove("A");
-        set.Contains("a").ShouldBeTrue();
-    }
-
-    [Test]
-    public void CloneCopiesPlainReadOnlySetContents()
-    {
-        var model = new SharedSetSettings
-        {
-            ReadOnly = new PortableSet<string>(new HashSet<string> { "alpha", "beta" }),
-        };
-        var clone = model.DeepClone();
-        clone.ReadOnly.Count.ShouldBe(2);
-        clone.ReadOnly.Contains("alpha").ShouldBeTrue();
-        clone.ReadOnly.Contains("beta").ShouldBeTrue();
-    }
-
-    [Test]
-    [Arguments(false)]
-    [Arguments(true)]
-    public void RecloningPreservesReadOnlySetComparer(bool sorted)
-    {
-        ISet<string> set = sorted
-            ? new SortedSet<string>(StringComparer.OrdinalIgnoreCase)
-            : new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        set.Add("Z");
-        set.Add("a");
-        var model = new SharedSetSettings
-        {
-            Mutable = set,
-            ReadOnly = new PortableSet<string>(new HashSet<string>()),
-        };
-        var reclone = model.DeepClone().DeepClone();
-        reclone.Mutable.Contains("A").ShouldBeTrue();
-        if (sorted)
-            reclone.Mutable.First().ShouldBe("a");
-    }
-
     [Test]
     public void ClonePreservesAliasesBetweenMutableAndReadOnlyViews()
     {

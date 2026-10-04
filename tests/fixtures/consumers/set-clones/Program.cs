@@ -18,43 +18,39 @@ public static class Program
                 .Invoke(null, new object[] { Array.Empty<string>() });
             return;
         }
-        foreach (var sorted in new[] { false, true })
+        // Representative first-class set shape (issue #280): HashSet comparer
+        // semantics with mutable/read-only aliases. SortedSet and other
+        // specialized containers are intentionally unsupported.
+        ISet<string> source = new PortableHashSet<string>(StringComparer.OrdinalIgnoreCase);
+        source.Add("Z");
+        source.Add("a");
+        var config = new ConfigSettings
         {
-            ISet<string> source = sorted
-                ? new PortableSortedSet<string>(StringComparer.OrdinalIgnoreCase)
-                : new PortableHashSet<string>(StringComparer.OrdinalIgnoreCase);
-            source.Add("Z");
-            source.Add("a");
-            var config = new ConfigSettings
-            {
-                Mutable = source,
-                ReadOnly = (IReadOnlySet<string>)source,
-            };
-            var configClone = config.DeepClone().DeepClone();
-            Verify(source, configClone.Mutable, configClone.ReadOnly, sorted);
-            var sparse = new SparseSettings
-            {
-                Mutable = source,
-                ReadOnly = (IReadOnlySet<string>)source,
-            };
-            var sparseClone = sparse.DeepClone().DeepClone();
-            Verify(source, sparseClone.Mutable, sparseClone.ReadOnly, sorted);
-        }
+            Mutable = source,
+            ReadOnly = (IReadOnlySet<string>)source,
+        };
+        var configClone = config.DeepClone().DeepClone();
+        Verify(source, configClone.Mutable, configClone.ReadOnly);
+        var sparse = new SparseSettings
+        {
+            Mutable = source,
+            ReadOnly = (IReadOnlySet<string>)source,
+        };
+        var sparseClone = sparse.DeepClone().DeepClone();
+        Verify(source, sparseClone.Mutable, sparseClone.ReadOnly);
         Console.WriteLine("Both generated set clone consumers passed.");
     }
 
     private static void Verify(
         ISet<string> source,
         ISet<string> mutable,
-        IReadOnlySet<string> readOnly,
-        bool sorted
+        IReadOnlySet<string> readOnly
     )
     {
         Require(ReferenceEquals(mutable, readOnly), "mutable/read-only alias");
         Require(!ReferenceEquals(source, mutable), "clone isolation");
         Require(readOnly.Count == 2 && readOnly.Contains("A"), "contents and comparer");
         Require(readOnly.SetEquals(new[] { "z", "A" }), "set comparer semantics");
-        Require(!sorted || readOnly.First() == "a", "sorted order");
         Require(mutable.Remove("A") && !readOnly.Contains("a"), "alias shares mutation");
         Require(source.Contains("a"), "original is unchanged");
     }
@@ -85,11 +81,5 @@ public partial class SparseSettings
 internal sealed class PortableHashSet<T> : HashSet<T>, IReadOnlySet<T>
 {
     public PortableHashSet(IEqualityComparer<T> comparer)
-        : base(comparer) { }
-}
-
-internal sealed class PortableSortedSet<T> : SortedSet<T>, IReadOnlySet<T>
-{
-    public PortableSortedSet(IComparer<T> comparer)
         : base(comparer) { }
 }

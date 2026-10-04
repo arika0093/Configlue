@@ -107,34 +107,7 @@ internal static class SparseFragmentEmitter
                 poco.Members,
                 poco.Model.Constructor
             );
-        SparseFragmentCoreEmitter.AppendCollectionCloneHelpers(
-            code,
-            members.Any(static member =>
-                member.Collection.CloneKind == SparseCloneCollectionKind.PriorityQueue
-            )
-                || pocoCloneModels.Any(static poco =>
-                    poco.Members.Any(static member =>
-                        member.Collection.CloneKind == SparseCloneCollectionKind.PriorityQueue
-                    )
-                )
-                || structuralModels.Any(static structural =>
-                    structural.Members.Any(static member =>
-                        member.Collection.CloneKind == SparseCloneCollectionKind.PriorityQueue
-                    )
-                ),
-            members.Any(static member => IsImmutableCloneCollection(member.Collection.CloneKind))
-                || pocoCloneModels.Any(static poco =>
-                    poco.Members.Any(static member =>
-                        IsImmutableCloneCollection(member.Collection.CloneKind)
-                    )
-                )
-                || structuralModels.Any(static structural =>
-                    structural.Members.Any(static member =>
-                        IsImmutableCloneCollection(member.Collection.CloneKind)
-                    )
-                ),
-            portableSetView
-        );
+        SparseFragmentCoreEmitter.AppendCollectionCloneHelpers(code, portableSetView);
         AppendFragment(
             code,
             modelType,
@@ -148,12 +121,6 @@ internal static class SparseFragmentEmitter
         code.AppendLine("}");
         return code.ToString();
     }
-
-    private static bool IsImmutableCloneCollection(SparseCloneCollectionKind kind) =>
-        kind
-            is SparseCloneCollectionKind.ImmutableList
-                or SparseCloneCollectionKind.ImmutableSet
-                or SparseCloneCollectionKind.ImmutableDictionary;
 
     private static ImmutableArray<SparseMemberModel> ApplyPortableSetView(
         ImmutableArray<SparseMemberModel> members

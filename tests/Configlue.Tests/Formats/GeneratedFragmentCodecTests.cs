@@ -1,6 +1,4 @@
 using System.Buffers;
-using System.Collections.ObjectModel;
-using System.Collections.Immutable;
 using System.ComponentModel.DataAnnotations;
 using System.Text;
 using System.Xml.Linq;
@@ -184,12 +182,7 @@ public sealed class GeneratedFragmentCodecTests
             ReadOnlySetValues = new TestReadOnlySet<int>([11, 12]),
             DictionaryValues = new Dictionary<string, int> { ["one"] = 1 },
             ReadOnlyDictionaryValues = new Dictionary<string, int> { ["two"] = 2 },
-            QueueValues = new Queue<int>([13, 14]),
-            ReadOnlyCollectionValues = Array.AsReadOnly(new[] { 15, 16 }),
-            ImmutableArrayValues = [17, 18],
-            ImmutableListValues = [19, 20],
-            ImmutableSetValues = ImmutableHashSet.Create(21, 22),
-            ImmutableDictionaryValues = ImmutableDictionary<string, int>.Empty.Add("three", 3),
+            SortedDictionaryValues = new SortedDictionary<string, int> { ["three"] = 3 },
         };
         var codec = new XmlStateCodec<XmlCollectionShapesSettings>();
         var buffer = new ArrayBufferWriter<byte>();
@@ -206,12 +199,29 @@ public sealed class GeneratedFragmentCodecTests
         decoded.ReadOnlySetValues.OrderBy(static item => item).ShouldBe([11, 12]);
         decoded.DictionaryValues.ShouldBe(new Dictionary<string, int> { ["one"] = 1 });
         decoded.ReadOnlyDictionaryValues.ShouldBe(new Dictionary<string, int> { ["two"] = 2 });
-        decoded.QueueValues.ShouldBe(new Queue<int>([13, 14]));
-        decoded.ReadOnlyCollectionValues.ShouldBe([15, 16]);
-        decoded.ImmutableArrayValues.ShouldBe([17, 18]);
-        decoded.ImmutableListValues.ShouldBe([19, 20]);
-        decoded.ImmutableSetValues.ShouldBe(ImmutableHashSet.Create(21, 22));
-        decoded.ImmutableDictionaryValues.ShouldBe(ImmutableDictionary<string, int>.Empty.Add("three", 3));
+        decoded.SortedDictionaryValues.ShouldBe(
+            new SortedDictionary<string, int> { ["three"] = 3 }
+        );
+    }
+
+    [Test]
+    public void XmlCodec_RejectsExoticCollectionShapes()
+    {
+        // Exotic shapes (issue #280) have no XML materialization contract:
+        // serializing succeeds (sequences are enumerable) but deserializing the
+        // fragment member fails with XmlException.
+        var model = new XmlExoticShapesSettings
+        {
+            QueueValues = new Queue<int>([1, 2]),
+            LinkedListValues = new LinkedList<int>([3, 4]),
+        };
+        var codec = new XmlStateCodec<XmlExoticShapesSettings>();
+        var buffer = new ArrayBufferWriter<byte>();
+
+        codec.Serialize(model, buffer, default);
+        var sequence = new ReadOnlySequence<byte>(buffer.WrittenMemory);
+
+        Should.Throw<System.Xml.XmlException>(() => codec.Deserialize(in sequence, default));
     }
 
     [Test]
@@ -219,7 +229,12 @@ public sealed class GeneratedFragmentCodecTests
     {
         var model = new XmlNullDictionarySettings
         {
-            Values = new() { ["null-list"] = null, ["empty-list"] = [], ["values"] = [1, 2] },
+            Values = new()
+            {
+                ["null-list"] = null,
+                ["empty-list"] = [],
+                ["values"] = [1, 2],
+            },
             NullableInts = new() { ["null-int"] = null, ["value"] = 42 },
             NullableStrings = new() { ["null-string"] = null, ["value"] = "hello" },
             Nested = new()
@@ -246,13 +261,12 @@ public sealed class GeneratedFragmentCodecTests
         var dynamicBuffer = new ArrayBufferWriter<byte>();
         dynamicCodec.Serialize(typeof(XmlNullDictionarySettings), model, dynamicBuffer, default);
         var dynamicSequence = new ReadOnlySequence<byte>(dynamicBuffer.WrittenMemory);
-        var dynamicDecoded =
-            (XmlNullDictionarySettings)
-                dynamicCodec.Deserialize(
-                    typeof(XmlNullDictionarySettings),
-                    in dynamicSequence,
-                    default
-                )!;
+        var dynamicDecoded = (XmlNullDictionarySettings)
+            dynamicCodec.Deserialize(
+                typeof(XmlNullDictionarySettings),
+                in dynamicSequence,
+                default
+            )!;
         AssertNullDictionaryRoundTrip(dynamicDecoded);
 
         // Generated fragment codec.

@@ -42,8 +42,10 @@ internal sealed class SparseFragmentCoreEmitter
     public string MergeStrategyField(SparseMemberModel member) =>
         _declaration.MergeStrategyField(member);
 
-    public void AppendBuilder(SharedIndentedBuilder code, ImmutableArray<SparseMemberModel> members) =>
-        _declaration.AppendBuilder(code, members);
+    public void AppendBuilder(
+        SharedIndentedBuilder code,
+        ImmutableArray<SparseMemberModel> members
+    ) => _declaration.AppendBuilder(code, members);
 
     public static void AppendDeclaration(
         SharedIndentedBuilder code,
@@ -69,14 +71,10 @@ internal sealed class SparseFragmentCoreEmitter
 
     public static void AppendCollectionCloneHelpers(
         SharedIndentedBuilder code,
-        bool includePriorityQueue,
-        bool includeImmutableCollections,
         bool includePortableSetView
     ) =>
         SparseFragmentCollectionCloneEmitter.AppendCollectionCloneHelpers(
             code,
-            includePriorityQueue,
-            includeImmutableCollections,
             includePortableSetView
         );
 
@@ -111,7 +109,14 @@ internal sealed class SparseFragmentCoreEmitter
         ImmutableArray<SparseMemberModel> members,
         bool modelIsReferenceType,
         bool usesPocoCloning
-    ) => _conversion.AppendFromModel(code, modelType, members, modelIsReferenceType, usesPocoCloning);
+    ) =>
+        _conversion.AppendFromModel(
+            code,
+            modelType,
+            members,
+            modelIsReferenceType,
+            usesPocoCloning
+        );
 
     public static void AppendRootProjectionConstructor(
         SharedIndentedBuilder code,
@@ -141,8 +146,10 @@ internal sealed class SparseFragmentCoreEmitter
             constructor
         );
 
-    public void AppendMerge(SharedIndentedBuilder code, ImmutableArray<SparseMemberModel> members) =>
-        _merge.AppendMerge(code, members);
+    public void AppendMerge(
+        SharedIndentedBuilder code,
+        ImmutableArray<SparseMemberModel> members
+    ) => _merge.AppendMerge(code, members);
 
     public void AppendApplyChanges(
         SharedIndentedBuilder code,
