@@ -85,6 +85,14 @@ public sealed class SingleFileSettingsTests
         // Level-triggered watchers converge by re-reading: if a platform coalesces
         // or drops a single rapid file-watch edge, re-issuing the write recovers.
         // A genuinely broken watcher still fails via the timeout below.
+        var lightJson = new JsonObject
+        {
+            ["$version"] = 1,
+            ["Name"] = "World",
+            ["Theme"] = "Light",
+            ["RetryCount"] = 3,
+        }.ToJsonString();
+        await WriteExternalAsync(path, lightJson);
         await WaitUntilAsync(
             () =>
             {
@@ -93,17 +101,37 @@ public sealed class SingleFileSettingsTests
                     return observedTheme == "Light";
                 }
             },
+            async () => await WriteExternalAsync(path, lightJson),
             async () =>
-                await WriteExternalAsync(
-                    path,
-                    new JsonObject
-                    {
-                        ["$version"] = 1,
-                        ["Name"] = "World",
-                        ["Theme"] = "Light",
-                        ["RetryCount"] = 3,
-                    }.ToJsonString()
-                )
+            {
+                string file;
+                try
+                {
+                    file = await File.ReadAllTextAsync(path);
+                }
+                catch (Exception exception)
+                {
+                    file = "<unreadable: " + exception.GetType().Name + ">";
+                }
+
+                string current;
+                try
+                {
+                    current = (await reloaded.GetValueAsync()).Theme;
+                }
+                catch (Exception exception)
+                {
+                    current = "<unreadable: " + exception.GetType().Name + ">";
+                }
+
+                string seen;
+                lock (observedGate)
+                {
+                    seen = observedTheme;
+                }
+
+                return "observed='" + seen + "' file=" + file + " current=" + current;
+            }
         );
         (await reloaded.GetValueAsync()).Theme.ShouldBe("Light");
 
@@ -159,13 +187,28 @@ public sealed class SingleFileSettingsTests
         (await reloaded.GetValueAsync()).RetryCount.ShouldBe(3);
     }
 
-    private static async Task WaitUntilAsync(Func<bool> condition, Func<Task>? poke = null)
+    private static async Task WaitUntilAsync(
+        Func<bool> condition,
+        Func<Task>? poke = null,
+        Func<Task<string>>? describe = null
+    )
     {
         using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(30));
         var pokes = 0;
         while (!condition())
         {
-            await Task.Delay(TimeSpan.FromMilliseconds(50), timeout.Token);
+            try
+            {
+                await Task.Delay(TimeSpan.FromMilliseconds(50), timeout.Token);
+            }
+            catch (OperationCanceledException) when (timeout.IsCancellationRequested)
+            {
+                var detail = describe is null ? string.Empty : " " + await describe();
+                throw new TimeoutException(
+                    "Timed out waiting for the watched file change to arrive." + detail
+                );
+            }
+
             // Re-issue the triggering write a few times while waiting so a single
             // coalesced file-watch edge cannot stall the test forever.
             if (poke is not null && ++pokes % 20 == 0)

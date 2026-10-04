@@ -347,6 +347,10 @@ internal static class SparseJsonPatchEmitter
         string optional
     )
     {
+        // UnconditionalSuppressMessageAttribute only exists on modern TFMs
+        // (netstandard2.0/netstandard2.1/net48 consumers cannot resolve it, and
+        // trim/AOT analysis only gates modern publishes), so guard the emission.
+        code.AppendLineAt(2, "#if NET5_0_OR_GREATER");
         code.AppendLineAt(
             2,
             "[global::System.Diagnostics.CodeAnalysis.UnconditionalSuppressMessage(\"Trimming\", \"IL2026\", Justification = \"The reflection resolver is created only when reflection-based serialization is enabled. NativeAOT applications must supply a source-generated resolver, which bypasses this branch.\")]"
@@ -355,6 +359,7 @@ internal static class SparseJsonPatchEmitter
             2,
             "[global::System.Diagnostics.CodeAnalysis.UnconditionalSuppressMessage(\"Aot\", \"IL3050\", Justification = \"The reflection resolver is created only when reflection-based serialization is enabled. NativeAOT applications must supply a source-generated resolver, which bypasses this branch.\")]"
         );
+        code.AppendLineAt(2, "#endif");
         code.AppendLineAt(
             2,
             "private static global::System.Text.Json.JsonSerializerOptions __EffectiveOptions(global::System.Text.Json.JsonSerializerOptions? options)"
