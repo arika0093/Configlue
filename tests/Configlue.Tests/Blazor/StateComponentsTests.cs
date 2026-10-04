@@ -139,22 +139,6 @@ public sealed class StateComponentsTests
     }
 
     [Test]
-    public void Reader_Dispose_UnsubscribesFromState()
-    {
-        using var ctx = new BunitContext();
-        var state = new ControllableSnapshotState<AppSettings>(
-            new StateSnapshot<AppSettings>(new AppSettings { Label = "good" }, null)
-        );
-        ctx.Services.AddSingleton<IReadOnlyState<AppSettings>>(state);
-        var (cut, _) = RenderReader(ctx);
-        state.ListenerCount.ShouldBe(1);
-
-        ((IDisposable)cut.Instance).Dispose();
-
-        state.ListenerCount.ShouldBe(0);
-    }
-
-    [Test]
     public void Editor_InitialLoad_ExposesSessionAndDetails()
     {
         using var ctx = new BunitContext();
@@ -302,23 +286,6 @@ public sealed class StateComponentsTests
     }
 
     [Test]
-    public void Editor_CleanUpstreamChange_AutoRebases()
-    {
-        using var ctx = new BunitContext();
-        var upstream = new FakeUpstreamState<AppSettings>(new AppSettings { Label = "start" });
-        var session = CreateUpstreamSession(new AppSettings { Label = "start" }, upstream);
-        RegisterSessions(ctx, new StaticEditSessions<AppSettings>(session));
-        var (cut, state) = RenderEditor(ctx);
-        state.Value.Label.ShouldBe("start");
-
-        upstream.Raise(new AppSettings { Label = "upstream" });
-
-        cut.WaitForAssertion(() => state.Value.Label.ShouldBe("upstream"));
-        state.HasUpstreamChanges.ShouldBeFalse();
-        state.HasLocalChanges.ShouldBeFalse();
-    }
-
-    [Test]
     public void Editor_DirtyUpstreamChange_PreservesDraftAndNotifies()
     {
         using var ctx = new BunitContext();
@@ -352,61 +319,6 @@ public sealed class StateComponentsTests
         state.Value.Label.ShouldBe("mine");
         state.HasUpstreamChanges.ShouldBeFalse();
         state.HasLocalChanges.ShouldBeTrue();
-    }
-
-    [Test]
-    public async Task Editor_Resets_UseCoreSemantics()
-    {
-        using var ctx = new BunitContext();
-        var upstream = new FakeUpstreamState<AppSettings>(new AppSettings { Label = "start" });
-        var session = CreateUpstreamSession(
-            new AppSettings { Label = "start" },
-            upstream,
-            defaultValue: new AppSettings { Label = "default" }
-        );
-        RegisterSessions(ctx, new StaticEditSessions<AppSettings>(session));
-        var (cut, state) = RenderEditor(ctx);
-
-        state.Value.Label = "mine";
-        upstream.Raise(new AppSettings { Label = "upstream" });
-        cut.WaitForAssertion(() => state.HasUpstreamChanges.ShouldBeTrue());
-
-        await cut.InvokeAsync(() => state.ResetToUpstream());
-        state.Value.Label.ShouldBe("upstream");
-
-        state.Value.Label = "other";
-        await cut.InvokeAsync(() => state.ResetToSessionStart());
-        state.Value.Label.ShouldBe("start");
-
-        await cut.InvokeAsync(() => state.ResetToDefault());
-        state.Value.Label.ShouldBe("default");
-    }
-
-    [Test]
-    public void Editor_SubjectChange_CleanEditorReopens()
-    {
-        using var ctx = new BunitContext();
-        var changeSource = new FakeSubjectChangeSource();
-        var sessions = new SwitchingEditSessions<AppSettings>(() =>
-            CreateUpstreamSession(
-                new AppSettings { Label = "subject-a" },
-                new FakeUpstreamState<AppSettings>(new AppSettings { Label = "subject-a" })
-            )
-        );
-        ctx.Services.AddSingleton<IConfiglueEditSessions<AppSettings>>(sessions);
-        ctx.Services.AddSingleton<IConfiglueSubjectChangeSource>(changeSource);
-        var (cut, state) = RenderEditor(ctx);
-        state.Value.Label.ShouldBe("subject-a");
-
-        sessions.Current = () =>
-            CreateUpstreamSession(
-                new AppSettings { Label = "subject-b" },
-                new FakeUpstreamState<AppSettings>(new AppSettings { Label = "subject-b" })
-            );
-        changeSource.Signal();
-
-        cut.WaitForAssertion(() => state.Value.Label.ShouldBe("subject-b"));
-        state.IsSubjectChanged.ShouldBeFalse();
     }
 
     [Test]

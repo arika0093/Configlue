@@ -5,6 +5,8 @@ namespace Configlue.Tests;
 
 public sealed class PostgreSqlSourceResidencyLeaseTests
 {
+    // Read, write, and watch share the same AcquireBackend lease, so this
+    // parameterized read/watch case owns deferred-disposal wiring for all operations.
     [Test]
     [Arguments(false)]
     [Arguments(true)]
@@ -43,37 +45,6 @@ public sealed class PostgreSqlSourceResidencyLeaseTests
         backend.DisposeCount.ShouldBe(1);
 
         source.Dispose();
-        backend.DisposeCount.ShouldBe(1);
-    }
-
-    [Test]
-    public async Task DisposeDuringActiveWriteDefersBackendDisposalUntilCompletion()
-    {
-        var operationEntered = new TaskCompletionSource(
-            TaskCreationOptions.RunContinuationsAsynchronously
-        );
-        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        var backend = new BlockingPostgreSqlStateBackend(operationEntered, release);
-        using var source = new PostgreSqlSource<string>(
-            _ => new object(),
-            _ => backend,
-            "settings",
-            new JsonStateValueSerializer<string>()
-        );
-
-        var write = Task.Run(async () =>
-            await source.WriteAsync(
-                CreateContext("tenant-a", RouteKey.From("region-a")),
-                new StateWriteRequest<string>("1")
-            )
-        );
-        await operationEntered.Task.WaitAsync(TimeSpan.FromSeconds(5));
-
-        source.Dispose();
-        backend.DisposeCount.ShouldBe(0);
-
-        release.TrySetResult();
-        await write;
         backend.DisposeCount.ShouldBe(1);
     }
 

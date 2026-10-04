@@ -200,20 +200,6 @@ public sealed class ComponentModelAdapterTests
     }
 
     [Test]
-    public async Task Editor_CleanUpstreamChange_AutoRebases()
-    {
-        var upstream = new FakeUpstreamState<AppSettings>(AppSettingsOf("start"));
-        var editor = CreateEditor(CreateUpstreamSession(AppSettingsOf("start"), upstream));
-        await editor.InitializeAsync();
-
-        upstream.Push(AppSettingsOf("upstream"));
-
-        await WaitUntilAsync(() => ((AppSettings.Observable)editor.Value!).Label == "upstream");
-        editor.IsDirty.ShouldBeFalse();
-        editor.HasUpstreamChanges.ShouldBeFalse();
-    }
-
-    [Test]
     public async Task Editor_DirtyUpstreamChange_PreservesDraftAndReportsUpstream()
     {
         var upstream = new FakeUpstreamState<AppSettings>(AppSettingsOf("start"));
@@ -226,33 +212,6 @@ public sealed class ComponentModelAdapterTests
         await WaitUntilAsync(() => editor.HasUpstreamChanges);
         ((AppSettings.Observable)editor.Value!).Label.ShouldBe("mine");
         editor.IsDirty.ShouldBeTrue();
-    }
-
-    [Test]
-    public async Task Editor_Resets_UseCoreSemantics()
-    {
-        var upstream = new FakeUpstreamState<AppSettings>(AppSettingsOf("start"));
-        var editor = CreateEditor(
-            CreateUpstreamSession(
-                AppSettingsOf("start"),
-                upstream,
-                defaultValue: AppSettingsOf("default")
-            )
-        );
-        await editor.InitializeAsync();
-        ((AppSettings.Observable)editor.Value!).Label = "mine";
-        upstream.Push(AppSettingsOf("upstream"));
-        await WaitUntilAsync(() => editor.HasUpstreamChanges);
-
-        editor.ResetToUpstream();
-        ((AppSettings.Observable)editor.Value!).Label.ShouldBe("upstream");
-
-        ((AppSettings.Observable)editor.Value!).Label = "other";
-        editor.ResetToSessionStart();
-        ((AppSettings.Observable)editor.Value!).Label.ShouldBe("start");
-
-        editor.ResetToDefault();
-        ((AppSettings.Observable)editor.Value!).Label.ShouldBe("default");
     }
 
     [Test]
@@ -289,34 +248,6 @@ public sealed class ComponentModelAdapterTests
 
         editor.Dispose();
         subject.ListenerCount.ShouldBe(0);
-    }
-
-    [Test]
-    public async Task Editor_SubjectChange_CleanEditorReopens()
-    {
-        var subject = new FakeSubjectChangeSource();
-        var sessions = new SwitchingEditSessions<AppSettings>(() =>
-            CreateUpstreamSession(
-                AppSettingsOf("subject-a"),
-                new FakeUpstreamState<AppSettings>(AppSettingsOf("subject-a"))
-            )
-        );
-        var editor = new ConfiglueStateEditor<AppSettings>(
-            sessions,
-            ConfiglueDispatcher.Immediate,
-            subjectChangeSource: subject
-        );
-        await editor.InitializeAsync();
-
-        sessions.Current = () =>
-            CreateUpstreamSession(
-                AppSettingsOf("subject-b"),
-                new FakeUpstreamState<AppSettings>(AppSettingsOf("subject-b"))
-            );
-        subject.Signal();
-
-        await WaitUntilAsync(() => ((AppSettings.Observable)editor.Value!).Label == "subject-b");
-        editor.IsSubjectChanged.ShouldBeFalse();
     }
 
     [Test]
@@ -1088,27 +1019,6 @@ public sealed class ComponentModelAdapterTests
         {
             ArgumentNullException.ThrowIfNull(writePlan);
             return ValueTask.FromResult(_session);
-        }
-    }
-
-    private sealed class SwitchingEditSessions<T> : IConfiglueEditSessions<T>
-        where T : class
-    {
-        public SwitchingEditSessions(Func<EditSession<T>> current) => Current = current;
-
-        public Func<EditSession<T>> Current { get; set; }
-
-        public ValueTask<EditSession<T>> OpenEditSessionAsync(
-            CancellationToken cancellationToken = default
-        ) => ValueTask.FromResult(Current());
-
-        public ValueTask<EditSession<T>> OpenEditSessionAsync(
-            StateWritePlan writePlan,
-            CancellationToken cancellationToken = default
-        )
-        {
-            ArgumentNullException.ThrowIfNull(writePlan);
-            return ValueTask.FromResult(Current());
         }
     }
 

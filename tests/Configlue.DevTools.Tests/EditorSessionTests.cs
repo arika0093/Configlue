@@ -7,34 +7,22 @@ namespace Configlue.DevTools.Tests;
 public sealed class EditorSessionTests
 {
     [Test]
-    public async Task Sync_FormatOnlyProducesNoChanges()
+    public async Task Sync_SemanticallyEquivalentDraftProducesNoChanges()
     {
+        // Formatting, member order, and JSON string spelling do not change the
+        // effective value, so none of them may mark the session dirty.
         await using var context = ViewerFixtures.CreateViewerContext();
         var state = context.GetState<DevToolsViewerSettings>();
         using var session = await ConfiglueDevToolsEditorSession<DevToolsViewerSettings>.OpenAsync(
             state
         );
 
-        var start = session.SessionStartDocument.Json;
         var reformatted = JsonNode
-            .Parse(start)!
+            .Parse(session.SessionStartDocument.Json)!
             .ToJsonString(new System.Text.Json.JsonSerializerOptions { WriteIndented = true });
-
-        var result = await session.SyncDraftAsync(reformatted);
-        result.Success.ShouldBeTrue();
-        result.ModifiedCount.ShouldBe(0);
-        result.HasChanges.ShouldBeFalse();
-        session.HasLocalChanges.ShouldBeFalse();
-    }
-
-    [Test]
-    public async Task Sync_PropertyOrderProducesNoChanges()
-    {
-        await using var context = ViewerFixtures.CreateViewerContext();
-        var state = context.GetState<DevToolsViewerSettings>();
-        using var session = await ConfiglueDevToolsEditorSession<DevToolsViewerSettings>.OpenAsync(
-            state
-        );
+        var formatOnly = await session.SyncDraftAsync(reformatted);
+        formatOnly.Success.ShouldBeTrue();
+        formatOnly.ModifiedCount.ShouldBe(0);
 
         var node = JsonNode.Parse(session.SessionStartDocument.Json)!.AsObject();
         var reversed = new JsonObject();
@@ -43,28 +31,17 @@ public sealed class EditorSessionTests
             reversed.Add(key, child?.DeepClone());
         }
 
-        var result = await session.SyncDraftAsync(reversed.ToJsonString());
-        result.Success.ShouldBeTrue();
-        result.ModifiedCount.ShouldBe(0);
-        session.HasLocalChanges.ShouldBeFalse();
-    }
-
-    [Test]
-    public async Task Sync_EquivalentValueProducesNoWrites()
-    {
-        await using var context = ViewerFixtures.CreateViewerContext();
-        var state = context.GetState<DevToolsViewerSettings>();
-        using var session = await ConfiglueDevToolsEditorSession<DevToolsViewerSettings>.OpenAsync(
-            state
-        );
+        var reordered = await session.SyncDraftAsync(reversed.ToJsonString());
+        reordered.Success.ShouldBeTrue();
+        reordered.ModifiedCount.ShouldBe(0);
 
         // \u0044 is 'D': same effective value, different spelling.
-        var draft = session.SessionStartDocument.Json.Replace("\"Dark\"", "\"\\u0044ark\"");
-        draft.ShouldNotBe(session.SessionStartDocument.Json);
+        var escaped = session.SessionStartDocument.Json.Replace("\"Dark\"", "\"\\u0044ark\"");
+        escaped.ShouldNotBe(session.SessionStartDocument.Json);
+        var respelled = await session.SyncDraftAsync(escaped);
+        respelled.Success.ShouldBeTrue();
+        respelled.ModifiedCount.ShouldBe(0);
 
-        var result = await session.SyncDraftAsync(draft);
-        result.Success.ShouldBeTrue();
-        result.ModifiedCount.ShouldBe(0);
         session.HasLocalChanges.ShouldBeFalse();
     }
 
@@ -453,6 +430,8 @@ public sealed class EditorSessionTests
         retryFragment.Theme.IsPresent.ShouldBeFalse();
     }
 
+    // DevTools-side representative for upstream/rebase behavior: clean adoption and
+    // dirty-draft preservation state machines are owned by core EditSession tests.
     [Test]
     public async Task DirtySession_RebasesUpstreamWithoutLosingDraft()
     {
@@ -491,55 +470,6 @@ public sealed class EditorSessionTests
         var value = await state.GetValueAsync();
         value.Theme.ShouldBe("Light");
         value.Notes.ShouldBe("v2");
-    }
-
-    [Test]
-    public async Task CleanSession_AutoFollowsUpstream()
-    {
-        var store = new InMemoryStateSource<DevToolsViewerSettings.Fragment>(
-            new DevToolsViewerSettings.Fragment { Theme = Optional<string>.Present("Dark") }
-        );
-        await using var context = ViewerFixtures.CreateWatchedContext(store);
-        var state = context.GetState<DevToolsViewerSettings>();
-        using var session = await ConfiglueDevToolsEditorSession<DevToolsViewerSettings>.OpenAsync(
-            state
-        );
-
-        store.Set(
-            new DevToolsViewerSettings.Fragment { Theme = Optional<string>.Present("Brisk") }
-        );
-        await ViewerFixtures.PollForUpstreamAsync(session);
-
-        var followed = await session.RefreshAsync();
-        followed.ShouldBeTrue();
-        session.HasUpstreamChanges.ShouldBeFalse();
-        session.BuildCanonicalDraftJson().ShouldContain("\"Brisk\"");
-    }
-
-    [Test]
-    public async Task DirtySession_NeverSilentlyOverwritten()
-    {
-        var store = new InMemoryStateSource<DevToolsViewerSettings.Fragment>(
-            new DevToolsViewerSettings.Fragment { Theme = Optional<string>.Present("Dark") }
-        );
-        await using var context = ViewerFixtures.CreateWatchedContext(store);
-        var state = context.GetState<DevToolsViewerSettings>();
-        using var session = await ConfiglueDevToolsEditorSession<DevToolsViewerSettings>.OpenAsync(
-            state
-        );
-
-        var draft = session.SessionStartDocument.Json.Replace("\"Dark\"", "\"Light\"");
-        (await session.SyncDraftAsync(draft)).Success.ShouldBeTrue();
-
-        store.Set(
-            new DevToolsViewerSettings.Fragment { Theme = Optional<string>.Present("Brisk") }
-        );
-        await ViewerFixtures.PollForUpstreamAsync(session);
-
-        var followed = await session.RefreshAsync();
-        followed.ShouldBeFalse();
-        session.HasLocalChanges.ShouldBeTrue();
-        session.BuildCanonicalDraftJson().ShouldContain("\"Light\"");
     }
 
     [Test]

@@ -4,6 +4,8 @@ namespace Configlue.Tests;
 
 public sealed class RedisResourceResidencyLeaseTests
 {
+    // Read, write, and watch share the same AcquireBackend lease, so this
+    // parameterized read/watch case owns deferred-disposal wiring for all operations.
     [Test]
     [Arguments(false)]
     [Arguments(true)]
@@ -37,32 +39,6 @@ public sealed class RedisResourceResidencyLeaseTests
         backend.DisposeCount.ShouldBe(1);
 
         resource.Dispose();
-        backend.DisposeCount.ShouldBe(1);
-    }
-
-    [Test]
-    public async Task DisposeDuringActiveWriteDefersBackendDisposalUntilCompletion()
-    {
-        var operationEntered = new TaskCompletionSource(
-            TaskCreationOptions.RunContinuationsAsynchronously
-        );
-        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        var backend = new BlockingRedisStateBackend(operationEntered, release);
-        using var resource = new RedisResource(_ => new object(), _ => backend, "settings", null);
-
-        var write = Task.Run(async () =>
-            await resource.WriteAsync(
-                CreateContext("tenant-a", RouteKey.From("primary-a")),
-                new ResourceWriteRequest(new byte[] { 1 })
-            )
-        );
-        await operationEntered.Task.WaitAsync(TimeSpan.FromSeconds(5));
-
-        resource.Dispose();
-        backend.DisposeCount.ShouldBe(0);
-
-        release.TrySetResult();
-        await write;
         backend.DisposeCount.ShouldBe(1);
     }
 
