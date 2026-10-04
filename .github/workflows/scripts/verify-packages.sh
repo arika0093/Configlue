@@ -79,6 +79,32 @@ netstandard20_only_dependencies=(
     System.Threading.Tasks.Extensions
 )
 
+# #261 standard boundary: the default Configlue package stays dependency-free.
+# It must not transitively bring DI, HTTP, CommandLine, external formats, or specialized backends.
+forbidden_standard_dependencies=(
+    Configlue.Extensions.DI
+    Configlue.Source.Http
+    Configlue.Source.CommandLine
+    Configlue.Transformer.AES
+    Configlue.Transformer.Compression
+    Configlue.Provider.Yaml
+    Configlue.Provider.Xml
+    Configlue.Provider.MessagePack
+    System.CommandLine
+    SharpYaml
+    MessagePack
+    Microsoft.Extensions.DependencyInjection
+    Microsoft.Extensions.Http
+    Microsoft.Extensions.Hosting
+)
+
+required_standard_dependencies=(
+    Configlue.Core
+    Configlue.Abstraction
+    Configlue.Provider.Json
+    Configlue.Source.Environment
+)
+
 package_files=()
 while IFS= read -r package_file; do
     package_files+=("${package_file}")
@@ -160,6 +186,18 @@ for package_file in "${package_files[@]}"; do
 
     if [[ "${package_id}" == "Configlue" ]]; then
         require_entry 'analyzers/dotnet/cs/Configlue.Generator.dll'
+        for forbidden in "${forbidden_standard_dependencies[@]}"; do
+            if grep -Eq "<dependency[^>]*id=\"${forbidden}\"" <<<"${nuspec}"; then
+                echo "Package 'Configlue' must not depend on opt-in package '${forbidden}' (#261)." >&2
+                exit 1
+            fi
+        done
+        for required in "${required_standard_dependencies[@]}"; do
+            if ! grep -Eq "<dependency[^>]*id=\"${required}\"" <<<"${nuspec}"; then
+                echo "Package 'Configlue' must depend on standard package '${required}' (#261)." >&2
+                exit 1
+            fi
+        done
     fi
 
     if [[ -n "${portable_package_assets[${package_id}]:-}" ]]; then

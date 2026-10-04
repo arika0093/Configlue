@@ -30,6 +30,12 @@ public sealed class FileSourceOwnershipTests
         "FileResource.Watching.cs",
     ];
 
+    private static readonly string[] StandardZipSources =
+    [
+        "ZipEntryResource.cs",
+        "ZipEntryResourceOptions.cs",
+    ];
+
     [Test]
     public void CoreAssemblyNeedsNoConcreteFileStorage()
     {
@@ -37,9 +43,25 @@ public sealed class FileSourceOwnershipTests
     }
 
     [Test]
+    public void CoreAssemblyNeedsNoConcreteZipStorage()
+    {
+        typeof(ConfiglueApp)
+            .Assembly.GetType("Configlue.Resource.Zip.ZipEntryResource")
+            .ShouldBeNull();
+    }
+
+    [Test]
     public void FileResourceIsOwnedByStandardLayer()
     {
         typeof(FileResource).Assembly.ShouldBe(typeof(CommonSourceBuilder).Assembly);
+    }
+
+    [Test]
+    public void ZipIsOwnedByStandardLayer()
+    {
+        typeof(Configlue.Resource.Zip.ZipEntryResource).Assembly.ShouldBe(
+            typeof(CommonSourceBuilder).Assembly
+        );
     }
 
     [Test]
@@ -58,6 +80,11 @@ public sealed class FileSourceOwnershipTests
             File.Exists(Path.Combine(standardResources, fileName)).ShouldBeTrue();
         }
 
+        foreach (var fileName in StandardZipSources)
+        {
+            File.Exists(Path.Combine(standardResources, fileName)).ShouldBeTrue();
+        }
+
         var coreResources = Path.Combine(
             repositoryRoot,
             "src",
@@ -68,6 +95,13 @@ public sealed class FileSourceOwnershipTests
         foreach (var fileName in StandardFileResourceSources)
         {
             File.Exists(Path.Combine(coreResources, fileName)).ShouldBeFalse();
+        }
+
+        foreach (var fileName in StandardZipSources)
+        {
+            Directory
+                .GetFiles(coreResources, fileName, SearchOption.AllDirectories)
+                .ShouldBeEmpty();
         }
 
         foreach (var provider in new[] { "Json", "Yaml", "Xml", "MessagePack" })
@@ -108,11 +142,18 @@ public sealed class FileSourceOwnershipTests
         const string xml = "src/providers/Configlue.Provider.Xml/Configlue.Provider.Xml.csproj";
         const string messagePack =
             "src/providers/Configlue.Provider.MessagePack/Configlue.Provider.MessagePack.csproj";
+        const string http = "src/sources/Configlue.Source.Http/Configlue.Source.Http.csproj";
+        const string di = "src/extensions/Configlue.Extensions.DI/Configlue.Extensions.DI.csproj";
+        const string commandLine =
+            "src/sources/Configlue.Source.CommandLine/Configlue.Source.CommandLine.csproj";
 
         // Optional providers delegate to the standard composition, so they reference it.
         edges[yaml].ShouldContain(standard);
         edges[xml].ShouldContain(standard);
         edges[messagePack].ShouldContain(standard);
+
+        // Opt-in HTTP preset integration builds on the standard layer.
+        edges[http].ShouldContain(standard);
 
         // JSON file composition is part of the standard experience, so the JSON
         // provider must not reference the standard layer back (no cycle).
@@ -120,6 +161,12 @@ public sealed class FileSourceOwnershipTests
         edges[standard].ShouldNotContain(yaml);
         edges[standard].ShouldNotContain(xml);
         edges[standard].ShouldNotContain(messagePack);
+
+        // #261: the default package stays dependency-free. DI, HTTP, and
+        // CommandLine remain opt-ins and must not be referenced by the standard layer.
+        edges[standard].ShouldNotContain(di);
+        edges[standard].ShouldNotContain(http);
+        edges[standard].ShouldNotContain(commandLine);
 
         // The provider-neutral runtime stays below the standard layer.
         edges[core].ShouldNotContain(standard);

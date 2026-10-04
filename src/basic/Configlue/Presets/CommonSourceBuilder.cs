@@ -148,36 +148,6 @@ public sealed class CommonSourceBuilder
         return this;
     }
 
-    /// <summary>Registers a read-only JSON-over-HTTP source.</summary>
-    public CommonHttpSourceBuilder WithHttpPolicy(
-        string endpoint,
-        HttpClient client,
-        string id = "common.http"
-    )
-    {
-        EnsureDeclarationsMutable();
-        ArgumentException.ThrowIfNullOrWhiteSpace(endpoint);
-        ArgumentException.ThrowIfNullOrWhiteSpace(id);
-        ArgumentNullException.ThrowIfNull(client);
-        var declaration = AddDeclaration(CommonSourceLayer.Http, static (_, _, _) => { });
-        return new CommonHttpSourceBuilder(declaration, endpoint, client, id);
-    }
-
-    /// <summary>Registers a read-only JSON-over-HTTP source using a provider-aware client factory.</summary>
-    public CommonHttpSourceBuilder WithHttpPolicy(
-        string endpoint,
-        Func<IServiceProvider?, HttpClient> clientFactory,
-        string id = "common.http"
-    )
-    {
-        EnsureDeclarationsMutable();
-        ArgumentException.ThrowIfNullOrWhiteSpace(endpoint);
-        ArgumentException.ThrowIfNullOrWhiteSpace(id);
-        ArgumentNullException.ThrowIfNull(clientFactory);
-        var declaration = AddDeclaration(CommonSourceLayer.Http, static (_, _, _) => { });
-        return new CommonHttpSourceBuilder(declaration, endpoint, clientFactory, id);
-    }
-
     /// <summary>Inserts one caller-defined source after the specified built-in layer.</summary>
     public CommonCustomSourceBuilder WithCustom(
         CommonSourceLayer afterLayer,
@@ -365,6 +335,12 @@ public sealed class CommonSourceBuilder
                 "Common source declarations must be completed before adding models."
             );
         }
+    }
+
+    internal SourceDeclaration AddPresetDeclaration(CommonSourceLayer layer)
+    {
+        EnsureDeclarationsMutable();
+        return AddDeclaration(layer, static (_, _, _) => { });
     }
 
     private static void ValidateFileName(string value)

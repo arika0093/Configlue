@@ -161,7 +161,8 @@ Resource/Codec terms, or subject/profile vocabulary. The application consumes on
 
 Choosing the tiny-file path never forces a later migration to another library.
 When the application grows, the same consumer code keeps working while the setup
-gains layers — local file, then environment overrides, then remote policy:
+gains layers — local file, then environment overrides (both included in the
+default `Configlue` package):
 
 ```csharp
 using Configlue.Source.Presets;
@@ -172,7 +173,6 @@ ConfiglueApp.Initialize(config =>
     {
         sources.WithLocal("settings.json");
         sources.WithEnvironment("APP_");
-        sources.WithHttpPolicy("https://example.com/policy", httpClient);
         sources.Add<AppSettings>();
     });
 });
@@ -189,10 +189,36 @@ await settings.SaveAsync(patch =>
 Layering, provenance, migrations, and diagnostics stay available behind the same
 `IWritableState<T>`; they just do not appear in the getting-started path.
 
-## Installation
-### Plain .NET
+Remote policy, command-line, YAML/MessagePack, and other integrations are
+explicit opt-ins with their own packages:
 
-Install the convenience package:
+```bash
+dotnet add package Configlue.Source.Http
+dotnet add package Configlue.Source.CommandLine
+dotnet add package Configlue.Extensions.DI
+```
+
+```csharp
+using Configlue.Source.Http;
+using Configlue.Source.Presets;
+
+config.UseCommonSources(sources =>
+{
+    sources.WithLocal("settings.json");
+    sources.WithEnvironment("APP_");
+    sources.WithHttpPolicy("https://example.com/policy", httpClient);
+    sources.Add<AppSettings>();
+});
+```
+
+## Installation
+### Plain .NET (primary package)
+
+Install the primary package for ordinary settings. It includes the runtime,
+JSON, file/`FileResource`, ZIP-backed `SingleBinary`, environment sources,
+standard paths, common presets, and the generator — with no DI, HTTP,
+command-line, external-format, database, cloud, hosting, or specialized
+dependencies:
 
 ```bash
 dotnet add package Configlue
@@ -209,7 +235,7 @@ ConfiglueApp.Initialize(config =>
 var settings = ConfiglueApp.GetState<AppSettings>();
 ```
 
-### Generic Host
+### Generic Host (opt-in DI)
 
 Install the following packages:
 
@@ -334,6 +360,24 @@ dotnet add package Configlue.Hosting.Godot
 ```
 
 > TODO
+
+### Opt-in packages
+
+`Configlue` is the primary package for ordinary settings. `Configlue.Core` is
+the storage/format/host-neutral runtime and composition foundation for advanced
+and package-author scenarios; normal applications rarely reference it directly.
+
+Add only what the application actually uses:
+
+- `Configlue.Extensions.DI` — Microsoft DI integration.
+- `Configlue.Source.Http` — remote JSON-over-HTTP policy sources (including the
+  `WithHttpPolicy` common preset).
+- `Configlue.Source.CommandLine` — `System.CommandLine` parse-result sources.
+- `Configlue.Provider.Yaml`, `Configlue.Provider.MessagePack`,
+  `Configlue.Provider.Xml` — external-format providers.
+- `Configlue.Transformer.AES`, `Configlue.Transformer.Compression` — encryption
+  and compression (AES narrows TFMs and stays opt-in).
+- Database, cloud, hosting, and other specialized backends.
 
 ## Why "Configlue"?
 

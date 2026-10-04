@@ -102,6 +102,12 @@ with buffering/lifetime requirements, and unnecessary for the canonical
 | `ConfiglueStorageMigrationBuilder<TModel>` | advanced-application (migration-only definitions) | C |
 | `IPipelineResourceReader`, `IPipelineStateCodec<T>` | provider (advanced perf) | I |
 
+Core stays storage/format/host neutral: concrete file (`FileResource`) and ZIP
+(`ZipEntryResource`) live in the standard `Configlue` layer (#260, #261), while
+host-path contracts stay in `Abstraction` and the default profile/resolution
+plumbing remains Core runtime machinery shipped to users through the primary
+`Configlue` package.
+
 ## `Configlue.Extensibility` snapshot (lives in Core)
 
 | Type | Audience | I/C/O |
@@ -119,9 +125,16 @@ never construct `FileResource` themselves.
 | Type | Audience | I/C/O |
 | --- | --- | --- |
 | `FileResource` | provider (advanced resource) | C |
+| `ZipEntryResource`, `ZipEntryResourceOptions` (ZIP backing for `SingleBinary`) | provider (advanced resource) | C |
 | `FileSourceComposition` | provider (standard file composition entry) | C |
 | `JsonFileSourceOptions`, `JsonFileSourceRegistration`, `JsonFileRegistration<TModel>`, `SingleFileJsonExtensions`, `CommonJsonFileSourceExtensions` | application (standard JSON file experience) | C |
 | `FileStateStorageMigrationJournal` | advanced-application (migration stores) | C |
+
+`CommonSourceBuilder`/`UseCommonSources`, `SingleBinaryBuilder`/`UseSingleBinary`,
+environment preset builders, and file preset SPI stay standard. HTTP preset
+(`CommonHttpSourceBuilder`/`WithHttpPolicy`) is an opt-in in
+`Configlue.Source.Http`; CommandLine preset (`WithCommandLine`) is an opt-in in
+`Configlue.Source.CommandLine`.
 
 ## `Configlue.CompilerServices` (both assemblies)
 Generated ABI. CLR-public because generated code lives in consumer assemblies;
@@ -175,6 +188,29 @@ development-only `Configlue.DevTools.Web` package.
   `Configlue.Provider.Json`, `Configlue.Standard`), and
   `FileSourceOwnershipTests` forbids provider assemblies from referencing
   `FileResource` while pinning the project-reference graph.
+
+## What changed for `#261`
+
+- `Configlue` is the primary/default package for ordinary settings (runtime,
+  JSON, file/`FileResource`, ZIP/`SingleBinary`, environment, standard paths,
+  common presets, generator). It no longer references DI or HTTP, so neither is
+  transitive.
+- `ZipEntryResource` moved from `Configlue.Core` to the standard `Configlue`
+  layer; `Configlue.Standard` approval excludes the separately snapshotted
+  `Configlue.Resource.Zip` namespace.
+- HTTP preset integration (`CommonHttpSourceBuilder`/`WithHttpPolicy`) moved
+  from `Configlue` to opt-in `Configlue.Source.Http` (same
+  `Configlue.Source.Presets` namespace, new assembly). `CommonSourceLayer.Http`
+  stays for priority ordering, but the default package carries no HTTP code.
+- `Configlue.Core` converges on storage/format/host-neutral runtime and
+  composition machinery. Assemblies may stay finer-grained than NuGet packages;
+  users receive standard impls through the top-level `Configlue` package.
+- Package policy: separate NuGet package only for feature-specific third-party
+  deps, narrower TFMs/platforms, host/lifecycle binding, substantial
+  runtime/native cost, or clearly specialized backends.
+- `PackageBoundaryTests` pins the dependency-free closure, baseline TFMs, and
+  primary-package description; `verify-packages.sh` fails when `Configlue`
+  depends on DI/HTTP/CommandLine/external-format/specialized packages.
 
 ## What changed for `#228`
 

@@ -287,7 +287,9 @@ public sealed class PublicApiCheckTest
         PublicApiCheck.CheckAssembly(
             typeof(CommonSourceBuilder).Assembly,
             "Configlue.Standard",
-            static type => type.Namespace != "Configlue.Source.Presets"
+            static type =>
+                type.Namespace != "Configlue.Source.Presets"
+                && type.Namespace != "Configlue.Resource.Zip"
         );
 
     [Test]

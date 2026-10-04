@@ -9,6 +9,7 @@
   <ItemGroup>
     <ProjectReference Include="../../basic/Configlue.Abstraction/Configlue.Abstraction.csproj" />
     <ProjectReference Include="../../basic/Configlue.Core/Configlue.Core.csproj" />
+    <ProjectReference Include="../../basic/Configlue/Configlue.csproj" />
     <ProjectReference Include="../../fragments/SparseFragments.JsonPatch/SparseFragments.JsonPatch.csproj" />
     <ProjectReference Include="../../providers/Configlue.Provider.Json/Configlue.Provider.Json.csproj" />
     <PackageReference

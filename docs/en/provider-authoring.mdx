@@ -59,8 +59,9 @@ Codecs and resources are independent axes:
   (for example `JsonSectionResource` or `YamlSectionResource`).
 - A **resource** (`IResourceReader`, plus `IResourceWriter` when writable and
   `ISourceWatcher` when observable) describes storage: where bytes live. File
-  storage (`FileResource`) is a standard Configlue implementation owned by the
-  `Configlue` layer; format packages never construct it.
+  storage (`FileResource`) and ZIP entry views (`ZipEntryResource` used by
+  `SingleBinary`) are standard Configlue implementations owned by the
+  `Configlue` layer; format packages never construct them.
 
 An upper composition layer combines the two axes for file-backed sources.
 `FileSourceComposition.Create` (in `Configlue.Extensibility`, part of the

@@ -1,6 +1,17 @@
 [assembly: System.Reflection.AssemblyMetadata("RepositoryUrl", "https://github.com/arika0093/Configlue")]
 namespace Configlue.Source.Http
 {
+    public sealed class CommonHttpSourceBuilder
+    {
+        public Configlue.Source.Http.CommonHttpSourceBuilder FallbackCondition(Configlue.Sources.StateFallbackCondition fallbackCondition) { }
+        public Configlue.Source.Http.CommonHttpSourceBuilder Priority(int priority) { }
+        public Configlue.Source.Http.CommonHttpSourceBuilder SerializerOptions(System.Text.Json.JsonSerializerOptions options) { }
+    }
+    public static class CommonHttpSourcePresetExtensions
+    {
+        public static Configlue.Source.Http.CommonHttpSourceBuilder WithHttpPolicy(this Configlue.Source.Presets.CommonSourceBuilder sources, string endpoint, System.Func<System.IServiceProvider?, System.Net.Http.HttpClient> clientFactory, string id = "common.http") { }
+        public static Configlue.Source.Http.CommonHttpSourceBuilder WithHttpPolicy(this Configlue.Source.Presets.CommonSourceBuilder sources, string endpoint, System.Net.Http.HttpClient client, string id = "common.http") { }
+    }
     public class HttpStateException : System.Exception
     {
         public HttpStateException(string message) { }

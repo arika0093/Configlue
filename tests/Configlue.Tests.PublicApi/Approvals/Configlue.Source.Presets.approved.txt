@@ -12,12 +12,6 @@ namespace Configlue.Source.Presets
         public Configlue.Source.Presets.CommonEnvironmentSourceBuilder Priority(int priority) { }
         public Configlue.Source.Presets.CommonEnvironmentSourceBuilder ValueParser(System.Func<string, System.Type, object?> valueParser) { }
     }
-    public sealed class CommonHttpSourceBuilder
-    {
-        public Configlue.Source.Presets.CommonHttpSourceBuilder FallbackCondition(Configlue.Sources.StateFallbackCondition fallbackCondition) { }
-        public Configlue.Source.Presets.CommonHttpSourceBuilder Priority(int priority) { }
-        public Configlue.Source.Presets.CommonHttpSourceBuilder SerializerOptions(System.Text.Json.JsonSerializerOptions options) { }
-    }
     public static class CommonSource
     {
         public static Configlue.Source.Presets.CommonSourceSelector HostGlobal { get; }
@@ -34,8 +28,6 @@ namespace Configlue.Source.Presets
         public Configlue.Source.Presets.CommonEnvironmentSourceBuilder WithEnvironment(string prefix) { }
         public Configlue.Source.Presets.CommonFileSourceBuilder WithExplicit(string filepath) { }
         public Configlue.Source.Presets.CommonFileSourceBuilder WithHostGlobal(string applicationId, string filename = "settings.json") { }
-        public Configlue.Source.Presets.CommonHttpSourceBuilder WithHttpPolicy(string endpoint, System.Func<System.IServiceProvider?, System.Net.Http.HttpClient> clientFactory, string id = "common.http") { }
-        public Configlue.Source.Presets.CommonHttpSourceBuilder WithHttpPolicy(string endpoint, System.Net.Http.HttpClient client, string id = "common.http") { }
         public Configlue.Source.Presets.CommonFileSourceBuilder WithLocal(string filename = "settings.json") { }
         public Configlue.Source.Presets.CommonFileSourceBuilder WithUserGlobal(string applicationId, string filename = "settings.json") { }
     }

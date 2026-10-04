@@ -1,34 +1,44 @@
-# Single-file settings: package and dependency budget (#231)
+# Single-file settings: package and dependency budget (#231, redefined by #261)
 
-This note audits what installing the convenience `Configlue` package brings into a
-basic JSON settings application, and records why the graph is kept as one package.
+This note audits what installing the primary `Configlue` package brings into a
+basic JSON settings application.
 
 Measured with `dotnet list src/basic/Configlue/Configlue.csproj package --include-transitive`
-on the #231 worktree.
+after #261.
 
 ## Dependency graph
 
-`Configlue` (convenience) references these projects, which ship as its dependencies:
+`Configlue` (primary/default) references these projects, which ship as its dependencies:
 
-- `Configlue.Core` — DI-free resolution runtime.
+- `Configlue.Core` — storage/format/host-neutral resolution runtime and composition machinery.
 - `Configlue.Abstraction` — backend-neutral contracts.
-- `Configlue.Extensions.DI` — Generic Host integration.
-- `Configlue.Provider.Json` — JSON file sources and codecs.
-- `Configlue.Source.Http` — read-only JSON-over-HTTP policy sources.
+- `Configlue.Provider.Json` — JSON codecs (file composition lives in the standard layer).
 - `Configlue.Source.Environment` — environment-variable sources.
 - `Configlue.Generator` — source generator (analyzer asset only, no runtime cost).
 
+File (`FileResource`), ZIP (`ZipEntryResource` used by `SingleBinary`), standard
+paths, `UseLocalJson`/single-file settings, `UseCommonSources` presets, and
+`UseSingleBinary` are built into the standard `Configlue` assembly itself.
+
+Explicitly NOT in the default graph (opt-in packages):
+
+- `Configlue.Extensions.DI` — Microsoft DI integration.
+- `Configlue.Source.Http` — remote JSON-over-HTTP policy sources (including `WithHttpPolicy`).
+- `Configlue.Source.CommandLine` — depends on `System.CommandLine`.
+- `Configlue.Transformer.AES` — narrows TFMs (`netstandard2.1`+).
+- YAML / MessagePack / XML and other external-format providers (`SharpYaml`, `MessagePack`).
+- Database, cloud, hosting, compression, and other specialized packages.
+
 Transitive runtime packages for `net10.0`:
 
-- `Microsoft.Extensions.Configuration(.Abstractions/.Binder)`,
-  `Microsoft.Extensions.DependencyInjection(.Abstractions)`,
-  `Microsoft.Extensions.Diagnostics(.Abstractions)`,
-  `Microsoft.Extensions.Http`,
-  `Microsoft.Extensions.Logging(.Abstractions)`,
-  `Microsoft.Extensions.Options(.ConfigurationExtensions)`,
-  `Microsoft.Extensions.Primitives`
-  (all 10.0.12, pulled in by the HTTP policy and environment sources).
-- `System.IO.Hashing` 10.0.0 (file revisions, backups, locks).
+- `Microsoft.Extensions.Logging.Abstractions` 10.0.0 (diagnostic logging contracts;
+  it brings `Microsoft.Extensions.DependencyInjection.Abstractions` as its own
+  contract dependency, not the `Configlue.Extensions.DI` integration),
+  `System.Diagnostics.DiagnosticSource` 10.0.5, `System.IO.Hashing` 10.0.0
+  (file revisions, backups, locks), `System.IO.Pipelines` 10.0.0.
+- No `Configlue.Extensions.DI`, `Configlue.Source.Http`,
+  `Microsoft.Extensions.Http`, `System.CommandLine`, `SharpYaml`, `MessagePack`,
+  hosting, or specialized packages.
 
 Transitive runtime packages for `netstandard2.0` additionally include
 `System.Text.Json` 10.0.0, `System.Memory`, `System.Threading.Channels`,
@@ -63,11 +73,10 @@ Transitive runtime packages for `netstandard2.0` additionally include
 
 ## Decision
 
-The HTTP, environment, and DI dependencies are retained in the default package for
-discoverability: the product property is that a tiny-file application grows into
-layered configuration (local file plus environment overrides plus remote policy)
-without changing consumer code or migrating libraries. Splitting the convenience
-package was evaluated and rejected for now — it would fragment exactly the growth path
-the single-file scenario promises, without a measured startup or size benefit
-(the extra assemblies are inert until used and trimmable when unused).
-Revisit only with published size/startup numbers showing otherwise.
+#261 redefines the default around the dependency-free experience: local JSON,
+file watching/backups, environment overrides, common sources, and SingleBinary
+stay in `Configlue`; HTTP, DI, CommandLine, external formats, and specialized
+backends are explicit opt-ins. The product property is that a tiny-file
+application grows into layered file + environment configuration without changing
+consumer code or migrating libraries, while remote/specialized integrations are
+added only when actually used.

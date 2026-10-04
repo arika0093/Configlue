@@ -4,14 +4,12 @@
     <AssemblyName>Configlue</AssemblyName>
     <RootNamespace>Configlue</RootNamespace>
     <IsPackable>true</IsPackable>
-    <PackageDescription>Convenience package for Configlue.</PackageDescription>
+    <PackageDescription>The standard/default package for Configlue: ordinary local JSON, file, environment, common presets, and single-binary settings.</PackageDescription>
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="../Configlue.Core/Configlue.Core.csproj" />
     <ProjectReference Include="../Configlue.Abstraction/Configlue.Abstraction.csproj" />
-    <ProjectReference Include="../../extensions/Configlue.Extensions.DI/Configlue.Extensions.DI.csproj" />
     <ProjectReference Include="../../providers/Configlue.Provider.Json/Configlue.Provider.Json.csproj" />
-    <ProjectReference Include="../../sources/Configlue.Source.Http/Configlue.Source.Http.csproj" />
     <ProjectReference Include="../../sources/Configlue.Source.Environment/Configlue.Source.Environment.csproj" />
     <ProjectReference
       Include="../../tools/Configlue.Generator/Configlue.Generator.csproj"
