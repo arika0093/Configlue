@@ -449,8 +449,20 @@ public sealed class RepresentationStorageMigrationTests
         var targetStore = new InMemoryStateSource<AppSettings.Fragment>();
         await using var runtime = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
             new StateSourceSet<AppSettings.Fragment>([
-                new("flip", flipping, priority: 100),
-                new("target", targetStore, priority: 0, writer: targetStore),
+                new StateSource<AppSettings.Fragment>(
+                    "flip",
+                    flipping,
+                    new StateSourceOptions<AppSettings.Fragment> { Priority = 100 }
+                ),
+                new StateSource<AppSettings.Fragment>(
+                    "target",
+                    targetStore,
+                    new StateSourceOptions<AppSettings.Fragment>
+                    {
+                        Priority = 0,
+                        Writer = targetStore,
+                    }
+                ),
             ])
         );
 
@@ -484,17 +496,27 @@ public sealed class RepresentationStorageMigrationTests
             documentLayout: layout
         );
         var jsonCodec = new JsonStateCodec<AppSettings.Fragment>(documentLayout: layout);
-        var legacy = SerializedStateSource.FromResource<AppSettings.Fragment>(
-            "legacy-yaml",
+        var legacySerialized = new SerializedSource<AppSettings.Fragment>(
             file,
             yamlCodec,
-            priority: 100
+            writer: file,
+            watcher: file
         );
-        var canonical = SerializedStateSource.FromResource<AppSettings.Fragment>(
-            "canonical-json",
+        var legacy = new StateSource<AppSettings.Fragment>(
+            "legacy-yaml",
+            legacySerialized,
+            new StateSourceOptions<AppSettings.Fragment> { Priority = 100 }
+        );
+        var canonicalSerialized = new SerializedSource<AppSettings.Fragment>(
             file,
             jsonCodec,
-            priority: 0
+            writer: file,
+            watcher: file
+        );
+        var canonical = new StateSource<AppSettings.Fragment>(
+            "canonical-json",
+            canonicalSerialized,
+            new StateSourceOptions<AppSettings.Fragment> { Priority = 0 }
         );
         await legacy.Writer!.WriteAsync(
             new StateWriteRequest<AppSettings.Fragment>(
@@ -543,24 +565,34 @@ public sealed class RepresentationStorageMigrationTests
             """{"$version":2,"RetryCount":8,"Label":"cross-backend"}"""
         );
         using var sourceFile = new FileResource(sourcePath);
-        var source = SerializedStateSource.FromResource<AppSettings.Fragment>(
-            "json-file",
+        var sourceSerialized = new SerializedSource<AppSettings.Fragment>(
             sourceFile,
             new JsonStateCodec<AppSettings.Fragment>(
                 documentLayout: new DocumentLayoutOptions { ModelId = "app-settings" }
             ),
-            priority: 100
+            writer: sourceFile,
+            watcher: sourceFile
+        );
+        var source = new StateSource<AppSettings.Fragment>(
+            "json-file",
+            sourceSerialized,
+            new StateSourceOptions<AppSettings.Fragment> { Priority = 100 }
         );
         var memory = new InMemoryResource();
         var memoryCodec = new YamlStateCodec<AppSettings.Fragment>(
             modelSchema: AppSettings.FragmentSchema,
             documentLayout: new DocumentLayoutOptions { ModelId = "app-settings" }
         );
-        var memorySource = SerializedStateSource.FromResource<AppSettings.Fragment>(
-            "memory-yaml",
+        var memorySerialized = new SerializedSource<AppSettings.Fragment>(
             memory,
             memoryCodec,
-            priority: 0
+            writer: memory,
+            watcher: memory
+        );
+        var memorySource = new StateSource<AppSettings.Fragment>(
+            "memory-yaml",
+            memorySerialized,
+            new StateSourceOptions<AppSettings.Fragment> { Priority = 0 }
         );
         var sourceBefore = (await sourceFile.ReadAsync()).Content.ToArray();
         await using var runtime = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(

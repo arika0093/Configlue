@@ -272,7 +272,11 @@ public sealed class MemberSelectorContractTests
     {
         var options = new JsonFileSourceOptions { Path = "contract.json" };
         var sources = new ConfiglueSourceSetBuilder<AppSettings>();
-        var registration = new JsonFileRegistration<AppSettings>(options, sources);
+        var registration = new JsonFileRegistration<AppSettings>(
+            options,
+            sources,
+            new ConfiglueSourceRegistration(() => { })
+        );
         registration.Mount(selector);
         return options.MountPath!;
     }
@@ -297,7 +301,7 @@ public sealed class MemberSelectorContractTests
         var remote = new StateSource<DatabaseSettings.Fragment>(
             "remote-database",
             remoteStore,
-            priority: 100
+            new StateSourceOptions<DatabaseSettings.Fragment> { Priority = 100 }
         );
 
         await using var context = ConfiglueApp.CreateContext(builder =>
@@ -305,7 +309,13 @@ public sealed class MemberSelectorContractTests
             builder.Add<AppSettings>(model =>
                 model.Sources(sources =>
                 {
-                    sources.Add(new StateSource<AppSettings.Fragment>("defaults", baseStore));
+                    sources.Add(
+                        new StateSource<AppSettings.Fragment>(
+                            "defaults",
+                            baseStore,
+                            new StateSourceOptions<AppSettings.Fragment>()
+                        )
+                    );
                     if (useTypedSelector)
                     {
                         sources.AddMounted<
@@ -346,7 +356,13 @@ public sealed class MemberSelectorContractTests
                             RetryCount = Optional<int>.Present(4),
                         }
                     );
-                    sources.Add(new StateSource<AppSettings.Fragment>("base", baseStore));
+                    sources.Add(
+                        new StateSource<AppSettings.Fragment>(
+                            "base",
+                            baseStore,
+                            new StateSourceOptions<AppSettings.Fragment>()
+                        )
+                    );
                     sources.FromCommandLine(
                         new CommandLineSourceOptions
                         {
