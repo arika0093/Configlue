@@ -183,6 +183,8 @@ namespace Configlue
     }
     public static class ConfiglueCollectionMerger
     {
+        public static T[] MergeDistinctArray<T>(System.Collections.Generic.IEnumerable<T> lower, System.Collections.Generic.IEnumerable<T> higher) { }
+        public static System.Collections.Generic.List<T> MergeDistinctList<T>(System.Collections.Generic.IEnumerable<T> lower, System.Collections.Generic.IEnumerable<T> higher) { }
         public static System.Collections.Generic.HashSet<T> MergeSet<T>(System.Collections.Generic.IEnumerable<T> lower, System.Collections.Generic.IEnumerable<T> higher) { }
     }
     public static class ConfiglueCollectionRebase
