@@ -132,7 +132,7 @@ public sealed class JsonSectionResource
         _serializerOptions = serializerOptions is null
             ? new JsonSerializerOptions { WriteIndented = true }
             : new JsonSerializerOptions(serializerOptions);
-        _batchScope = "json/" + string.Join("/", _path.Select(Uri.EscapeDataString));
+        _batchScope = SectionResourceOrchestration.BuildBatchScope("json", _path);
     }
 
     internal static JsonSectionResource CreateRoot(
@@ -187,28 +187,22 @@ public sealed class JsonSectionResource
     /// <inheritdoc />
     /// <inheritdoc />
     public ResourceId GetResourceId(ConfiglueResourceContext context) =>
-        TryGetResourceId(context, out var fixedResourceId)
-            ? fixedResourceId
-            : throw new InvalidOperationException(
-                "The underlying resource has no physical identity."
-            );
+        SectionResourceOrchestration.GetResourceIdOrThrow(
+            _configuredResourceId,
+            _writer,
+            _reader,
+            context
+        );
 
     /// <inheritdoc />
-    public bool TryGetResourceId(ConfiglueResourceContext context, out ResourceId resourceId)
-    {
-        if (_configuredResourceId is { } configuredResourceId)
-        {
-            resourceId = configuredResourceId;
-            return true;
-        }
-
-        if (_writer.TryGetResourceId(context, out resourceId))
-        {
-            return true;
-        }
-
-        return _reader.TryGetResourceId(context, out resourceId);
-    }
+    public bool TryGetResourceId(ConfiglueResourceContext context, out ResourceId resourceId) =>
+        SectionResourceOrchestration.TryGetResourceId(
+            _configuredResourceId,
+            _writer,
+            _reader,
+            context,
+            out resourceId
+        );
 
     /// <inheritdoc />
     public IResourceBatchWriter? BatchWriter => _writer as IResourceBatchWriter;
@@ -217,20 +211,18 @@ public sealed class JsonSectionResource
     public bool IsPipelineReadPreferred => false;
 
     /// <inheritdoc />
-    public async ValueTask<PipelineResourceReadResult> ReadPipelineAsync(
+    public ValueTask<PipelineResourceReadResult> ReadPipelineAsync(
         ConfiglueResourceContext context,
         CancellationToken cancellationToken = default
-    )
-    {
-        var result = await ReadAsync(context, cancellationToken).ConfigureAwait(false);
-        return await PipelineResourceReader
-            .FromMemoryAsync(result, cancellationToken)
-            .ConfigureAwait(false);
-    }
+    ) =>
+        SectionResourceOrchestration.ReadPipelineFromSectionAsync(
+            () => ReadAsync(context, cancellationToken),
+            cancellationToken
+        );
 
     /// <inheritdoc />
     public bool AutomaticBackupRecoveryEnabled =>
-        _reader is IResourceBackupRecovery recovery && recovery.AutomaticBackupRecoveryEnabled;
+        SectionResourceOrchestration.GetAutomaticBackupRecoveryEnabled(_reader);
 
     /// <inheritdoc />
     public async ValueTask<ResourceReadResult> ReadAsync(
@@ -266,61 +258,29 @@ public sealed class JsonSectionResource
         );
 
     /// <inheritdoc />
-    public async ValueTask<ResourceReadResult?> TryRecoverLatestBackupAsync(
+    public ValueTask<ResourceReadResult?> TryRecoverLatestBackupAsync(
         ConfiglueResourceContext context,
         string? expectedRevision,
         bool expectedMissing,
         Func<ResourceReadResult, CancellationToken, ValueTask<bool>> validate,
         CancellationToken cancellationToken = default
-    )
-    {
-        if (
-            _reader is not IResourceBackupRecovery recovery
-            || !recovery.AutomaticBackupRecoveryEnabled
-        )
-        {
-            return null;
-        }
-
-        var restored = await recovery
-            .TryRecoverLatestBackupAsync(
-                context,
-                expectedRevision,
-                expectedMissing,
-                async (candidate, token) =>
-                {
-                    ResourceReadResult section;
-                    try
-                    {
-                        section = ExtractSection(candidate);
-                    }
-                    catch (JsonException)
-                    {
-                        return false;
-                    }
-
-                    return section.Status == StateReadStatus.Success
-                        && await validate(section, token).ConfigureAwait(false);
-                },
-                cancellationToken
-            )
-            .ConfigureAwait(false);
-        return restored is { } result ? ExtractSection(result) : null;
-    }
+    ) =>
+        SectionResourceOrchestration.TryRecoverLatestBackupAsync(
+            _reader,
+            context,
+            expectedRevision,
+            expectedMissing,
+            validate,
+            ExtractSection,
+            static exception => exception is JsonException,
+            cancellationToken
+        );
 
     private ResourceReadResult ExtractSection(ResourceReadResult resource)
     {
-        if (resource.Status != StateReadStatus.Success)
+        if (SectionResourceOrchestration.TryPropagateNonSuccess(resource, out var propagated))
         {
-            return resource.Status switch
-            {
-                StateReadStatus.NotFound => ResourceReadResult.NotFound(resource.Revision),
-                StateReadStatus.Unavailable => ResourceReadResult.Unavailable(resource.Revision),
-                StateReadStatus.InvalidPayload => ResourceReadResult.InvalidPayload(
-                    resource.Revision
-                ),
-                _ => throw new InvalidOperationException("Unexpected non-success resource status."),
-            };
+            return propagated;
         }
 
         if (_path.Length == 0)
@@ -363,29 +323,22 @@ public sealed class JsonSectionResource
     }
 
     /// <inheritdoc />
-    public async ValueTask<StateWriteResult> WriteAsync(
+    public ValueTask<StateWriteResult> WriteAsync(
         ConfiglueResourceContext context,
         ResourceWriteRequest request,
         CancellationToken cancellationToken = default
-    )
-    {
-        cancellationToken.ThrowIfCancellationRequested();
-        var writer =
-            _writer ?? throw new NotSupportedException("This JSON section resource is read-only.");
-        var current = await _reader.ReadAsync(context, cancellationToken).ConfigureAwait(false);
-        var updatedDocument = CreateMutation(context, request).Apply(current);
-        return await writer
-            .WriteAsync(
-                context,
-                new ResourceWriteRequest(
-                    updatedDocument,
-                    Condition: RevisionCondition.FromRevision(current.Revision),
-                    Schema: _path.Length == 0 ? request.Schema : ContainerSchema ?? current.Schema
-                ),
-                cancellationToken
-            )
-            .ConfigureAwait(false);
-    }
+    ) =>
+        SectionResourceOrchestration.WriteSectionWithMutationAsync(
+            _reader,
+            _writer,
+            "This JSON section resource is read-only.",
+            _path.Length == 0,
+            ContainerSchema,
+            request,
+            context,
+            CreateMutation(context, request),
+            cancellationToken
+        );
 
     /// <inheritdoc />
     public ResourceWriteMutation CreateMutation(
@@ -394,44 +347,29 @@ public sealed class JsonSectionResource
     )
     {
         var content = request.Content.ToArray();
-        return new ResourceWriteMutation(
-            request.Condition.IsMustNotExist ? RevisionCondition.None : request.Condition,
+        return SectionResourceOrchestration.CreateSectionMutation(
+            request,
+            context,
+            _batchScope,
             ResolvePhysicalSchema(request),
-            current =>
-            {
-                if (!request.Condition.IsNone)
-                {
-                    var section = ExtractSection(current);
-                    if (
-                        !request.Condition.IsSatisfiedBy(
-                            section.Revision,
-                            section.Status != StateReadStatus.NotFound
-                        )
-                    )
-                    {
-                        throw new StateConflictException("The section changed after it was read.");
-                    }
-                }
-                return ApplyToResource(current, content);
-            },
-            scope: _batchScope,
-            canCompose: true,
-            context: context
+            ExtractSection,
+            current => ApplyToResource(current, content)
         );
     }
 
     private StateSchemaMetadata? ResolvePhysicalSchema(ResourceWriteRequest request) =>
-        _path.Length == 0 ? request.Schema : ContainerSchema;
+        SectionResourceOrchestration.ResolvePhysicalSchema(
+            _path.Length == 0,
+            request.Schema,
+            ContainerSchema
+        );
 
     private ReadOnlyMemory<byte> ApplyToResource(
         ResourceReadResult current,
         ReadOnlyMemory<byte> sectionContent
     )
     {
-        if (current.Status is not (StateReadStatus.Success or StateReadStatus.NotFound))
-        {
-            throw new IOException("The JSON resource is unavailable and cannot be updated safely.");
-        }
+        SectionResourceOrchestration.ThrowIfNotUpdatable(current, "JSON");
 
         return JsoncDocumentEditor.Update(
             current.Status == StateReadStatus.Success ? current.Content : "{}"u8.ToArray(),
@@ -444,31 +382,16 @@ public sealed class JsonSectionResource
     }
 
     /// <inheritdoc />
-    public async ValueTask WaitForChangeAsync(
+    public ValueTask WaitForChangeAsync(
         ConfiglueResourceContext context,
         string? observedRevision,
         CancellationToken cancellationToken = default
-    )
-    {
-        if (_watcher is not null)
-        {
-            await _watcher
-                .WaitForChangeAsync(context, observedRevision, cancellationToken)
-                .ConfigureAwait(false);
-            return;
-        }
-
-        while (true)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            var current = await ReadAsync(context, cancellationToken).ConfigureAwait(false);
-            if (!string.Equals(current.Revision, observedRevision, StringComparison.Ordinal))
-            {
-                return;
-            }
-
-            await Task.Delay(TimeSpan.FromMilliseconds(250), cancellationToken)
-                .ConfigureAwait(false);
-        }
-    }
+    ) =>
+        SectionResourceOrchestration.WaitForChangeAsync(
+            _watcher,
+            ReadAsync,
+            context,
+            observedRevision,
+            cancellationToken
+        );
 }

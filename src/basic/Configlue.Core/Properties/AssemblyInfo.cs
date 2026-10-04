@@ -10,3 +10,6 @@ using System.Runtime.CompilerServices;
 [assembly: InternalsVisibleTo("Configlue.Source.PostgreSql")]
 [assembly: InternalsVisibleTo("Configlue.Source.Consul")]
 [assembly: InternalsVisibleTo("Configlue.Source.Ssm")]
+[assembly: InternalsVisibleTo("Configlue.Provider.Json")]
+[assembly: InternalsVisibleTo("Configlue.Provider.Yaml")]
+[assembly: InternalsVisibleTo("Configlue.Provider.Xml")]

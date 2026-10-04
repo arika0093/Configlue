@@ -56,7 +56,7 @@ public sealed class XmlSectionResource
         _watcher = watcher;
         _configuredResourceId = fixedResourceId;
         _path = ParsePath(sectionPath);
-        _batchScope = "xml/" + string.Join("/", _path.Select(Uri.EscapeDataString));
+        _batchScope = SectionResourceOrchestration.BuildBatchScope("xml", _path);
     }
 
     /// <summary>Whether a physical writer was supplied.</summary>
@@ -72,28 +72,22 @@ public sealed class XmlSectionResource
     /// <inheritdoc />
     /// <inheritdoc />
     public ResourceId GetResourceId(ConfiglueResourceContext context) =>
-        TryGetResourceId(context, out var fixedResourceId)
-            ? fixedResourceId
-            : throw new InvalidOperationException(
-                "The underlying resource has no physical identity."
-            );
+        SectionResourceOrchestration.GetResourceIdOrThrow(
+            _configuredResourceId,
+            _writer,
+            _reader,
+            context
+        );
 
     /// <inheritdoc />
-    public bool TryGetResourceId(ConfiglueResourceContext context, out ResourceId resourceId)
-    {
-        if (_configuredResourceId is { } configuredResourceId)
-        {
-            resourceId = configuredResourceId;
-            return true;
-        }
-
-        if (_writer.TryGetResourceId(context, out resourceId))
-        {
-            return true;
-        }
-
-        return _reader.TryGetResourceId(context, out resourceId);
-    }
+    public bool TryGetResourceId(ConfiglueResourceContext context, out ResourceId resourceId) =>
+        SectionResourceOrchestration.TryGetResourceId(
+            _configuredResourceId,
+            _writer,
+            _reader,
+            context,
+            out resourceId
+        );
 
     /// <inheritdoc />
     public IResourceBatchWriter? BatchWriter => _writer as IResourceBatchWriter;
@@ -102,20 +96,18 @@ public sealed class XmlSectionResource
     public bool IsPipelineReadPreferred => false;
 
     /// <inheritdoc />
-    public async ValueTask<PipelineResourceReadResult> ReadPipelineAsync(
+    public ValueTask<PipelineResourceReadResult> ReadPipelineAsync(
         ConfiglueResourceContext context,
         CancellationToken cancellationToken = default
-    )
-    {
-        var result = await ReadAsync(context, cancellationToken).ConfigureAwait(false);
-        return await PipelineResourceReader
-            .FromMemoryAsync(result, cancellationToken)
-            .ConfigureAwait(false);
-    }
+    ) =>
+        SectionResourceOrchestration.ReadPipelineFromSectionAsync(
+            () => ReadAsync(context, cancellationToken),
+            cancellationToken
+        );
 
     /// <inheritdoc />
     public bool AutomaticBackupRecoveryEnabled =>
-        _reader is IResourceBackupRecovery recovery && recovery.AutomaticBackupRecoveryEnabled;
+        SectionResourceOrchestration.GetAutomaticBackupRecoveryEnabled(_reader);
 
     /// <inheritdoc />
     public async ValueTask<ResourceReadResult> ReadAsync(
@@ -151,64 +143,32 @@ public sealed class XmlSectionResource
         );
 
     /// <inheritdoc />
-    public async ValueTask<ResourceReadResult?> TryRecoverLatestBackupAsync(
+    public ValueTask<ResourceReadResult?> TryRecoverLatestBackupAsync(
         ConfiglueResourceContext context,
         string? expectedRevision,
         bool expectedMissing,
         Func<ResourceReadResult, CancellationToken, ValueTask<bool>> validate,
         CancellationToken cancellationToken = default
-    )
-    {
-        if (
-            _reader is not IResourceBackupRecovery recovery
-            || !recovery.AutomaticBackupRecoveryEnabled
-        )
-        {
-            return null;
-        }
-
-        var restored = await recovery
-            .TryRecoverLatestBackupAsync(
-                context,
-                expectedRevision,
-                expectedMissing,
-                async (candidate, token) =>
-                {
-                    ResourceReadResult section;
-                    try
-                    {
-                        section = ExtractSection(candidate, context);
-                    }
-                    catch (XmlException)
-                    {
-                        return false;
-                    }
-
-                    return section.Status == StateReadStatus.Success
-                        && await validate(section, token).ConfigureAwait(false);
-                },
-                cancellationToken
-            )
-            .ConfigureAwait(false);
-        return restored is { } result ? ExtractSection(result, context) : null;
-    }
+    ) =>
+        SectionResourceOrchestration.TryRecoverLatestBackupAsync(
+            _reader,
+            context,
+            expectedRevision,
+            expectedMissing,
+            validate,
+            candidate => ExtractSection(candidate, context),
+            static exception => exception is XmlException,
+            cancellationToken
+        );
 
     private ResourceReadResult ExtractSection(
         ResourceReadResult resource,
         ConfiglueResourceContext context
     )
     {
-        if (resource.Status != StateReadStatus.Success)
+        if (SectionResourceOrchestration.TryPropagateNonSuccess(resource, out var propagated))
         {
-            return resource.Status switch
-            {
-                StateReadStatus.NotFound => ResourceReadResult.NotFound(resource.Revision),
-                StateReadStatus.Unavailable => ResourceReadResult.Unavailable(resource.Revision),
-                StateReadStatus.InvalidPayload => ResourceReadResult.InvalidPayload(
-                    resource.Revision
-                ),
-                _ => throw new InvalidOperationException("Unexpected non-success resource status."),
-            };
+            return propagated;
         }
 
         var revision = resource.Revision;
@@ -281,29 +241,22 @@ public sealed class XmlSectionResource
     }
 
     /// <inheritdoc />
-    public async ValueTask<StateWriteResult> WriteAsync(
+    public ValueTask<StateWriteResult> WriteAsync(
         ConfiglueResourceContext context,
         ResourceWriteRequest request,
         CancellationToken cancellationToken = default
-    )
-    {
-        cancellationToken.ThrowIfCancellationRequested();
-        var writer =
-            _writer ?? throw new NotSupportedException("This XML section resource is read-only.");
-        var current = await _reader.ReadAsync(context, cancellationToken).ConfigureAwait(false);
-        var updated = CreateMutation(context, request).Apply(current);
-        return await writer
-            .WriteAsync(
-                context,
-                new ResourceWriteRequest(
-                    updated,
-                    Condition: RevisionCondition.FromRevision(current.Revision),
-                    Schema: _path.Length == 0 ? request.Schema : ContainerSchema ?? current.Schema
-                ),
-                cancellationToken
-            )
-            .ConfigureAwait(false);
-    }
+    ) =>
+        SectionResourceOrchestration.WriteSectionWithMutationAsync(
+            _reader,
+            _writer,
+            "This XML section resource is read-only.",
+            _path.Length == 0,
+            ContainerSchema,
+            request,
+            context,
+            CreateMutation(context, request),
+            cancellationToken
+        );
 
     /// <inheritdoc />
     public ResourceWriteMutation CreateMutation(
@@ -312,53 +265,33 @@ public sealed class XmlSectionResource
     )
     {
         var content = request.Content.ToArray();
-        return new ResourceWriteMutation(
-            request.Condition.IsMustNotExist ? RevisionCondition.None : request.Condition,
+        return SectionResourceOrchestration.CreateSectionMutation(
+            request,
+            context,
+            _batchScope,
             ResolvePhysicalSchema(request),
-            current =>
-            {
-                if (!request.Condition.IsNone)
-                {
-                    var section = ExtractSection(current, context);
-                    if (
-                        !request.Condition.IsSatisfiedBy(
-                            section.Revision,
-                            section.Status != StateReadStatus.NotFound
-                        )
-                    )
-                    {
-                        throw new StateConflictException("The section changed after it was read.");
-                    }
-                }
-                return ApplyToResource(current, content);
-            },
-            scope: _batchScope,
-            canCompose: true,
-            context: context
+            current => ExtractSection(current, context),
+            current => ApplyToResource(current, content)
         );
     }
 
     private StateSchemaMetadata? ResolvePhysicalSchema(ResourceWriteRequest request) =>
-        _path.Length == 0 ? request.Schema : ContainerSchema;
+        SectionResourceOrchestration.ResolvePhysicalSchema(
+            _path.Length == 0,
+            request.Schema,
+            ContainerSchema
+        );
 
     private ReadOnlyMemory<byte> ApplyToResource(
         ResourceReadResult current,
         ReadOnlyMemory<byte> sectionContent
     )
     {
-        XDocument document;
-        if (current.Status == StateReadStatus.Success)
-        {
-            document = LoadDocument(current.Content);
-        }
-        else if (current.Status == StateReadStatus.NotFound)
-        {
-            document = new XDocument(new XElement("configuration"));
-        }
-        else
-        {
-            throw new IOException("The XML resource is unavailable and cannot be updated safely.");
-        }
+        SectionResourceOrchestration.ThrowIfNotUpdatable(current, "XML");
+        XDocument document =
+            current.Status == StateReadStatus.Success
+                ? LoadDocument(current.Content)
+                : new XDocument(new XElement("configuration"));
 
         var root = document.Root ?? throw new XmlException("The XML resource has no root element.");
         var container = root;
@@ -419,33 +352,18 @@ public sealed class XmlSectionResource
     }
 
     /// <inheritdoc />
-    public async ValueTask WaitForChangeAsync(
+    public ValueTask WaitForChangeAsync(
         ConfiglueResourceContext context,
         string? observedRevision,
         CancellationToken cancellationToken = default
-    )
-    {
-        if (_watcher is not null)
-        {
-            await _watcher
-                .WaitForChangeAsync(context, observedRevision, cancellationToken)
-                .ConfigureAwait(false);
-            return;
-        }
-
-        while (true)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            var current = await ReadAsync(context, cancellationToken).ConfigureAwait(false);
-            if (!string.Equals(current.Revision, observedRevision, StringComparison.Ordinal))
-            {
-                return;
-            }
-
-            await Task.Delay(TimeSpan.FromMilliseconds(250), cancellationToken)
-                .ConfigureAwait(false);
-        }
-    }
+    ) =>
+        SectionResourceOrchestration.WaitForChangeAsync(
+            _watcher,
+            ReadAsync,
+            context,
+            observedRevision,
+            cancellationToken
+        );
 
     private static string[] ParsePath(string sectionPath)
     {
