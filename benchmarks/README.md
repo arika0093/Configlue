@@ -89,3 +89,49 @@ dotnet test tests/Configlue.Tests/Configlue.Tests.csproj -c Release -f net10.0 -
 ```
 
 BenchmarkDotNet reports elapsed time and allocated bytes for the benchmark process and runtime. Compare results from the same machine, .NET runtime, power mode, and build configuration. File persistence numbers include local file system and OS cache behavior. Results are measurements, not CI thresholds; the two libraries use different document formats, so file size and serialization work are not identical.
+
+## #214: allocation regression matrix (#164–#175 → benchmark mapping)
+
+Every allocation optimization issue from the #176 review has a benchmark that
+would regress if the old behavior returned. `#209`–`#213` extend this table
+with transformer split, metadata end-to-end, write-routing, Redis, and HTTP/S3
+groups; class names below stay valid when those branches merge.
+
+| Issue | Optimization | Benchmark class → method | What regresses if the old behavior returns |
+| --- | --- | --- | --- |
+| #164 | Destination/ownership-aware transformer output, no full-buffer alloc per stage | `TransformerAllocationBenchmarks` → `Aes` / `Compression` / `CompressionThenAes`; `MixedTransformerPipelineBenchmarks214` → `PipelineWriteAsync` / `PipelineReadAsync` (1/2/3 stages) | Per-stage buffer copy returns; mixed sync+async `Allocated` rises while the stage-1 sync baseline stays flat |
+| #165 | Explicitly owned, poolable serialized-write buffers (normal + batch) | `SerializedWriterAllocationBenchmarks` → `NormalWriteAsync` / `BatchWriteAsync` | Temporary buffer per write; batch path loses ownership |
+| #166 | No JSON serialize → temp buffer → DOM parse → reserialize on writes | `JsonCodecLayoutBenchmarks` → `Serialize` / `SerializeWithoutSchema` / `Deserialize`; `JsonMetadataBearingReadBenchmarks214` → `Deserialize` | Extra temp buffer + DOM parse on the write path |
+| #167 | Single-pass embedded schema-metadata + value decode | `MessagePackCodecAllocationBenchmarks` → `ReadMetadataAndDecodeValue` vs `Deserialize`; `JsonMetadataBearingReadBenchmarks214` → `DeserializeWithMetadata` vs `ReadSchemaMetadata` + `Deserialize` | Two-pass metadata-then-value decode; the split-vs-single-pass delta collapses |
+| #168 | No per-read scratch array/list in normal runtime resolution | `LayeredResolutionFallbackBenchmarks` → `ResolveSourcesAsync` (1/2/4/16); `StateSourceResolverBenchmarks` → `ResolveSourcesAsync` | Allocation grows with source count again |
+| #169 | Inline small `StateRevisionVector` + lazy dictionary views | `StateRevisionVectorBenchmarks` → `ConstructAndLookup`; `RevisionVectorViewBenchmarks214` → `LookupHit` / `LookupMiss` / `ViewMaterializeFirstAccess` / `ViewCachedAccess` (0/1/2/4/16) | Dictionary allocated at construction; `Revisions` view materialized eagerly so lookup benchmarks rise |
+| #170 | Allocation-friendly generated fragment operations instead of dynamic yield/object path | `FragmentMergeBenchmarks` → `Merge` / `ToModel` | Iterator/object allocations in present-member enumeration |
+| #171 | Non-delegate fast paths for `ResourceWriteMutation` and transformed batches | `SerializedWriterAllocationBenchmarks` → `BatchWriteAsync`; `SaveRoutingBenchmarks` → `SaveSingleSourceAsync` / `SaveMultiSourceRoutedAsync` | Delegate/callback allocation per write |
+| #172 | Redis read/write and resource-identity allocations | `RedisIdentityAllocationBenchmarks` → `CreateResourceIdentity` (read/write preparation → #212) | Per-operation identity string/allocations |
+| #173 | No per-chunk `byte[]` in pipeline fingerprinting | `PipelineFingerprintAllocationBenchmarks` → `ReadAndFingerprintAsync` (ChunkSize 1/128) | Chunk-count-dependent allocation |
+| #174 | Streaming pipeline readers for HTTP/S3, no full-response buffering | `FilePersistenceBenchmarks`; `SerializedFileReadBenchmarks` (large-payload buffered vs pipeline → #213) | Full-response buffering on large payloads |
+| #175 | Fixed micro-allocations on byte and identity hot paths | `WriteRouteBenchmarks` → `DiagnosticStringLookup` vs `GeneratedIdentityLookup` / `GeneratedRouteBelow`; `RedisIdentityAllocationBenchmarks` | Fixed per-operation small allocations |
+
+Same-machine/ same-runtime comparison procedure:
+
+```shell
+git stash -u  # or check out the parent revision in a separate worktree
+dotnet run -c Release --project benchmarks/Configlue.Benchmarks -- --filter '*RevisionVectorViewBenchmarks214*'
+# ... candidate revision in this worktree, same command, same machine ...
+dotnet run -c Release --project benchmarks/Configlue.Benchmarks -- --filter '*MixedTransformerPipelineBenchmarks214*'
+dotnet run -c Release --project benchmarks/Configlue.Benchmarks -- --filter '*JsonMetadataBearingReadBenchmarks214*'
+```
+
+Rules: Release configuration, same machine, same .NET runtime, same power
+mode; capture the parent-revision group first, then the candidate revision;
+keep the BenchmarkDotNet reports with the review notes. Never compare numbers
+across machines or runtime versions, and never transcribe BenchmarkDotNet
+numbers into unit-test thresholds.
+
+Deterministic allocation budgets in
+`tests/Configlue.Tests/Performance/AllocationBudgetTests.cs` (net10.0 only)
+are coarse invariants measured with `GC.GetAllocatedBytesForCurrentThread()`
+after warm-up: they fail only if an optimization regresses to a materializing
+implementation. Exact byte budgets are prohibited because results depend on
+runtime and version; BenchmarkDotNet figures must not be copied into unit-test
+thresholds.
