@@ -261,8 +261,8 @@ internal sealed partial class ConfiglueProfiledState<TModel, TFragment>
             if (copyFrom is not null)
             {
                 EnsureProfileExists(copyFrom);
-                sourceValue = await _registry
-                    .Get(copyFrom)
+                var sourceRuntime = await MaterializeAsync(copyFrom).ConfigureAwait(false);
+                sourceValue = await sourceRuntime
                     .GetValueAsync(cancellationToken)
                     .ConfigureAwait(false);
                 hasSourceValue = true;

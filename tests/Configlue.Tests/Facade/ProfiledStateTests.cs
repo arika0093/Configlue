@@ -689,6 +689,121 @@ public sealed class ProfiledStateTests
     }
 
     [Test]
+    public async Task ProfileCatalog_CreateProfileCopyRematerializesUnloadedDefault()
+    {
+        var (catalog, _) = CreateProfileCatalog();
+        var backing = CreateBackingStore();
+        await using var context = CreateProfiledContext(catalog, backing);
+        var profiles = context.GetProfiledState<AppSettings>();
+        await profiles.GetProfileNamesAsync();
+
+        var source = await profiles.GetProfileAsync("default");
+        await source.SaveAsync(patch => patch.RetryCount = 42);
+
+        var registry = context.GetStateRegistry<AppSettings>();
+        (await registry.TryRemoveAsync("default")).ShouldBeTrue();
+        registry.TryGet("default", out _).ShouldBeFalse();
+        // Unload is not a delete: catalog membership survives runtime removal.
+        (await profiles.GetProfileNamesAsync()).ShouldContain("default");
+
+        await profiles.CreateProfileAsync("copied", copyFrom: "default");
+
+        (await profiles.GetProfileNamesAsync()).ShouldContain("copied");
+        ((await (await profiles.GetProfileAsync("copied")).GetValueAsync()).RetryCount)
+            .ShouldBe(42);
+        ((await (await profiles.GetProfileAsync("default")).GetValueAsync()).RetryCount)
+            .ShouldBe(42);
+    }
+
+    [Test]
+    public async Task ProfileCatalog_CreateProfileCopyRematerializesUnloadedNonDefault()
+    {
+        var (catalog, _) = CreateProfileCatalog();
+        var backing = CreateBackingStore();
+        await using var context = CreateProfiledContext(catalog, backing);
+        var profiles = context.GetProfiledState<AppSettings>();
+        await profiles.GetProfileNamesAsync();
+        await profiles.CreateProfileAsync("Work");
+
+        var source = await profiles.GetProfileAsync("Work");
+        await source.SaveAsync(patch => patch.RetryCount = 42);
+
+        var registry = context.GetStateRegistry<AppSettings>();
+        (await registry.TryRemoveAsync("Work")).ShouldBeTrue();
+        registry.TryGet("Work", out _).ShouldBeFalse();
+        (await profiles.GetProfileNamesAsync()).ShouldContain("Work");
+
+        await profiles.CreateProfileAsync("Copied", copyFrom: "Work");
+
+        ((await (await profiles.GetProfileAsync("Copied")).GetValueAsync()).RetryCount)
+            .ShouldBe(42);
+        ((await (await profiles.GetProfileAsync("Work")).GetValueAsync()).RetryCount)
+            .ShouldBe(42);
+    }
+
+    [Test]
+    public async Task ProfileCatalog_CreateProfileCopyRejectsUnknownSourceWithoutLeavingDestination()
+    {
+        var (catalog, _) = CreateProfileCatalog();
+        var backing = CreateBackingStore();
+        await using var context = CreateProfiledContext(catalog, backing);
+        var profiles = context.GetProfiledState<AppSettings>();
+        await profiles.GetProfileNamesAsync();
+
+        await Should.ThrowAsync<KeyNotFoundException>(async () =>
+            await profiles.CreateProfileAsync("copied", copyFrom: "missing")
+        );
+
+        (await profiles.GetProfileNamesAsync()).ShouldNotContain("copied");
+        var registry = context.GetStateRegistry<AppSettings>();
+        registry.TryGet("copied", out _).ShouldBeFalse();
+    }
+
+    [Test]
+    public async Task ProfileCatalog_CreateProfileCopyFailureLeavesNoDestinationAndKeepsSource()
+    {
+        var (catalog, _) = CreateProfileCatalog();
+        var backing = CreateBackingStore();
+        await using var context = CreateProfiledContext(catalog, backing);
+        var profiles = context.GetProfiledState<AppSettings>();
+        await profiles.GetProfileNamesAsync();
+        await profiles.CreateProfileAsync("Work");
+
+        var source = await profiles.GetProfileAsync("Work");
+        await source.SaveAsync(patch => patch.RetryCount = 42);
+
+        var registry = context.GetStateRegistry<AppSettings>();
+        var blocked = new BlockRematerializationRegistry(registry);
+        var blockedProfiles = new ConfiglueProfiledState<
+            AppSettings,
+            AppSettings.Fragment
+        >(
+            blocked,
+            catalog
+        );
+        try
+        {
+            await blockedProfiles.GetProfileNamesAsync();
+            // Simulate a rematerialization conflict for the source only: after this
+            // point TryAdd refuses "Work" while TryGet reports it as absent (unloaded below).
+            blocked.Block("Work");
+            (await registry.TryRemoveAsync("Work")).ShouldBeTrue();
+
+            await Should.ThrowAsync<InvalidOperationException>(async () =>
+                await blockedProfiles.CreateProfileAsync("copied", copyFrom: "Work")
+            );
+
+            (await blockedProfiles.GetProfileNamesAsync()).ShouldContain("Work");
+            (await blockedProfiles.GetProfileNamesAsync()).ShouldNotContain("copied");
+            registry.TryGet("copied", out _).ShouldBeFalse();
+        }
+        finally
+        {
+            await blockedProfiles.DisposeAsync();
+        }
+    }
+
+    [Test]
     public async Task ProfileCatalogFactoryCanOwnAsyncDisposableResources()
     {
         var resource = new AsyncDisposableProbe();
@@ -1016,6 +1131,51 @@ public sealed class ProfiledStateTests
                 }
             }
         }
+    }
+
+    private sealed class BlockRematerializationRegistry(
+        IConfiglueStateRegistry<AppSettings> inner
+    )
+        : IConfiglueStateRegistry<AppSettings>,
+            IConfiglueStateRegistryNotificationDeferrer<AppSettings>
+    {
+        private readonly HashSet<string> _blocked = new(StringComparer.Ordinal);
+
+        public void Block(string profileName) => _blocked.Add(profileName);
+
+        public event Action<string, IWritableState<AppSettings>>? StateAdded
+        {
+            add => inner.StateAdded += value;
+            remove => inner.StateAdded -= value;
+        }
+
+        public event Action<string>? StateRemoved
+        {
+            add => inner.StateRemoved += value;
+            remove => inner.StateRemoved -= value;
+        }
+
+        public IReadOnlyCollection<string> StateNames => inner.StateNames;
+
+        public IWritableState<AppSettings> Get(string profileName) => inner.Get(profileName);
+
+        public bool TryGet(string profileName, out IWritableState<AppSettings>? options) =>
+            inner.TryGet(profileName, out options);
+
+        public ValueTask<bool> TryAddAsync(string profileName) =>
+            _blocked.Contains(profileName)
+                ? ValueTask.FromResult(false)
+                : inner.TryAddAsync(profileName);
+
+        public ValueTask<bool> TryRemoveAsync(string profileName) =>
+            inner.TryRemoveAsync(profileName);
+
+        public ValueTask ClearAsync() => inner.ClearAsync();
+
+        public ValueTask DisposeAsync() => inner.DisposeAsync();
+
+        public IConfiglueStateRegistryNotificationDeferral<AppSettings> DeferNotifications() =>
+            ((IConfiglueStateRegistryNotificationDeferrer<AppSettings>)inner).DeferNotifications();
     }
 
     private sealed class CatalogWriteBarrier
