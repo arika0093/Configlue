@@ -3,6 +3,7 @@ using System.Runtime.InteropServices;
 using System.Text;
 using System.Text.Json;
 using Configlue.CompilerServices;
+using Configlue.DocumentEditing;
 using SharpYaml;
 using SharpYaml.Events;
 using SharpYaml.Model;
@@ -122,7 +123,7 @@ internal static class YamlDocumentEditor
         Encoding? textEncoding = null
     )
     {
-        var fragment = CreateShallowPresentFragment(schema);
+        var fragment = DocumentSemanticEditPlan.CreateShallowPresentFragment(schema);
         var codec = new YamlStateCodec(
             namingPolicy,
             schema,
@@ -138,26 +139,6 @@ internal static class YamlDocumentEditor
             new StateCodecContext(schema.ToMetadata(), null, null)
         );
         return buffer.WrittenSpan.ToArray();
-    }
-
-    private static IConfiglueFragment CreateShallowPresentFragment(ConfiglueModelSchema schema)
-    {
-        var fragment = schema.CreateEmptyFragment();
-        foreach (var member in schema.Members)
-        {
-            // One level only: nested members stay null so recursive schemas never
-            // expand into an infinite present-fragment tree. Deeper levels are
-            // resolved lazily from the actual (finite) document via YamlSchemaShape.
-            object? value = null;
-            if (member.NestedSchemaFactory is null && member.ValueType.IsValueType)
-            {
-                value = Activator.CreateInstance(member.ValueType);
-            }
-
-            fragment = fragment.WithMember(member.Id, value);
-        }
-
-        return fragment;
     }
 
     private static string WrapProperty(string name, string value, string newline)
@@ -302,42 +283,6 @@ internal static class YamlDocumentEditor
             return result;
         }
 
-        private (YamlTextNode? ChildShape, ConfiglueModelSchema? ChildSchema) ResolveChildShape(
-            string wireName,
-            YamlTextNode? shapeValue,
-            ConfiglueModelSchema? currentSchema
-        )
-        {
-            if (_schemaShape is null || currentSchema is null)
-            {
-                return (shapeValue, null);
-            }
-
-            if (
-                string.Equals(wireName, "$value", StringComparison.Ordinal)
-                && ReferenceEquals(currentSchema, _schemaShape.RootSchema)
-                && shapeValue?.Kind == YamlTextKind.Mapping
-            )
-            {
-                return (shapeValue, currentSchema);
-            }
-
-            if (
-                _schemaShape.TryGetNested(currentSchema, wireName, out var nested)
-                && nested is not null
-            )
-            {
-                if (shapeValue is null || shapeValue.Kind == YamlTextKind.Scalar)
-                {
-                    return (_schemaShape.GetBareRootNode(nested), nested);
-                }
-
-                return (shapeValue, nested);
-            }
-
-            return (shapeValue, null);
-        }
-
         private void AddMappingDiff(
             YamlTextNode current,
             YamlTextNode updated,
@@ -346,76 +291,89 @@ internal static class YamlDocumentEditor
         )
         {
             var currentProperties = current.Properties!;
-            var updatedByName = updated.Properties!.ToDictionary(
+            var updatedProperties = updated.Properties!;
+            var shapeByName = shape?.Properties?.ToDictionary(
                 static property => property.Name,
                 StringComparer.Ordinal
             );
-            var shapeNames = shape
-                ?.Properties?.Select(static property => property.Name)
-                .ToHashSet(StringComparer.Ordinal);
+            var shapeNames = shapeByName is null
+                ? null
+                : new HashSet<string>(shapeByName.Keys, StringComparer.Ordinal);
+
             var isFlow = ((YamlMapping)current.Element).Style == YamlStyle.Flow;
-            var retainedProperties = new List<YamlTextProperty>(currentProperties.Count);
-            for (var index = 0; index < currentProperties.Count; index++)
-            {
-                var property = currentProperties[index];
-                if (!updatedByName.TryGetValue(property.Name, out var updatedProperty))
+            DocumentSemanticEditPlan.DiffObjects(
+                currentProperties.Select(static property => property.Name).ToArray(),
+                updatedProperties.Select(static property => property.Name).ToArray(),
+                shapeNames,
+                _schemaShape is not null,
+                onRemove: currentIndex =>
+                    RemoveProperty(current, currentIndex, currentProperties[currentIndex], isFlow),
+                onMatch: (currentIndex, updatedIndex, wireName) =>
                 {
-                    bool isOwned;
-                    if (_schemaShape is null)
+                    YamlTextNode? shapeValue =
+                        shapeByName is not null
+                        && shapeByName.TryGetValue(wireName, out var shapeProperty)
+                            ? shapeProperty.Value
+                            : null;
+                    YamlTextNode? childShape = shapeValue;
+                    ConfiglueModelSchema? childSchema = null;
+                    if (_schemaShape is not null && currentSchema is not null)
                     {
-                        isOwned = shapeNames is null || shapeNames.Contains(property.Name);
-                    }
-                    else
-                    {
-                        isOwned = shapeNames is not null && shapeNames.Contains(property.Name);
+                        _schemaShape.TryGetNested(currentSchema, wireName, out var nested);
+                        childSchema = DocumentSemanticEditPlan.ResolveChildSchema(
+                            currentSchema,
+                            _schemaShape.RootSchema,
+                            wireName,
+                            nested,
+                            shapeValue is null || shapeValue.Kind == YamlTextKind.Scalar,
+                            shapeValue?.Kind == YamlTextKind.Mapping,
+                            out var needsBareShape
+                        );
+                        if (needsBareShape && childSchema is not null)
+                        {
+                            childShape = _schemaShape.GetBareRootNode(childSchema);
+                        }
                     }
 
-                    if (isOwned)
+                    AddDiff(
+                        currentProperties[currentIndex].Value,
+                        updatedProperties[updatedIndex].Value,
+                        childShape,
+                        currentProperties[currentIndex],
+                        updatedProperties[updatedIndex],
+                        childSchema
+                    );
+                },
+                onAdd: (addUpdatedIndexes, retainedCurrentIndexes) =>
+                {
+                    if (addUpdatedIndexes.Length == 0)
                     {
-                        RemoveProperty(current, index, property, isFlow);
-                    }
-                    else
-                    {
-                        retainedProperties.Add(property);
+                        return;
                     }
 
-                    continue;
+                    var retained = retainedCurrentIndexes
+                        .Select(index => currentProperties[index])
+                        .ToList();
+                    var additions = addUpdatedIndexes
+                        .Select(updatedIndex =>
+                        {
+                            var property = updatedProperties[updatedIndex];
+                            return isFlow
+                                ? Slice(
+                                    property.Value.Source,
+                                    property.KeyStart,
+                                    property.Value.ValueEnd
+                                )
+                                : Slice(
+                                    property.Value.Source,
+                                    property.EntryStart,
+                                    property.EntryEnd
+                                );
+                        })
+                        .ToArray();
+                    AddProperties(current, additions, retained);
                 }
-
-                retainedProperties.Add(property);
-                var shapeProperty = shape?.Properties?.SingleOrDefault(candidate =>
-                    string.Equals(candidate.Name, property.Name, StringComparison.Ordinal)
-                );
-                var (childShape, childSchema) = ResolveChildShape(
-                    property.Name,
-                    shapeProperty?.Value,
-                    currentSchema
-                );
-                AddDiff(
-                    property.Value,
-                    updatedProperty.Value,
-                    childShape,
-                    property,
-                    updatedProperty,
-                    childSchema
-                );
-            }
-
-            var currentNames = currentProperties
-                .Select(static property => property.Name)
-                .ToHashSet(StringComparer.Ordinal);
-            var additions = updated
-                .Properties!.Where(property => !currentNames.Contains(property.Name))
-                .Select(property =>
-                    isFlow
-                        ? Slice(property.Value.Source, property.KeyStart, property.Value.ValueEnd)
-                        : Slice(property.Value.Source, property.EntryStart, property.EntryEnd)
-                )
-                .ToArray();
-            if (additions.Length > 0)
-            {
-                AddProperties(current, additions, retainedProperties);
-            }
+            );
         }
 
         private void AddSequenceDiff(
@@ -1029,19 +987,10 @@ internal sealed class YamlSchemaShape
 
     private BareLevel GetBareLevel(ConfiglueModelSchema schema) =>
         _bareCache.GetOrAdd(
-            CacheKey(schema),
+            DocumentSemanticEditPlan.CacheKey(schema),
             static (_, state) =>
                 CreateBareLevel(state.Naming, state.SerializerOptions, state.Schema),
             (Naming: _namingPolicy, SerializerOptions: _serializerOptions, Schema: schema)
-        );
-
-    private static string CacheKey(ConfiglueModelSchema schema) =>
-        string.Concat(
-            schema.Id,
-            "\0",
-            schema.Version,
-            "\0",
-            schema.ModelType.FullName ?? schema.ModelType.Name
         );
 
     private static BareLevel CreateBareLevel(
@@ -1050,7 +999,7 @@ internal sealed class YamlSchemaShape
         ConfiglueModelSchema schema
     )
     {
-        var fragment = CreateShallowFragment(schema);
+        var fragment = DocumentSemanticEditPlan.CreateShallowPresentFragment(schema);
         var yamlValue = FragmentYamlConverterFactory.ToYamlValue(fragment, schema, namingPolicy);
         var options = serializerOptions ?? YamlSerializerOptions.Default;
         var text = YamlSerializer.Serialize(yamlValue, yamlValue.GetType(), options);
@@ -1061,23 +1010,6 @@ internal sealed class YamlSchemaShape
         }
 
         return new BareLevel(document.Root);
-    }
-
-    private static IConfiglueFragment CreateShallowFragment(ConfiglueModelSchema schema)
-    {
-        var fragment = schema.CreateEmptyFragment();
-        foreach (var member in schema.Members)
-        {
-            object? value = null;
-            if (member.NestedSchemaFactory is null && member.ValueType.IsValueType)
-            {
-                value = Activator.CreateInstance(member.ValueType);
-            }
-
-            fragment = fragment.WithMember(member.Id, value);
-        }
-
-        return fragment;
     }
 
     private static string DecodeBytes(byte[] bytes, Encoding? textEncoding)

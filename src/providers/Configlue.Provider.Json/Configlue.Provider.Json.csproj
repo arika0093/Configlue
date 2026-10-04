@@ -10,6 +10,9 @@
     <InternalsVisibleTo Include="Configlue.Tests" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="../Shared/DocumentSemanticEditPlan.cs" Link="DocumentSemanticEditPlan.cs" />
+  </ItemGroup>
+  <ItemGroup>
     <ProjectReference Include="../../basic/Configlue.Abstraction/Configlue.Abstraction.csproj" />
     <ProjectReference Include="../../basic/Configlue.Core/Configlue.Core.csproj" />
     <PackageReference Include="System.IO.Pipelines" Version="10.0.0" />

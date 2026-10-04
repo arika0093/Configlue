@@ -3,6 +3,7 @@ using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using Configlue.CompilerServices;
+using Configlue.DocumentEditing;
 
 namespace Configlue.Provider.Json;
 
@@ -140,7 +141,7 @@ internal sealed class JsoncDocumentEditor
     )
         where TFragment : class, IConfiglueFragment<TFragment>
     {
-        var fragment = CreateShallowPresentFragment(schema);
+        var fragment = DocumentSemanticEditPlan.CreateShallowPresentFragment(schema);
         if (fragment is not TFragment typedFragment)
         {
             throw new InvalidOperationException(
@@ -194,26 +195,6 @@ internal sealed class JsoncDocumentEditor
         }
 
         return stream.ToArray();
-    }
-
-    private static IConfiglueFragment CreateShallowPresentFragment(ConfiglueModelSchema schema)
-    {
-        var fragment = schema.CreateEmptyFragment();
-        foreach (var member in schema.Members)
-        {
-            // One level only: nested members stay null so recursive schemas never
-            // expand into an infinite present-fragment tree. The codec serializes
-            // the null as a present null property, which still yields the correct
-            // wire name for this level. Deeper levels are resolved lazily from the
-            // actual (finite) document via JsonSchemaShape.
-            object? value = member.NestedSchemaFactory is not null
-                ? null
-                : member.DefaultValueFactory?.Invoke();
-
-            fragment = fragment.WithMember(member.Id, value);
-        }
-
-        return fragment;
     }
 
     private void AddPropertyAtPath(JsoncValueNode parent, string name, byte[] value)
@@ -286,130 +267,81 @@ internal sealed class JsoncDocumentEditor
     {
         var currentProperties = current.Properties!;
         var updatedProperties = updated.Properties!;
-        Dictionary<string, JsoncPropertyNode>? shapeByName = null;
-        if (shape?.Properties is { } shapeProperties)
-        {
-            shapeByName = new Dictionary<string, JsoncPropertyNode>(
-                shapeProperties.Count,
-                StringComparer.Ordinal
-            );
-            for (var index = 0; index < shapeProperties.Count; index++)
-            {
-                shapeByName[shapeProperties[index].Name] = shapeProperties[index];
-            }
-        }
-
-        var updatedByName = updatedProperties.ToDictionary(
+        var shapeByName = shape?.Properties?.ToDictionary(
             static property => property.Name,
             StringComparer.Ordinal
         );
-        var retainedProperties = new List<JsoncPropertyNode>(currentProperties.Count);
+        var shapeNames = shapeByName is null
+            ? null
+            : new HashSet<string>(shapeByName.Keys, StringComparer.Ordinal);
 
-        for (var index = 0; index < currentProperties.Count; index++)
-        {
-            var property = currentProperties[index];
-            if (!updatedByName.TryGetValue(property.Name, out var updatedProperty))
+        DocumentSemanticEditPlan.DiffObjects(
+            currentProperties.Select(static property => property.Name).ToArray(),
+            updatedProperties.Select(static property => property.Name).ToArray(),
+            shapeNames,
+            _schemaShape is not null,
+            onRemove: currentIndex => AddPropertyRemoval(currentProperties[currentIndex]),
+            onMatch: (currentIndex, updatedIndex, wireName) =>
             {
-                bool isOwned;
-                if (_schemaShape is null)
+                JsoncValueNode? shapeValue =
+                    shapeByName is not null
+                    && shapeByName.TryGetValue(wireName, out var shapeProperty)
+                        ? shapeProperty.Value
+                        : null;
+                JsoncValueNode? childShape = shapeValue;
+                ConfiglueModelSchema? childSchema = null;
+                if (_schemaShape is not null && currentSchema is not null)
                 {
-                    isOwned = shapeByName is null || shapeByName.ContainsKey(property.Name);
-                }
-                else
-                {
-                    // Schema-aware mode: only owned members recorded in the (possibly
-                    // lazily resolved) shape may be removed. Unknown members at any
-                    // depth are retained. A null shape means an unknown subtree.
-                    isOwned = shapeByName is not null && shapeByName.ContainsKey(property.Name);
+                    _schemaShape.TryGetNested(currentSchema, wireName, out var nested);
+                    childSchema = DocumentSemanticEditPlan.ResolveChildSchema(
+                        currentSchema,
+                        _schemaShape.RootSchema,
+                        wireName,
+                        nested,
+                        shapeValue is null || shapeValue.Kind == JsonValueKind.Null,
+                        shapeValue?.Kind == JsonValueKind.Object,
+                        out var needsBareShape
+                    );
+                    if (needsBareShape && childSchema is not null)
+                    {
+                        childShape = _schemaShape.GetBareRootNode(childSchema);
+                    }
                 }
 
-                if (isOwned)
-                {
-                    AddPropertyRemoval(property);
-                }
-                else
-                {
-                    retainedProperties.Add(property);
-                }
-
-                continue;
-            }
-
-            retainedProperties.Add(property);
-            JsoncValueNode? shapeValue = null;
-            if (
-                shapeByName is not null
-                && shapeByName.TryGetValue(property.Name, out var shapeProperty)
-            )
+                AddDiff(
+                    currentProperties[currentIndex].Value,
+                    updatedProperties[updatedIndex].Value,
+                    childShape,
+                    updatedSource,
+                    childSchema
+                );
+            },
+            onAdd: (addUpdatedIndexes, retainedCurrentIndexes) =>
             {
-                shapeValue = shapeProperty.Value;
+                var retained = retainedCurrentIndexes
+                    .Select(index => currentProperties[index])
+                    .ToList();
+                if (addUpdatedIndexes.Length == 0)
+                {
+                    RewriteSeparators(current, retained, hasAdditions: false);
+                    return;
+                }
+
+                var additions = addUpdatedIndexes
+                    .Select(updatedIndex =>
+                    {
+                        var property = updatedProperties[updatedIndex];
+                        return new AddedProperty(
+                            updatedSource
+                                .AsSpan(property.NameStart, property.Value.End - property.NameStart)
+                                .ToArray()
+                        );
+                    })
+                    .ToArray();
+                RewriteSeparators(current, retained, hasAdditions: true);
+                AddProperties(current, additions, retained);
             }
-
-            var (childShape, childSchema) = ResolveChildShape(
-                property.Name,
-                shapeValue,
-                currentSchema
-            );
-            AddDiff(property.Value, updatedProperty.Value, childShape, updatedSource, childSchema);
-        }
-
-        var currentNames = currentProperties
-            .Select(static property => property.Name)
-            .ToHashSet(StringComparer.Ordinal);
-        var additions = updatedProperties
-            .Where(property => !currentNames.Contains(property.Name))
-            .Select(property => new AddedProperty(
-                updatedSource
-                    .AsSpan(property.NameStart, property.Value.End - property.NameStart)
-                    .ToArray()
-            ))
-            .ToArray();
-        RewriteSeparators(current, retainedProperties, additions.Length > 0);
-        if (additions.Length > 0)
-        {
-            AddProperties(current, additions, retainedProperties);
-        }
-    }
-
-    private (JsoncValueNode? ChildShape, ConfiglueModelSchema? ChildSchema) ResolveChildShape(
-        string wireName,
-        JsoncValueNode? shapeValue,
-        ConfiglueModelSchema? currentSchema
-    )
-    {
-        if (_schemaShape is null || currentSchema is null)
-        {
-            return (shapeValue, null);
-        }
-
-        // The detailed envelope stores the model payload under "$value". That child
-        // keeps the same schema; other envelope/metadata keys have no nested schema.
-        if (
-            string.Equals(wireName, "$value", StringComparison.Ordinal)
-            && ReferenceEquals(currentSchema, _schemaShape.RootSchema)
-            && shapeValue?.Kind == JsonValueKind.Object
-        )
-        {
-            return (shapeValue, currentSchema);
-        }
-
-        if (
-            _schemaShape.TryGetNested(currentSchema, wireName, out var nested) && nested is not null
-        )
-        {
-            if (shapeValue is null || shapeValue.Kind == JsonValueKind.Null)
-            {
-                // Shallow shapes record nested members as null. Fetch exactly one more
-                // level for the finite document subtree. No recursion at shape-creation
-                // time, so recursive schemas cannot overflow the stack. Shared DAG
-                // schemas share one cache entry keyed by schema identity.
-                return (_schemaShape.GetBareRootNode(nested), nested);
-            }
-
-            return (shapeValue, nested);
-        }
-
-        return (shapeValue, null);
+        );
     }
 
     private void AddArrayDiff(
@@ -956,18 +888,9 @@ internal sealed class JsonSchemaShape
 
     private BareLevel GetBareLevel(ConfiglueModelSchema schema) =>
         _bareCache.GetOrAdd(
-            CacheKey(schema),
+            DocumentSemanticEditPlan.CacheKey(schema),
             static (_, state) => CreateBareLevel(state.Options, state.Schema),
             (Options: _bareOptions, Schema: schema)
-        );
-
-    private static string CacheKey(ConfiglueModelSchema schema) =>
-        string.Concat(
-            schema.Id,
-            "\0",
-            schema.Version,
-            "\0",
-            schema.ModelType.FullName ?? schema.ModelType.Name
         );
 
     private static BareLevel CreateBareLevel(
@@ -975,7 +898,7 @@ internal sealed class JsonSchemaShape
         ConfiglueModelSchema schema
     )
     {
-        var fragment = CreateShallowFragment(schema);
+        var fragment = DocumentSemanticEditPlan.CreateShallowPresentFragment(schema);
         var fragmentType = fragment.GetType();
         var writerDelegate =
             ConfiglueJsonFragmentConverters.GetWriterOrNull(fragmentType)
@@ -1031,20 +954,6 @@ internal sealed class JsonSchemaShape
 
         var tree = JsoncSyntaxTree.Parse(bytes);
         return new BareLevel(tree.Root, nestedByWire);
-    }
-
-    private static IConfiglueFragment CreateShallowFragment(ConfiglueModelSchema schema)
-    {
-        var fragment = schema.CreateEmptyFragment();
-        foreach (var member in schema.Members)
-        {
-            object? value = member.NestedSchemaFactory is not null
-                ? null
-                : member.DefaultValueFactory?.Invoke();
-            fragment = fragment.WithMember(member.Id, value);
-        }
-
-        return fragment;
     }
 
     private sealed class BareLevel(
