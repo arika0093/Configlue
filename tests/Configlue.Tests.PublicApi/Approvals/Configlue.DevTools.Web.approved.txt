@@ -8,6 +8,54 @@ namespace Configlue
 }
 namespace Configlue.DevTools.Web
 {
+    public sealed class ConfiglueDevToolsDiagnosticsPanel : Microsoft.AspNetCore.Components.ComponentBase
+    {
+        public ConfiglueDevToolsDiagnosticsPanel() { }
+        [Microsoft.AspNetCore.Components.Parameter]
+        public string ModelId { get; set; }
+        [Microsoft.AspNetCore.Components.Inject]
+        public Configlue.DevTools.ConfiglueDevToolsRegistry Registry { get; set; }
+        [Microsoft.AspNetCore.Components.Parameter]
+        public string StateName { get; set; }
+        protected override void BuildRenderTree(Microsoft.AspNetCore.Components.Rendering.RenderTreeBuilder @__builder) { }
+        protected override System.Threading.Tasks.Task OnInitializedAsync() { }
+    }
+    public sealed class ConfiglueDevToolsEditorHost : Microsoft.AspNetCore.Components.ComponentBase
+    {
+        public ConfiglueDevToolsEditorHost() { }
+        [Microsoft.AspNetCore.Components.Parameter]
+        public string ModelId { get; set; }
+        [Microsoft.AspNetCore.Components.Inject]
+        public Configlue.DevTools.ConfiglueDevToolsRegistry Registry { get; set; }
+        [Microsoft.AspNetCore.Components.Parameter]
+        public string StateName { get; set; }
+        protected override void BuildRenderTree(Microsoft.AspNetCore.Components.Rendering.RenderTreeBuilder @__builder) { }
+        protected override void OnParametersSet() { }
+    }
+    [Microsoft.AspNetCore.Components.Route("/")]
+    public class ConfiglueDevToolsHome : Microsoft.AspNetCore.Components.ComponentBase
+    {
+        public ConfiglueDevToolsHome() { }
+        protected override void BuildRenderTree(Microsoft.AspNetCore.Components.Rendering.RenderTreeBuilder @__builder) { }
+    }
+    public class ConfiglueDevToolsRoutes : Microsoft.AspNetCore.Components.ComponentBase
+    {
+        public ConfiglueDevToolsRoutes() { }
+        protected override void BuildRenderTree(Microsoft.AspNetCore.Components.Rendering.RenderTreeBuilder @__builder) { }
+    }
+    public sealed class ConfiglueDevToolsShell : Microsoft.AspNetCore.Components.ComponentBase
+    {
+        public ConfiglueDevToolsShell() { }
+        [Microsoft.AspNetCore.Components.Inject]
+        public Configlue.DevTools.ConfiglueDevToolsRegistry Registry { get; set; }
+        protected override void BuildRenderTree(Microsoft.AspNetCore.Components.Rendering.RenderTreeBuilder @__builder) { }
+        protected override void OnInitialized() { }
+    }
+    public enum ConfiglueDevToolsTab
+    {
+        Editor = 0,
+        Diagnostics = 1,
+    }
     public sealed class ConfiglueDevToolsWebHost : System.IAsyncDisposable, System.IDisposable
     {
         public bool AutoOpenBrowser { get; }
@@ -88,5 +136,13 @@ namespace Configlue.DevTools.Web
         public static System.Threading.Tasks.ValueTask SetHoverDataAsync(Microsoft.JSInterop.IJSRuntime js, string documentKey, System.Collections.Generic.IReadOnlyList<Configlue.DevTools.ConfiglueViewerHover> hovers) { }
         public static System.Threading.Tasks.ValueTask SetInlayLabelsAsync(Microsoft.JSInterop.IJSRuntime js, string documentKey, System.Collections.Generic.IReadOnlyList<Configlue.DevTools.ConfiglueViewerDecoration> decorations) { }
         public static System.Threading.Tasks.ValueTask SetRuntimeMarkersAsync(Microsoft.JSInterop.IJSRuntime js, string documentKey, System.Collections.Generic.IReadOnlyList<Configlue.DevTools.ConfiglueViewerMarker> markers) { }
+    }
+    public sealed class DevToolsApp : Microsoft.AspNetCore.Components.ComponentBase
+    {
+        public DevToolsApp() { }
+        [Microsoft.AspNetCore.Components.CascadingParameter]
+        public Microsoft.AspNetCore.Http.HttpContext? HttpContext { get; set; }
+        protected override void BuildRenderTree(Microsoft.AspNetCore.Components.Rendering.RenderTreeBuilder @__builder) { }
+        protected override void OnInitialized() { }
     }
 }

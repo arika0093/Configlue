@@ -1,0 +1,29 @@
+@namespace Configlue.DevTools.Web
+@using Microsoft.AspNetCore.Components.Web
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
+
+<div class="configlue-devtools">
+    <header class="configlue-devtools-banner">Configlue DevTools &mdash; development tooling only (local loopback)</header>
+    @if (_states.Count == 0)
+    {
+        <p>No Configlue states are bound. Bind live state instances via ConfiglueDevToolsRegistry before starting the host.</p>
+        <div class="row"><button @onclick="RefreshStates">Refresh list</button></div>
+    }
+    else
+    {
+        <div class="row"><label>State/model: <select @onchange="OnSelectionChanged" value="@_selectedKey">@foreach (var info in _states)
+                    {
+                        <option value="@SelectionKey(info)" selected="@(SelectionKey(info) == _selectedKey)">@info.DisplayName</option>
+                    }</select></label> <button @onclick="RefreshStates">Refresh list</button></div>
+        <div class="row tabs"><button @onclick="() => ShowTab(ConfiglueDevToolsTab.Editor)">Editor</button><button @onclick="() => ShowTab(ConfiglueDevToolsTab.Diagnostics)">Diagnostics</button></div>
+        @if (_tab == ConfiglueDevToolsTab.Editor)
+        {
+            <ConfiglueDevToolsEditorHost @key="@("editor:" + _selectedKey)" ModelId="@_selectedModelId" StateName="@_selectedStateName" />
+        }
+        else
+        {
+            <ConfiglueDevToolsDiagnosticsPanel @key="@("diagnostics:" + _selectedKey)" ModelId="@_selectedModelId" StateName="@_selectedStateName" />
+        }
+        <div class="row"><small>Cached diagnostics/statistics never run an active check. Checks are explicit (may do remote I/O). Refresh from the Diagnostics tab; there is no polling.</small></div>
+    }
+</div>

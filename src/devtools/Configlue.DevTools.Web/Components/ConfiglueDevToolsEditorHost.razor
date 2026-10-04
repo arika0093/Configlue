@@ -1,0 +1,10 @@
+@namespace Configlue.DevTools.Web
+
+@if (_editor is null)
+{
+    <p class="configlue-editor-unknown">Unknown state. Select a bound state from the list.</p>
+}
+else
+{
+    @_editor
+}

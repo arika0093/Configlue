@@ -1,0 +1,33 @@
+@namespace Configlue.DevTools.Web
+@using Microsoft.AspNetCore.Components.Web
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
+
+<div class="configlue-devtools-diagnostics">
+    <h2>Diagnostics &mdash; @ModelId@(_titleSuffix)</h2>
+    @if (_error is not null)
+    {
+        <p class="configlue-diagnostics-error">Diagnostics failed: @_error</p>
+    }
+    <div class="row"><button @onclick="RefreshAsync">Refresh</button> <button @onclick="LoadStatisticsAsync">Load statistics</button> <button @onclick="RunCheckAsync">Run check (explicit)</button></div>
+    <div class="row"><small>Cached diagnostics/statistics never run an active check. Checks are explicit (may do remote I/O). Refresh with the Refresh button; there is no polling.</small></div>
+    @if (_diagnosticsJson is not null)
+    {
+        <h3>Cached status (no active check)</h3>
+        <pre>@_diagnosticsJson</pre>
+    }
+    @if (_statsJson is not null)
+    {
+        <h3>Value/provenance statistics (counts only; never values)</h3>
+        <pre>@_statsJson</pre>
+    }
+    @if (_eventsJson is not null)
+    {
+        <h3>Recent activity (bounded; empty when history disabled)</h3>
+        <pre>@_eventsJson</pre>
+    }
+    @if (_checkJson is not null)
+    {
+        <h3>Last active check (explicit; may do I/O)</h3>
+        <pre>@_checkJson</pre>
+    }
+</div>

@@ -1,0 +1,8 @@
+@namespace Configlue.DevTools.Web
+@using Microsoft.AspNetCore.Components.Web
+@page "/"
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
+
+<PageTitle>Configlue DevTools (development only)</PageTitle>
+
+<ConfiglueDevToolsShell />

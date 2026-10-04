@@ -14,10 +14,45 @@ there is a single shared browser UI instead of one inspector per host.
 | Package | Contents | TFMs |
 | --- | --- | --- |
 | `Configlue.DevTools` | Host-neutral projections over live state (JSON canonical form, diagnostics, check, edit-session writes). No HTTP, no browser assets. | `netstandard2.0`, `netstandard2.1`, `net10.0` |
-| `Configlue.DevTools.Web` | Loopback web host plus the single shared browser page. | `net10.0` only |
+| `Configlue.DevTools.Web` | Loopback Blazor Web App host (Interactive Server) plus the single shared browser UI. | `net10.0` only |
 
 Nothing web-related (and no Monaco dependency) lives in `Configlue.Core`,
 `Configlue.Abstraction`, or ordinary hosting packages.
+
+## Architecture
+
+The launchable DevTools application is a real Blazor Web App:
+
+```text
+Application process
+├─ Configlue runtime
+└─ Configlue DevTools
+   └─ Blazor Web App / Interactive Server (prerendering off)
+        ├─ state/model selector
+        ├─ BlazorMonaco effective-state editor
+        └─ diagnostics/statistics tab
+             ↓
+          Browser
+```
+
+The Blazor components access the live Configlue runtime **in-process**
+through the registered `ConfiglueDevToolsRegistry`. There is no
+DevTools-specific REST transport: the normal local development experience
+needs no `/api/*` endpoints, no SSE feed, and no extra WebSocket protocol
+beyond the Interactive Server circuit itself.
+
+- `ConfiglueDevToolsWebHost` builds and owns a loopback-only
+  `WebApplication`: `AddRazorComponents()` plus
+  `AddInteractiveServerComponents()`, with
+  `MapRazorComponents<DevToolsApp>()` in `InteractiveServerRenderMode`.
+  Prerendering stays off; UI renders after the circuit connects.
+- The root document (`DevToolsApp`) renders statically: title, the Blazor
+  boot scripts, the embedded Monaco bridge script, and the page-memory
+  session-token bootstrap that authorizes circuit requests.
+- `ConfiglueDevToolsHome` (`/`) hosts `ConfiglueDevToolsShell`, which
+  renders the state/model selector, the `Editor | Diagnostics` tabs, a
+  development-tooling banner, and the live editor or diagnostics panel for
+  the current selection.
 
 ## Runtime connection model
 
@@ -34,7 +69,8 @@ existing stable surfaces:
 - state registries and named states.
 
 No new public `InspectAsync()` API is introduced. UI projections are internal
-to the DevTools package.
+to the DevTools package; the non-generic editor dispatcher is a DevTools-only
+renderer inside the web package.
 
 ## Explicit opt-in
 
@@ -70,13 +106,21 @@ recorded but this package never launches a browser process).
 
 ## Local host behavior
 
-- Loopback only: the listener binds `127.0.0.1`. There is no option for public
+- Loopback only: the server binds `127.0.0.1`. There is no option for public
   binding.
 - Port `0` (default) asks the OS for a free port; the actual `Url` and the
   token-bearing `LaunchUrl` are exposed for browser launch.
-- Every request (including `/`) requires the per-host random session token via
-  `X-Configlue-DevTools-Token`, `Authorization: Bearer`, or the `token` query
-  parameter. A missing or wrong token yields `403`.
+- Every application request (including `/`) requires the per-host random
+  session token via `X-Configlue-DevTools-Token`, `Authorization: Bearer`, or
+  the `token` query parameter. A missing or wrong token yields `403`.
+- The token gate also protects the Blazor circuit negotiation
+  (`/_blazor/negotiate` and the `/_blazor` upgrade): the in-page bootstrap
+  carries the token in page memory and attaches it to circuit requests, so a
+  circuit cannot be negotiated without it.
+- The only ungated paths are the shared framework boot assets under
+  `/_framework/` (embedded in this package, identical for every application,
+  carrying no state), which plain script tags and module imports must load
+  without custom headers.
 - Shutdown is deterministic; stopping the host releases the port.
 
 ## Security
@@ -86,10 +130,13 @@ recorded but this package never launches a browser process).
   supplies one.
 - `#244` redaction is enforced in the projection layer: secret plaintext never
   appears in serialized payloads (state JSON, schema is metadata-only,
-  diagnostics, check results, error details).
+  diagnostics, check results, error details) and never enters the Monaco model
+  or the initial document.
 - The browser page keeps the token in page memory only. It never writes
   credentials or tokens to `localStorage`, `sessionStorage`, or cookies, and
   never exposes raw authorization headers.
+- Diagnostics failures surface the failure type only, never raw messages that
+  could carry secret values.
 - Never enable DevTools in production. Non-loopback binding, if ever
   supported, requires explicit configuration plus an application-supplied
   authorization policy; that is documented here and not implemented.
@@ -104,24 +151,30 @@ a raw source-file editor. Saving a payload that still contains the redacted
 placeholder for a secret preserves the existing secret instead of writing the
 placeholder.
 
-## Effective-state viewer (`#247`)
+## Effective-state editor
 
-`ConfiglueEffectiveStateViewer<TModel>` renders the resolved state as
-deterministic canonical JSON (generated model/schema order,
-naming-policy-aware wire names, nested models and collections, deterministic
-nulls, no source syntax or comments) and overlays provenance without touching
-the text:
+The main editor is the BlazorMonaco semantic editor
+(`ConfiglueEffectiveStateEditor<TModel>`, `#248`), composed per selection by
+the non-generic `ConfiglueDevToolsEditorHost` dispatcher:
 
-- effective source (compact label/inlay), read-only lock/muted state, secret
-  markers, and invalid markers via Monaco decorations, glyph margin, inlay
-  hints, and hover;
-- hover explains effective and shadowed contributions (source, editable
-  state, locator such as the env key); secrets show safe state only, never
-  plaintext;
-- Monaco's browser-side JSON language service is configured once per
-  model/schema from the generated schema (syntax, validation, enum
-  completion, descriptions, constraints); Configlue runtime validation beyond
-  the schema arrives as extra markers.
+- Monaco JSON editor over the effective-state projection;
+- semantic `EditSession` draft with Save / Discard;
+- Validate, Diff, and Rebase;
+- an explicit secret-change flow that lives outside the Monaco model (empty
+  means unchanged; the transient input is cleared after apply or cancel);
+- upstream-change indication: clean sessions follow upstream automatically,
+  dirty sessions are never silently overwritten.
+
+Changing the selection recreates the editor subtree: the previous session is
+disposed and the next state opens a fresh session, so a draft from one
+state/subject can never commit to another state.
+
+`ConfiglueEffectiveStateViewer<TModel>` (`#247`) remains the read-only
+provenance overlay building block (deterministic canonical JSON,
+member-path to Monaco-range mapping from generated schema metadata,
+source/inlay labels, hover/explain, secret/read-only/invalid markers,
+browser-side JSON language-service setup from the generated schema, runtime
+validation markers). The editor reuses its projection and overlay pipeline.
 
 Architecture notes:
 
@@ -130,42 +183,25 @@ Architecture notes:
   (`ConfiglueMonacoBridge`) covers only Monaco APIs BlazorMonaco does not
   wrap cleanly (JSON language-service setup, hover content, inlay labels,
   server-side markers). No runtime object graph is mirrored to the browser.
-- Member-path to Monaco-range mapping is emitted alongside the projection
-  from generated schema metadata (AOT-safe, no reflection); decorations reuse
-  it instead of rescanning the document.
-- Read-only in this issue; semantic editing is `#248`. The viewer is
-  read-only (`ReadOnly = true`); no draft or save path is introduced here.
 - Synchronization reuses the existing Interactive Server circuit: initial JSON
   on state load, minimal Monaco edits on watched changes (scroll/selection
   preserved), decoration-only deltas without document payloads. No new
   SSE/WebSocket protocol and no hidden extra backend reads (one consistent
   snapshot per load/refresh; contribution projections reuse the cached
   snapshot).
-- The loopback host additionally serves `/api/viewer` (with `knownVersion`
-  delta omission), `/api/viewer-schema`, and `/api/viewer-contribution`
-  (normalized per-member contribution JSON, redacted; no raw source docs).
 
 ## UI scope
 
-The browser surface has two layers:
+The browser surface is the Blazor app described above:
 
-- The loopback host page: a state/model selector, a plain `<textarea>`
-  fallback JSON view, an optional diagnostics/statistics view, schema view,
-  check runner, save/discard, and a development-tooling banner.
-- The BlazorMonaco effective-state JSON viewer
-  (`ConfiglueEffectiveStateViewer<TModel>` in `Configlue.DevTools.Web`,
-  `#247`): the canonical DevTools representation for Blazor Server UI.
-  Monaco runs browser-side while the Configlue runtime stays server-side;
-  only compact state/details metadata crosses the circuit.
+- a state/model selector covering registered, named, and dynamic states;
+- the BlazorMonaco effective-state editor with Save/Discard, Validate, Diff,
+  Rebase, the secret flow, and upstream indication;
+- a diagnostics/statistics tab (secondary) with an explicit check runner;
+- a development-tooling banner.
 
 There is intentionally no form framework, theme/plugin system, per-type editor
 framework, production operator console, or source administration UI.
-The first UI is deliberately small: a state/model selector, a plain
-`<textarea>` JSON editor (Monaco arrives in a follow-up; no Monaco dependency
-today), a diagnostics/statistics tab, schema view, check runner,
-save/discard, and a development-tooling banner. There is intentionally no
-form framework, theme/plugin system, per-type editor framework, production
-operator console, or source administration UI.
 
 ### Diagnostics / statistics tab (secondary)
 
@@ -179,15 +215,15 @@ inspection model or instrumentation:
   capabilities, cached read status, watcher state, revision presence
   (never values), last error category, plus an explicit **Run check**
   action. Active checks never run on tab open.
-- Value/provenance statistics from the current details snapshot:
-  leaf counts (a leaf is one scalar member or one whole collection;
-  nested objects expand and are never counted), per-source effective
-  ownership, editable vs read-only vs shadowed vs no-target, secret
+- Value/provenance statistics from the current details snapshot, loaded on
+  explicit request: leaf counts (a leaf is one scalar member or one whole
+  collection; nested objects expand and are never counted), per-source
+  effective ownership, editable vs read-only vs shadowed vs no-target, secret
   counts without values, shadowed contributions (model defaults excluded),
   and missing/unavailable/invalid tallies.
 - Recent activity: a bounded table (last 50) from `#65` events when
   enabled; empty when `EventHistoryCapacity` is zero. No polling;
-  refresh by re-clicking a tab, which re-reads cached snapshots.
+  refresh via the Refresh button, which re-reads cached snapshots.
 
 Secret values and sensitive metadata stay redacted per `#244`;
 the tab counts secrets but never reveals values.
@@ -197,26 +233,26 @@ the tab counts secrets but never reveals values.
 | Consumer | Can use |
 | --- | --- |
 | `net10.0` applications and hosts | Full host (`Configlue.DevTools.Web`) plus projections |
-| `netstandard2.0` / `netstandard2.1` libraries | Projections only (`Configlue.DevTools`); host a web endpoint from a `net10.0` process |
+| `netstandard2.0` / `netstandard2.1` libraries | Projections only (`Configlue.DevTools`); host the Blazor UI from a `net10.0` process |
 | Unity / Godot / MAUI / Avalonia / Blazor | Bind their already-running state into the shared browser UI; no per-host native inspector |
 
 ## Tests
 
-HTTP-level assertions against the loopback server cover opt-in, loopback
-defaults, startup/shutdown/disposal, discovery/selection, named and dynamic
-registry states, disabled-means-no-server, the `#244` redaction boundary, no
-new inspection API, and no mutation without an explicit edit-session save.
-Viewer tests cover component lifecycle, deterministic projection,
-nesting/collections/nulls/naming, range mapping, source annotation, shadowed
-hover, read-only markers, schema setup, runtime markers, redaction, watch
-updates, no source-syntax leak, and no full-document traffic for
-decoration-only updates.
-Diagnostics/statistics assertions additionally cover ownership/editability/
-secret/shadowed counts, topology rendering, explicit checks only, no source
-reads from cached diagnostics/events endpoints, bounded recent events,
-refresh after writes, and redaction across diagnostics/stats/events/check
-payloads.
-Fakes only; no real browser is required.
+Host-level tests cover explicit opt-in, loopback defaults, token
+authorization (document, headers/bearer, circuit negotiation), Interactive
+Server service registration with the live registry, startup/shutdown/
+disposal, the session-token-gated bridge script, named and dynamic registry
+states, selection-scoped live editors with dispose/recreate semantics, the
+`#244` redaction boundary, no new inspection API, and the absence of the
+legacy REST transport.
+Projection, viewer, editor-session, and component tests cover deterministic
+projection, nesting/collections/nulls/naming, range mapping, source
+annotation, shadowed hover, read-only markers, schema setup, runtime markers,
+redaction, watch updates, no source-syntax leak, decoration-only updates,
+draft throttle/debounce, semantic save/discard/validate/diff/rebase, the
+secret flow, upstream handling, and explicit-check-only diagnostics.
+Fakes only; no real browser is required. (Browser-level Monaco behavior is
+tracked in the Monaco follow-up issue.)
 
 ## Browser-launch hooks (`#250`)
 
@@ -234,8 +270,9 @@ Referencing a hosting package never enables DevTools: `ConfiglueDevTools`
 starts disabled and an explicit loopback launch URL must be published.
 
 The DevTools host runs on its own loopback endpoint (never mapped into a
-public application host). Every request still requires the per-host session
-token; launch URLs carry the token verbatim and are never logged.
+public application host). Every application request still requires the
+per-host session token; launch URLs carry the token verbatim and are never
+logged.
 
 ### Plain .NET / ASP.NET Core / Blazor
 

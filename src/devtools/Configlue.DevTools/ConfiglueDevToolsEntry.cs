@@ -16,6 +16,18 @@ internal interface IConfiglueDevToolsEntry
 {
     ConfiglueDevToolsStateInfo Info { get; }
 
+    /// <summary>
+    /// The generated model type backing this entry. Internal-only dispatch metadata
+    /// for the DevTools web UI; not a new public inspection API.
+    /// </summary>
+    Type ModelType { get; }
+
+    /// <summary>
+    /// The live writable state as an untyped reference. Resolved against the live
+    /// runtime (or live named-state registry) at call time; never rediscovered.
+    /// </summary>
+    object UntypedState { get; }
+
     ValueTask<string> GetStateJsonAsync(CancellationToken cancellationToken);
 
     string GetSchemaJson();
@@ -113,6 +125,12 @@ internal sealed class ConfiglueDevToolsEntry<TModel> : IConfiglueDevToolsEntry
             string.IsNullOrEmpty(_stateName) ? _schema.Id : $"{_schema.Id}:{_stateName}",
             typeof(TModel).FullName ?? typeof(TModel).Name
         );
+
+    /// <inheritdoc />
+    public Type ModelType => typeof(TModel);
+
+    /// <inheritdoc />
+    public object UntypedState => _state;
 
     public async ValueTask<string> GetStateJsonAsync(CancellationToken cancellationToken)
     {
@@ -478,6 +496,12 @@ internal sealed class ConfiglueDevToolsRegistryEntry<TModel> : IConfiglueDevTool
             $"{_schema.Id}:{_stateName}",
             typeof(TModel).FullName ?? typeof(TModel).Name
         );
+
+    /// <inheritdoc />
+    public Type ModelType => typeof(TModel);
+
+    /// <inheritdoc />
+    public object UntypedState => Resolve();
 
     private IWritableState<TModel> Resolve() => _registry.Get(_stateName);
 

@@ -1,0 +1,11 @@
+@namespace Configlue.DevTools.Web
+@using Microsoft.AspNetCore.Components.Routing
+
+<Router AppAssembly="@typeof(DevToolsApp).Assembly">
+    <Found Context="routeData">
+        <RouteView RouteData="@routeData" />
+    </Found>
+    <NotFound>
+        <p>Not found.</p>
+    </NotFound>
+</Router>

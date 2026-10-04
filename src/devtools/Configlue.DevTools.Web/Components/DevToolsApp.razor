@@ -1,0 +1,79 @@
+@namespace Configlue.DevTools.Web
+@using Microsoft.AspNetCore.Components
+@using Microsoft.AspNetCore.Components.Web
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <base href="/" />
+    <title>Configlue DevTools (development only)</title>
+    <HeadOutlet />
+    <script>
+        window.__CONFIGLUE_DEVTOOLS_TOKEN__ = @((MarkupString)_tokenJson);
+        (function () {
+            var token = window.__CONFIGLUE_DEVTOOLS_TOKEN__;
+            function circuitUrl(url) {
+                try {
+                    var parsed = new URL(url, window.location.href);
+                    if (parsed.origin !== window.location.origin) {
+                        return null;
+                    }
+                    if (parsed.pathname === '/_blazor' || parsed.pathname.indexOf('/_blazor/') === 0) {
+                        return parsed;
+                    }
+                    return null;
+                } catch (err) {
+                    return null;
+                }
+            }
+            function withToken(url) {
+                try {
+                    var parsed = new URL(url, window.location.href);
+                    if (parsed.searchParams.get('token')) {
+                        return url;
+                    }
+                    parsed.searchParams.set('token', token);
+                    return parsed.toString();
+                } catch (err) {
+                    return url;
+                }
+            }
+            var originalFetch = window.fetch.bind(window);
+            window.fetch = function (input, init) {
+                if (typeof input === 'string') {
+                    if (circuitUrl(input) !== null) {
+                        input = withToken(input);
+                    }
+                } else if (input instanceof Request) {
+                    if (circuitUrl(input.url) !== null) {
+                        input = new Request(withToken(input.url), input);
+                    }
+                }
+                return originalFetch(input, init);
+            };
+            var OriginalWebSocket = window.WebSocket;
+            function GatedWebSocket(url, protocols) {
+                var target = circuitUrl(url) !== null ? withToken(url) : url;
+                if (protocols === undefined) {
+                    return new OriginalWebSocket(target);
+                }
+                return new OriginalWebSocket(target, protocols);
+            }
+            GatedWebSocket.prototype = OriginalWebSocket.prototype;
+            window.WebSocket = GatedWebSocket;
+        })();
+    </script>
+    <script src="@_blazorBootSrc"></script>
+    <script src="@_monacoBridgeSrc"></script>
+</head>
+<body>
+    <ConfiglueDevToolsRoutes />
+    <div id="blazor-error-ui">
+        An unhandled error has occurred.
+        <a href="" class="reload">Reload</a>
+        <a class="dismiss">Dismiss</a>
+    </div>
+</body>
+</html>

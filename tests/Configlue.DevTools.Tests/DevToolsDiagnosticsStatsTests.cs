@@ -1,8 +1,9 @@
-using System.Net;
 using System.Text.Json;
+using Bunit;
 using Configlue.DevTools.Web;
 using Configlue.Sources;
 using Configlue.Testing;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Configlue.DevTools.Tests;
 
@@ -27,10 +28,7 @@ public sealed class DevToolsDiagnosticsStatsTests
                     )
                 );
                 var overlayStore = new InMemoryStateSource<DevToolsDemoSettings.Fragment>(
-                    new DevToolsDemoSettings.Fragment
-                    {
-                        RetryCount = Optional<int>.Present(8),
-                    }
+                    new DevToolsDemoSettings.Fragment { RetryCount = Optional<int>.Present(8) }
                 );
                 sources.Add(
                     new StateSource<DevToolsDemoSettings.Fragment>(
@@ -48,13 +46,9 @@ public sealed class DevToolsDiagnosticsStatsTests
         await using var context = builder.CreateContext();
         var registry = new ConfiglueDevToolsRegistry();
         registry.Add(context.GetState<DevToolsDemoSettings>());
-        await using var host = ConfiglueDevToolsWebHost.Create(registry);
-        await host.StartAsync();
+        registry.TryGet("devtools-demo", string.Empty, out var entry).ShouldBeTrue();
 
-        using var client = AuthedClient(host);
-        var stats = JsonDocument.Parse(
-            await GetJsonAsync(client, host, "stats", "devtools-demo", string.Empty)
-        );
+        var stats = JsonDocument.Parse(await entry!.GetStatsJsonAsync(CancellationToken.None));
 
         stats.RootElement.GetProperty("totalLeaves").GetInt32().ShouldBe(2);
         stats.RootElement.GetProperty("leafRule").GetString().ShouldNotBeNullOrWhiteSpace();
@@ -88,31 +82,24 @@ public sealed class DevToolsDiagnosticsStatsTests
         await using var context = DevToolsFixtures.CreateSecretContext(password);
         var registry = new ConfiglueDevToolsRegistry();
         registry.Add(context.GetState<DevToolsSecretSettings>());
-        await using var host = ConfiglueDevToolsWebHost.Create(registry);
-        await host.StartAsync();
+        registry.TryGet("devtools-secret-demo", string.Empty, out var entry).ShouldBeTrue();
 
-        using var client = AuthedClient(host);
-        foreach (var endpoint in new[] { "diagnostics", "stats", "events" })
+        foreach (
+            var body in new[]
+            {
+                await entry!.GetDiagnosticsJsonAsync(CancellationToken.None),
+                await entry.GetStatsJsonAsync(CancellationToken.None),
+                await entry.GetEventsJsonAsync(CancellationToken.None),
+            }
+        )
         {
-            var body = await GetJsonAsync(
-                client,
-                host,
-                endpoint,
-                "devtools-secret-demo",
-                string.Empty
-            );
             body.ShouldNotContain(password);
         }
 
-        using var check = await client.PostAsync(
-            host.Url + "api/check?model=devtools-secret-demo&name=&token=" + host.SessionToken,
-            new StringContent(string.Empty)
-        );
-        (await check.Content.ReadAsStringAsync()).ShouldNotContain(password);
+        var check = await entry.RunCheckAsync(CancellationToken.None);
+        check.ShouldNotContain(password);
 
-        var stats = JsonDocument.Parse(
-            await GetJsonAsync(client, host, "stats", "devtools-secret-demo", string.Empty)
-        );
+        var stats = JsonDocument.Parse(await entry.GetStatsJsonAsync(CancellationToken.None));
         stats.RootElement.GetProperty("totalLeaves").GetInt32().ShouldBe(2);
         stats.RootElement.GetProperty("secretLeaves").GetInt32().ShouldBe(1);
         stats.RootElement.GetRawText().ShouldNotContain(password);
@@ -125,12 +112,10 @@ public sealed class DevToolsDiagnosticsStatsTests
         await using var context = DevToolsFixtures.CreateDemoContext();
         var registry = new ConfiglueDevToolsRegistry();
         registry.Add(context.GetState<DevToolsDemoSettings>());
-        await using var host = ConfiglueDevToolsWebHost.Create(registry);
-        await host.StartAsync();
+        registry.TryGet("devtools-demo", string.Empty, out var entry).ShouldBeTrue();
 
-        using var client = AuthedClient(host);
         var diagnostics = JsonDocument.Parse(
-            await GetJsonAsync(client, host, "diagnostics", "devtools-demo", string.Empty)
+            await entry!.GetDiagnosticsJsonAsync(CancellationToken.None)
         );
 
         var state = diagnostics.RootElement.GetProperty("state");
@@ -155,7 +140,7 @@ public sealed class DevToolsDiagnosticsStatsTests
     }
 
     [Test]
-    public async Task OpeningTabsNeverRunsActiveCheck()
+    public async Task OpeningTheDiagnosticsTabNeverRunsActiveCheck()
     {
         var reads = 0;
         var builder = new ConfiglueBuilder();
@@ -167,8 +152,9 @@ public sealed class DevToolsDiagnosticsStatsTests
                 sources.Add(
                     new StateSource<DevToolsDemoSettings.Fragment>(
                         "counted",
-                        new CountingReader<DevToolsDemoSettings.Fragment>(store, () =>
-                            Interlocked.Increment(ref reads)
+                        new CountingReader<DevToolsDemoSettings.Fragment>(
+                            store,
+                            () => Interlocked.Increment(ref reads)
                         ),
                         new StateSourceOptions<DevToolsDemoSettings.Fragment>
                         {
@@ -182,45 +168,94 @@ public sealed class DevToolsDiagnosticsStatsTests
         await using var context = builder.CreateContext();
         var registry = new ConfiglueDevToolsRegistry();
         registry.Add(context.GetState<DevToolsDemoSettings>());
-        await using var host = ConfiglueDevToolsWebHost.Create(registry);
-        await host.StartAsync();
-
-        using var client = AuthedClient(host);
         var before = Volatile.Read(ref reads);
 
-        foreach (var endpoint in new[] { "diagnostics", "events" })
-        {
-            using var response = await client.GetAsync(
-                host.Url
-                    + "api/"
-                    + endpoint
-                    + "?model=devtools-demo&name=&token="
-                    + Uri.EscapeDataString(host.SessionToken)
-            );
-            response.StatusCode.ShouldBe(HttpStatusCode.OK);
-        }
+        using var testContext = new BunitContext();
+        testContext.JSInterop.Mode = JSRuntimeMode.Loose;
+        testContext.Services.AddSingleton(registry);
+        var cut = testContext.Render<ConfiglueDevToolsDiagnosticsPanel>(parameters =>
+            parameters
+                .Add(panel => panel.ModelId, "devtools-demo")
+                .Add(panel => panel.StateName, string.Empty)
+        );
 
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Cached status"));
         // Cached diagnostics/events perform no source reads and never run Check().
         Volatile.Read(ref reads).ShouldBe(before);
+        cut.Instance.CheckCompleted.ShouldBeFalse();
 
-        using var index = await client.GetAsync(
-            host.Url + "?token=" + Uri.EscapeDataString(host.SessionToken)
-        );
-        var html = await index.Content.ReadAsStringAsync();
-        // Exactly one explicit check trigger (the button handler); no polling timers.
-        CountOccurrences(html, "/api/check").ShouldBe(1);
-        html.ShouldContain("Run check (explicit)");
-        html.ShouldContain("Cached diagnostics/statistics never run an active check");
-        html.ShouldNotContain("setInterval");
-        html.ShouldNotContain("setTimeout");
+        // The tab carries exactly one explicit check trigger and no polling timers.
+        cut.FindAll("button")
+            .Count(static button => button.TextContent == "Run check (explicit)")
+            .ShouldBe(1);
+        cut.Markup.ShouldContain("Run check (explicit)");
+        cut.Markup.ShouldContain("Cached diagnostics/statistics never run an active check");
+        cut.Markup.ShouldNotContain("setInterval");
+        cut.Markup.ShouldNotContain("setTimeout");
+        cut.Markup.ShouldNotContain("/api/");
+        cut.Markup.ShouldNotContain("localStorage");
+        cut.Markup.ShouldNotContain("sessionStorage");
 
-        using var check = await client.PostAsync(
-            host.Url + "api/check?model=devtools-demo&name=&token=" + host.SessionToken,
-            new StringContent(string.Empty)
-        );
-        check.StatusCode.ShouldBe(HttpStatusCode.OK);
-        (await check.Content.ReadAsStringAsync()).ShouldContain("Success");
+        cut.FindAll("button")
+            .Single(static button => button.TextContent == "Run check (explicit)")
+            .Click();
+        cut.WaitForAssertion(() => cut.Instance.CheckCompleted.ShouldBeTrue());
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Success"));
         Volatile.Read(ref reads).ShouldBeGreaterThan(before);
+    }
+
+    [Test]
+    public async Task StatisticsLoadExplicitlyWithoutCheck()
+    {
+        await using var context = DevToolsFixtures.CreateDemoContext();
+        var registry = new ConfiglueDevToolsRegistry();
+        registry.Add(context.GetState<DevToolsDemoSettings>());
+
+        using var testContext = new BunitContext();
+        testContext.JSInterop.Mode = JSRuntimeMode.Loose;
+        testContext.Services.AddSingleton(registry);
+        var cut = testContext.Render<ConfiglueDevToolsDiagnosticsPanel>(parameters =>
+            parameters
+                .Add(panel => panel.ModelId, "devtools-demo")
+                .Add(panel => panel.StateName, string.Empty)
+        );
+
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Cached status"));
+        cut.Instance.StatisticsLoaded.ShouldBeFalse();
+        cut.Instance.CheckCompleted.ShouldBeFalse();
+
+        cut.FindAll("button")
+            .Single(static button => button.TextContent == "Load statistics")
+            .Click();
+        cut.WaitForAssertion(() => cut.Instance.StatisticsLoaded.ShouldBeTrue());
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("totalLeaves"));
+        cut.Instance.CheckCompleted.ShouldBeFalse();
+    }
+
+    [Test]
+    public async Task DiagnosticsPanelRedactsSecrets()
+    {
+        const string password = "panel-pw-249b";
+        await using var context = DevToolsFixtures.CreateSecretContext(password);
+        var registry = new ConfiglueDevToolsRegistry();
+        registry.Add(context.GetState<DevToolsSecretSettings>());
+
+        using var testContext = new BunitContext();
+        testContext.JSInterop.Mode = JSRuntimeMode.Loose;
+        testContext.Services.AddSingleton(registry);
+        var cut = testContext.Render<ConfiglueDevToolsDiagnosticsPanel>(parameters =>
+            parameters
+                .Add(panel => panel.ModelId, "devtools-secret-demo")
+                .Add(panel => panel.StateName, string.Empty)
+        );
+
+        cut.WaitForAssertion(() => cut.Markup.ShouldContain("Cached status"));
+        cut.Markup.ShouldNotContain(password);
+        cut.FindAll("button")
+            .Single(static button => button.TextContent == "Load statistics")
+            .Click();
+        cut.WaitForAssertion(() => cut.Instance.StatisticsLoaded.ShouldBeTrue());
+        cut.Markup.ShouldNotContain(password);
     }
 
     [Test]
@@ -247,13 +282,9 @@ public sealed class DevToolsDiagnosticsStatsTests
 
         var registry = new ConfiglueDevToolsRegistry();
         registry.Add(state);
-        await using var host = ConfiglueDevToolsWebHost.Create(registry);
-        await host.StartAsync();
+        registry.TryGet("devtools-demo", string.Empty, out var entry).ShouldBeTrue();
 
-        using var client = AuthedClient(host);
-        var events = JsonDocument.Parse(
-            await GetJsonAsync(client, host, "events", "devtools-demo", string.Empty)
-        );
+        var events = JsonDocument.Parse(await entry!.GetEventsJsonAsync(CancellationToken.None));
         events.RootElement.GetProperty("maxBound").GetInt32().ShouldBe(50);
         var returned = events.RootElement.GetProperty("returned").GetInt32();
         returned.ShouldBeLessThanOrEqualTo(50);
@@ -277,13 +308,9 @@ public sealed class DevToolsDiagnosticsStatsTests
         await using var context = DevToolsFixtures.CreateDemoContext();
         var registry = new ConfiglueDevToolsRegistry();
         registry.Add(context.GetState<DevToolsDemoSettings>());
-        await using var host = ConfiglueDevToolsWebHost.Create(registry);
-        await host.StartAsync();
+        registry.TryGet("devtools-demo", string.Empty, out var entry).ShouldBeTrue();
 
-        using var client = AuthedClient(host);
-        var events = JsonDocument.Parse(
-            await GetJsonAsync(client, host, "events", "devtools-demo", string.Empty)
-        );
+        var events = JsonDocument.Parse(await entry!.GetEventsJsonAsync(CancellationToken.None));
         events.RootElement.GetProperty("returned").GetInt32().ShouldBe(0);
     }
 
@@ -294,90 +321,24 @@ public sealed class DevToolsDiagnosticsStatsTests
         var state = context.GetState<DevToolsDemoSettings>();
         var registry = new ConfiglueDevToolsRegistry();
         registry.Add(state);
-        await using var host = ConfiglueDevToolsWebHost.Create(registry);
-        await host.StartAsync();
+        registry.TryGet("devtools-demo", string.Empty, out var entry).ShouldBeTrue();
 
-        using var client = AuthedClient(host);
         var before = JsonDocument.Parse(
-            await GetJsonAsync(client, host, "diagnostics", "devtools-demo", string.Empty)
+            await entry!.GetDiagnosticsJsonAsync(CancellationToken.None)
         );
         before.RootElement.GetProperty("state").TryGetProperty("lastWrite", out _).ShouldBeTrue();
 
-        using var save = await client.PostAsync(
-            host.Url + "api/save?model=devtools-demo&name=&token=" + host.SessionToken,
-            new StringContent(
-                /*lang=json,strict*/
-                """{"Label":"after","RetryCount":3}""",
-                System.Text.Encoding.UTF8,
-                "application/json"
-            )
+        // The only mutating path is the semantic edit-session save.
+        await entry.ApplyJsonAsync(
+            /*lang=json,strict*/
+            """{"Label":"after","RetryCount":3}""",
+            CancellationToken.None
         );
-        save.StatusCode.ShouldBe(HttpStatusCode.OK);
 
-        var after = JsonDocument.Parse(
-            await GetJsonAsync(client, host, "diagnostics", "devtools-demo", string.Empty)
-        );
+        var after = JsonDocument.Parse(await entry.GetDiagnosticsJsonAsync(CancellationToken.None));
         var lastWrite = after.RootElement.GetProperty("state").GetProperty("lastWrite");
         lastWrite.ValueKind.ShouldNotBe(JsonValueKind.Null);
         lastWrite.GetProperty("kind").GetString().ShouldBe("WriteCompleted");
-    }
-
-    [Test]
-    public async Task NoNewInspectionApiIsIntroduced()
-    {
-        await using var context = DevToolsFixtures.CreateDemoContext();
-        var registry = new ConfiglueDevToolsRegistry();
-        registry.Add(context.GetState<DevToolsDemoSettings>());
-        await using var host = ConfiglueDevToolsWebHost.Create(registry);
-        await host.StartAsync();
-
-        using var client = AuthedClient(host);
-        foreach (var endpoint in new[] { "diagnostics", "stats", "events" })
-        {
-            var body = await GetJsonAsync(client, host, endpoint, "devtools-demo", string.Empty);
-            body.ShouldNotContain("InspectAsync");
-        }
-    }
-
-    private static HttpClient AuthedClient(ConfiglueDevToolsWebHost host)
-    {
-        var client = new HttpClient();
-        client.DefaultRequestHeaders.Add("X-Configlue-DevTools-Token", host.SessionToken);
-        return client;
-    }
-
-    private static async Task<string> GetJsonAsync(
-        HttpClient client,
-        ConfiglueDevToolsWebHost host,
-        string endpoint,
-        string model,
-        string name
-    )
-    {
-        using var response = await client.GetAsync(
-            host.Url
-                + "api/"
-                + endpoint
-                + "?model="
-                + Uri.EscapeDataString(model)
-                + "&name="
-                + Uri.EscapeDataString(name)
-        );
-        response.StatusCode.ShouldBe(HttpStatusCode.OK);
-        return await response.Content.ReadAsStringAsync();
-    }
-
-    private static int CountOccurrences(string text, string value)
-    {
-        var count = 0;
-        var index = 0;
-        while ((index = text.IndexOf(value, index, StringComparison.Ordinal)) >= 0)
-        {
-            count++;
-            index += value.Length;
-        }
-
-        return count;
     }
 
     private sealed class CountingReader<T>(ISourceReader<T> inner, Func<int> onRead)

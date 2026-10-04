@@ -171,6 +171,20 @@ namespace is introduced, so `ApiAudienceOwnershipTests` stays green; the
 official `BlazorMonaco` NuGet package is referenced only by the
 development-only `Configlue.DevTools.Web` package.
 
+`#262` replaces the fallback `TcpListener` host with the real Blazor Web App
+host (`AddRazorComponents`/`AddInteractiveServerComponents`,
+`MapRazorComponents<DevToolsApp>`, prerendering off) and composes the actual
+UI (`DevToolsApp`, `ConfiglueDevToolsHome` at `/`, `ConfiglueDevToolsShell`
+with `Editor | Diagnostics` tabs, the non-generic
+`ConfiglueDevToolsEditorHost` dispatcher around
+`ConfiglueEffectiveStateEditor<TModel>`, and
+`ConfiglueDevToolsDiagnosticsPanel` with explicit check). The `/api/*`
+surface is deleted, so no transport types are added. No new namespace is
+introduced, so `ApiAudienceOwnershipTests` stays green; PublicApi approvals
+pin the added component surface (`Configlue.DevTools.Web.approved.txt`).
+Dispatch metadata (`ModelType`/`UntypedState`) lives on the internal entry
+interface, so it is not a new public inspection API.
+
 ## What changed for `#260`
 
 - File-source composition moved out of format providers: `FileResource`

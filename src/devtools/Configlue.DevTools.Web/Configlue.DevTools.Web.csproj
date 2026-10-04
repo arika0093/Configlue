@@ -14,5 +14,19 @@
     <ProjectReference Include="../../basic/Configlue.Abstraction/Configlue.Abstraction.csproj" />
     <ProjectReference Include="../../basic/Configlue.Core/Configlue.Core.csproj" />
     <PackageReference Include="BlazorMonaco" Version="3.4.0" />
+    <!-- Build-only source of the Blazor boot scripts. The package is downloaded but never
+         referenced: the two scripts are embedded below and served by the host itself, so the
+         loopback host never depends on a consumer app manifest or content root. -->
+    <PackageDownload Include="Microsoft.AspNetCore.App.Internal.Assets" Version="[10.0.5]" />
+  </ItemGroup>
+  <ItemGroup>
+    <EmbeddedResource Include="wwwroot\configlue-devtools-monaco.js" />
+    <Content Remove="wwwroot\configlue-devtools-monaco.js" />
+    <EmbeddedResource Include="$(NuGetPackageRoot)microsoft.aspnetcore.app.internal.assets/10.0.5/_framework/blazor.web.js">
+      <LogicalName>Configlue.DevTools.Web.Framework.blazor.web.js</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="$(NuGetPackageRoot)microsoft.aspnetcore.app.internal.assets/10.0.5/_framework/blazor.server.js">
+      <LogicalName>Configlue.DevTools.Web.Framework.blazor.server.js</LogicalName>
+    </EmbeddedResource>
   </ItemGroup>
 </Project>
