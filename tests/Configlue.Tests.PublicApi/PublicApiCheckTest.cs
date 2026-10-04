@@ -17,6 +17,7 @@ using Configlue.Resource.Redis;
 using Configlue.Resource.Etcd;
 using Configlue.Resource.S3;
 using Configlue.Resource.Vault;
+using Configlue.Resource.GoogleSecretManager;
 using Configlue.Resource.Zip;
 using Configlue.Source.CommandLine;
 using Configlue.Source.Consul;
@@ -339,6 +340,8 @@ public sealed class PublicApiCheckTest
     [Test]
     public void Consul() => PublicApiCheck.Check<ConsulKvPrefixSourceOptions>();
     public void Etcd() => PublicApiCheck.Check<EtcdStateSourceOptions>();
+    public void GoogleSecretManager() =>
+        PublicApiCheck.Check<GoogleSecretManagerSourceOptions>();
 
     [Test]
     public void Testing() => PublicApiCheck.Check<InMemoryResource>();
