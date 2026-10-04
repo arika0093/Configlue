@@ -158,6 +158,10 @@ Two async shutdown tests exercise leases spanning an incomplete await and verify
 
 All five verified rounds have been committed and cherry-picked into local main, preserving unrelated CI and timer-test fixes. Integrated main at `f1728ab3` passes the full Release net10.0 suite: 1,674 passed, zero failed, 17 skipped external-service tests. Its log is retained in the main worktree's ignored `artifacts/perf-integrated/tests.log`. No remote push has been performed. The working tree is clean after the audit documentation commit. The optimization goal remains active; the following coverage gaps are still outstanding.
 
+## Integrated checkpoint after round 8
+
+Committed main changes through `b0b94106` (including the standard/file-source package split and Godot generator-reference fix) have been merged into the isolated performance worktree. `git diff main --stat` is empty at this checkpoint, so validation covers the current committed main tree, not only the earlier package layout. The integrated Release net10.0 suite passes 1,722 tests, zero failures, 17 skipped external-service tests. Its log is retained in `artifacts/perf-integrated-round8/tests.log`. No push was performed by this performance work. The goal remains active; fragment and collection benchmarks are the next measured coverage gap.
+
 ## Remaining audit
 
 These are outstanding, not claims of saturation:
