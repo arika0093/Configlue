@@ -82,36 +82,9 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
         return patches.ToArray();
     }
 
-    private static List<string> GetChangedPropertyPaths(
-        ConfiglueModelSchema schema,
-        IConfiglueFragment changes,
-        List<string> path
-    )
-    {
-        var paths = new List<string>();
-        foreach (var change in changes.EnumeratePresentMembersFast())
-        {
-            if (!TryGetMember(schema, change.Id, out var member))
-            {
-                continue;
-            }
-
-            path.Add(member.Name);
-            if (member.NestedSchemaFactory is not null && change.Value is IConfiglueFragment nested)
-            {
-                paths.AddRange(GetChangedPropertyPaths(member.NestedSchemaFactory(), nested, path));
-            }
-            else
-            {
-                paths.Add(string.Join(".", path));
-            }
-
-            path.RemoveAt(path.Count - 1);
-        }
-
-        return paths;
-    }
-
+    // NOTE: GetReplaceMemberPaths below builds dotted strings, but it runs only on
+    // the write-conflict error path (PatchApplication mismatch diagnostics), never in
+    // normal schema-bound routing. Per-member hot-path routing stays in ID space above.
     private static List<string> GetReplaceMemberPaths(
         ConfiglueModelSchema schema,
         IConfiglueFragment changes,
@@ -221,7 +194,8 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
         ConfiglueModelSchema schema,
         IConfiglueFragment changes,
         CompositeStateSource<TFragment> composite,
-        List<string> path
+        ConfiglueMemberPath path,
+        StateWritePlan boundCompositePlan
     )
     {
         var routed = new Dictionary<SourceId, IConfiglueFragment>();
@@ -234,81 +208,56 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
                 );
             }
 
-            path.Add(member.Name);
-            try
+            // Generated-ID routing: extend the compiled member path with the member ID
+            // and resolve against the pre-bound composite plan. No dotted strings are
+            // built per member and no names are re-resolved through Split/lookup.
+            var propertyPath = path.Append(member.Id);
+            if (
+                member.NestedSchemaFactory is not null
+                && change.Value is IConfiglueFragment nestedChanges
+                && composite.HasWriteRouteBelow(propertyPath, boundCompositePlan)
+            )
             {
-                var propertyPath = string.Join(".", path);
-                if (
-                    member.NestedSchemaFactory is not null
-                    && change.Value is IConfiglueFragment nestedChanges
-                    && composite.HasWriteRouteBelow(propertyPath)
-                )
+                var nestedRouted = PartitionCompositeChanges(
+                    member.NestedSchemaFactory(),
+                    nestedChanges,
+                    composite,
+                    propertyPath,
+                    boundCompositePlan
+                );
+                foreach (var (nestedComponentId, nestedFragment) in nestedRouted)
                 {
-                    var nestedRouted = PartitionCompositeChanges(
-                        member.NestedSchemaFactory(),
-                        nestedChanges,
-                        composite,
-                        path
-                    );
-                    foreach (var (nestedComponentId, nestedFragment) in nestedRouted)
-                    {
-                        var componentChanges = routed.TryGetValue(
-                            nestedComponentId,
-                            out var existing
-                        )
-                            ? existing
-                            : schema.CreateEmptyFragment();
-                        routed[nestedComponentId] = componentChanges.WithMember(
-                            member.Id,
-                            nestedFragment
-                        );
-                    }
-
-                    continue;
-                }
-
-                if (
-                    member.NestedSchemaFactory is not null
-                    && composite.HasWriteRouteBelow(propertyPath)
-                )
-                {
-                    throw LogConflict(
-                        $"The edit replaces nested member '{propertyPath}' as a whole, so its more specific composite component routes cannot be applied."
+                    var componentChanges = routed.TryGetValue(nestedComponentId, out var existing)
+                        ? existing
+                        : schema.CreateEmptyFragment();
+                    routed[nestedComponentId] = componentChanges.WithMember(
+                        member.Id,
+                        nestedFragment
                     );
                 }
 
-                var targetComponentId = composite.ResolveWriteComponent(propertyPath).Id;
-                var targetChanges = routed.TryGetValue(targetComponentId, out var current)
-                    ? current
-                    : schema.CreateEmptyFragment();
-                routed[targetComponentId] = targetChanges.WithMember(member.Id, change.Value);
+                continue;
             }
-            finally
+
+            if (
+                member.NestedSchemaFactory is not null
+                && composite.HasWriteRouteBelow(propertyPath, boundCompositePlan)
+            )
             {
-                path.RemoveAt(path.Count - 1);
+                throw LogConflict(
+                    $"The edit replaces nested member '{propertyPath}' as a whole, so its more specific composite component routes cannot be applied."
+                );
             }
+
+            var targetComponentId = composite
+                .ResolveWriteComponent(propertyPath, boundCompositePlan)
+                .Id;
+            var targetChanges = routed.TryGetValue(targetComponentId, out var current)
+                ? current
+                : schema.CreateEmptyFragment();
+            routed[targetComponentId] = targetChanges.WithMember(member.Id, change.Value);
         }
 
         return routed;
-    }
-
-    private static bool IsValidMemberPath(
-        ConfiglueModelSchema schema,
-        string[] segments,
-        int index = 0
-    )
-    {
-        if (!TryGetMemberByName(schema, segments[index], out var member))
-        {
-            return false;
-        }
-
-        if (index == segments.Length - 1)
-        {
-            return true;
-        }
-
-        return member.NestedSchemaFactory is not null
-            && IsValidMemberPath(member.NestedSchemaFactory(), segments, index + 1);
     }
 }

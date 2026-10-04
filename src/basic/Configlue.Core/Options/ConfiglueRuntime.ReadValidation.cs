@@ -33,26 +33,6 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
         return false;
     }
 
-    private static bool TryGetMemberByName(
-        ConfiglueModelSchema schema,
-        string name,
-        out ConfiglueMemberSchema member
-    )
-    {
-        var members = schema.Members;
-        for (var index = 0; index < members.Count; index++)
-        {
-            if (string.Equals(members[index].Name, name, StringComparison.Ordinal))
-            {
-                member = members[index];
-                return true;
-            }
-        }
-
-        member = default;
-        return false;
-    }
-
     private void Validate(TModel value)
     {
         var failures = new List<string>();

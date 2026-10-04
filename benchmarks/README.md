@@ -60,6 +60,41 @@ being prepared` (the composite nested revision vector holds one entry per compon
 the per-component re-read yields one entry, so `HaveSameRevisions` never matches). That
 is unrelated to #170/#211 routing allocations and is left for a separate follow-up.
 
+`NestedWriteRoutingBenchmarks220.cs` (issue #220) extends the #211 1/4/16-member
+coverage with nested routed paths. It uses a root model with two nested objects
+(`Database`/`Cache`, 16 leaves total) and longest-prefix ownership inside each nested
+object (the nested root routes to one source while one leaf is overridden to the other
+source), so every benchmark recurses through `HasRouteBelow`/`ResolveSourceIdOrNull`
+compiled `ConfiglueMemberPath` lookups. The three benchmarks all run production routing
+paths with `MemoryDiagnoser` (allocated bytes plus throughput):
+
+- `RouteNestedPatch`: generated `IConfiglueRoutablePatch.Route` partition, no I/O.
+- `SaveNestedRoutedAsync`: `IWritableState.SaveAsync` through a two-source
+  longest-prefix plan.
+- `CommitNestedCompositeAsync`: edit-session commit through a single-`child`
+  `CompositeStateSource` (same single-component mirror as #211) so the composite
+  `PartitionCompositeChanges` recursion runs; values alternate every iteration so the
+  edit always diffs into nested fragment changes.
+
+```shell
+dotnet run -c Release --project benchmarks/Configlue.Benchmarks -- --filter '*NestedWriteRoutingBenchmarks220*'
+```
+
+A fast smoke check that the group sets up and runs (numbers are not publishable):
+
+```shell
+dotnet run -c Release --project benchmarks/Configlue.Benchmarks -- --filter '*NestedWriteRoutingBenchmarks220*' --job dry
+```
+
+To confirm the group regresses when string round trips are restored, route the
+composite partition through dotted strings again (for example, `path.Add(member.Name)`
+plus `string.Join(".", path)` per member with the string
+`ResolveWriteComponent`/`HasWriteRouteBelow` overloads, or recompile schema-bound
+lookups via `ConfiglueMemberPath.FromNames` per member), re-run the filter above on the
+same machine, and compare the `Allocated` column: the reverted run allocates one joined
+string per member per nesting level plus one split/name-lookup pass per resolution on
+top of the baseline. Restore the generated-ID path afterwards.
+
 Before an allocation optimization, capture its relevant group at the parent revision and again at the candidate revision on the same machine and runtime. Keep the BenchmarkDotNet reports with the review notes; do not treat numbers from different machines or runtime versions as a regression threshold. For a focused comparison:
 
 Issue #165's same-machine before/after allocation results are recorded in [serialized-writer-allocation-results.md](serialized-writer-allocation-results.md). Issue #168's source-count scratch-pooling allocation comparison is recorded in [runtime-scratch-pooling-results.md](runtime-scratch-pooling-results.md).
@@ -111,6 +146,7 @@ groups; class names below stay valid when those branches merge.
 | #173 | No per-chunk `byte[]` in pipeline fingerprinting | `PipelineFingerprintAllocationBenchmarks` → `ReadAndFingerprintAsync` (ChunkSize 1/128) | Chunk-count-dependent allocation |
 | #174 | Streaming pipeline readers for HTTP/S3, no full-response buffering | `FilePersistenceBenchmarks`; `SerializedFileReadBenchmarks` (large-payload buffered vs pipeline → #213) | Full-response buffering on large payloads |
 | #175 | Fixed micro-allocations on byte and identity hot paths | `WriteRouteBenchmarks` → `DiagnosticStringLookup` vs `GeneratedIdentityLookup` / `GeneratedRouteBelow`; `RedisIdentityAllocationBenchmarks` | Fixed per-operation small allocations |
+| #220 | No per-member dotted-string round trips in generated write routing (nested longest-prefix via compiled member IDs) | `NestedWriteRoutingBenchmarks220` → `RouteNestedPatch` / `SaveNestedRoutedAsync` / `CommitNestedCompositeAsync` (1/4/16 nested leaves) | Joined property-path string per member per level plus split/name re-resolution per lookup; restoring either raises `Allocated` |
 
 Same-machine/ same-runtime comparison procedure:
 

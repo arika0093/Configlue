@@ -29,15 +29,11 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
             );
         }
 
-        var invalidMemberRoute = composite.WritePlan.PropertyRoutes.Keys.FirstOrDefault(
-            memberRoute => !IsValidMemberPath(modelSchema, memberRoute.Split('.'))
-        );
-        if (invalidMemberRoute is not null)
-        {
-            throw new InvalidOperationException(
-                $"Composite write route '{invalidMemberRoute}' does not match a model member path."
-            );
-        }
+        // Bind once per schema (cached inside the composite source): route strings are
+        // parsed a single time and every per-member lookup below stays in generated-ID
+        // space. GetBoundWritePlan also rejects unknown route paths with an
+        // InvalidOperationException naming the offending route.
+        var boundCompositePlan = composite.GetBoundWritePlan(modelSchema);
 
         var routedPatches = new Dictionary<SourceId, IConfigluePatch>();
         if (patchRequest.Patch is FragmentChangesPatch fragmentPatch)
@@ -46,7 +42,8 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
                 modelSchema,
                 fragmentPatch.Changes,
                 composite,
-                []
+                ConfiglueMemberPath.Root(modelSchema),
+                boundCompositePlan
             );
             foreach (var (componentId, componentChanges) in routedChanges)
             {
@@ -71,6 +68,7 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
         else
         {
             var routedMemberIds = new Dictionary<SourceId, List<int>>();
+            var compositeRoot = ConfiglueMemberPath.Root(modelSchema);
             foreach (var member in modelSchema.Members)
             {
                 var selected = memberPatch.SelectMembers([member.Id]);
@@ -79,14 +77,17 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
                     continue;
                 }
 
-                if (composite.HasWriteRouteBelow(member.Name))
+                // Single-level dynamic fallback stays in ID space too: the compiled
+                // path avoids name-based re-resolution through Split/lookup.
+                var memberPath = compositeRoot.Append(member.Id);
+                if (composite.HasWriteRouteBelow(memberPath, boundCompositePlan))
                 {
                     throw new NotSupportedException(
                         $"Patch for nested member '{member.Name}' must use a model edit so its nested changes can be routed."
                     );
                 }
 
-                var component = composite.ResolveWriteComponent(member.Name);
+                var component = composite.ResolveWriteComponent(memberPath, boundCompositePlan);
                 if (!routedMemberIds.TryGetValue(component.Id, out var memberIds))
                 {
                     memberIds = [];

@@ -1,4 +1,5 @@
 using System.Linq;
+using Configlue.CompilerServices;
 using Configlue.Internal;
 using Configlue.Sources;
 
@@ -24,6 +25,9 @@ public sealed class CompositeStateSource<TFragment>
     private readonly StateSourceSet<TFragment> _components;
     private readonly SourceId? _defaultWriteSourceId;
     private readonly StateWritePlan _writePlan;
+    private readonly object _boundPlanGate = new();
+    private StateWritePlan? _boundWritePlan;
+    private ConfiglueModelSchema? _boundSchema;
     private readonly ResidencyCache<
         (SubjectKey SubjectKey, RouteKey Route),
         CompositeWatchState
@@ -132,7 +136,77 @@ public sealed class CompositeStateSource<TFragment>
         return GetWritableComponent(_components, componentId);
     }
 
+    internal StateSource<TFragment> ResolveWriteComponent(
+        ConfiglueMemberPath path,
+        StateWritePlan boundPlan
+    )
+    {
+        ArgumentNullException.ThrowIfNull(boundPlan);
+        var componentId =
+            boundPlan.ResolveSourceIdOrNull(path, _defaultWriteSourceId)
+            ?? throw new InvalidOperationException(
+                $"Composite property '{path}' has no configured write owner."
+            );
+        return GetWritableComponent(_components, componentId);
+    }
+
     internal bool HasWriteRouteBelow(string propertyPath) => _writePlan.HasRouteBelow(propertyPath);
+
+    internal bool HasWriteRouteBelow(ConfiglueMemberPath path, StateWritePlan boundPlan)
+    {
+        ArgumentNullException.ThrowIfNull(boundPlan);
+        return boundPlan.HasRouteBelow(path);
+    }
+
+    /// <summary>
+    /// Binds the composite write plan to the generated root schema once and reuses the
+    /// compiled route table. Binding parses each diagnostic route string a single time;
+    /// normal per-member routing then stays in generated-ID space with no
+    /// <c>string.Join</c>/<c>Split</c> round trips.
+    /// </summary>
+    internal StateWritePlan GetBoundWritePlan(ConfiglueModelSchema schema)
+    {
+        ArgumentNullException.ThrowIfNull(schema);
+        var cached = Volatile.Read(ref _boundWritePlan);
+        var cachedSchema = Volatile.Read(ref _boundSchema);
+        if (
+            cached is not null
+            && cachedSchema is not null
+            && ConfiglueMemberPath.Root(cachedSchema).SameRoot(ConfiglueMemberPath.Root(schema))
+        )
+        {
+            return cached;
+        }
+
+        lock (_boundPlanGate)
+        {
+            if (
+                _boundWritePlan is not null
+                && _boundSchema is not null
+                && ConfiglueMemberPath.Root(_boundSchema).SameRoot(ConfiglueMemberPath.Root(schema))
+            )
+            {
+                return _boundWritePlan;
+            }
+
+            StateWritePlan bound;
+            try
+            {
+                bound = _writePlan.Bind(schema);
+            }
+            catch (ArgumentException exception)
+            {
+                throw new InvalidOperationException(
+                    $"Composite write route does not match a model member path: {exception.Message}",
+                    exception
+                );
+            }
+
+            Volatile.Write(ref _boundWritePlan, bound);
+            Volatile.Write(ref _boundSchema, schema);
+            return bound;
+        }
+    }
 
     internal async ValueTask<StateReadResult<TFragment>> ReadWithOverridesAsync(
         IReadOnlyDictionary<SourceId, TFragment> overrides,

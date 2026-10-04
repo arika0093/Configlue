@@ -229,18 +229,17 @@ public sealed class StateWritePlan
     )
     {
         EnsureCompiledPath(path);
-        var bestLength = -1;
-        var result = fallbackSourceId ?? DefaultSourceId;
+        // Routes are sorted longest-first at bind time, so the first prefix match
+        // is the longest-prefix (most specific) owner.
         for (var index = 0; index < _routes.Length; index++)
         {
             var route = _routes[index];
-            if (route.Key.Length > bestLength && route.Key.IsPrefixOf(path))
+            if (route.Key.IsPrefixOf(path))
             {
-                bestLength = route.Key.Length;
-                result = route.Value;
+                return route.Value;
             }
         }
-        return result;
+        return fallbackSourceId ?? DefaultSourceId;
     }
 
     /// <summary>Whether a more specific configured path exists beneath the supplied path.</summary>
@@ -288,6 +287,14 @@ public sealed class StateWritePlan
         {
             _routes[index++] = new(ConfiglueMemberPath.FromNames(schema, route.Key), route.Value);
         }
+
+        // Longest-prefix ownership resolves by scanning for the longest matching prefix.
+        // Sorting longest-first at bind time (once per plan) keeps the per-member hot
+        // path a cheap ID-prefix scan with an early exit instead of repeated traversal.
+        Array.Sort(
+            _routes,
+            static (first, second) => second.Key.Length.CompareTo(first.Key.Length)
+        );
     }
 
     internal StateWritePlan WithDefaultSourceId(SourceId? defaultSourceId)
