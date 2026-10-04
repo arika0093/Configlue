@@ -41,8 +41,7 @@ internal sealed class RedisStateBackend : IRedisStateBackend
 
     private readonly IConnectionMultiplexer _multiplexer;
     private readonly RedisChangeHubLease _changeHub;
-    private readonly ConcurrentBag<RedisValue[]> _writeArgumentBuffers = new();
-    private readonly ConcurrentBag<RedisKey[]> _writeKeyBuffers = new();
+    private readonly RedisWriteBufferPool _writePool = new();
 
     public RedisStateBackend(IConnectionMultiplexer multiplexer, RedisResourceOptions options)
     {
@@ -59,12 +58,22 @@ internal sealed class RedisStateBackend : IRedisStateBackend
         var values = await GetDatabase(address.Database)
             .HashGetAsync(address.Key, ReadFields)
             .ConfigureAwait(false);
+        return ConvertReadResult(values, address.Key);
+    }
+
+    /// <summary>
+    /// Converts already-fetched Redis hash fields into a resource read result.
+    /// Pure provider-local conversion with no I/O, so allocation microbenchmarks
+    /// can measure it without mixing in network latency.
+    /// </summary>
+    internal static ResourceReadResult ConvertReadResult(RedisValue[] values, string redisKey)
+    {
         if (values[1].IsNull)
         {
             if (values.Any(static value => !value.IsNull))
             {
                 throw new InvalidDataException(
-                    $"The Redis row '{address.Key}' has fields but no revision."
+                    $"The Redis row '{redisKey}' has fields but no revision."
                 );
             }
 
@@ -73,7 +82,7 @@ internal sealed class RedisStateBackend : IRedisStateBackend
 
         if (values[0].IsNull)
         {
-            throw new InvalidDataException($"The Redis row '{address.Key}' has no payload field.");
+            throw new InvalidDataException($"The Redis row '{redisKey}' has no payload field.");
         }
 
         var revision = values[1].ToString();
@@ -87,9 +96,7 @@ internal sealed class RedisStateBackend : IRedisStateBackend
             || parsedRevision <= 0
         )
         {
-            throw new InvalidDataException(
-                $"The Redis row '{address.Key}' has an invalid revision."
-            );
+            throw new InvalidDataException($"The Redis row '{redisKey}' has an invalid revision.");
         }
 
         StateSchemaMetadata? schema = null;
@@ -114,6 +121,67 @@ internal sealed class RedisStateBackend : IRedisStateBackend
     )
     {
         cancellationToken.ThrowIfCancellationRequested();
+        _writePool.PrepareWrite(address, request, out var keys, out var arguments);
+        long revision;
+        try
+        {
+            var result = await GetDatabase(address.Database)
+                .ScriptEvaluateAsync(WriteScript, keys, arguments)
+                .ConfigureAwait(false);
+            revision = (long)result;
+        }
+        finally
+        {
+            _writePool.ReturnWrite(keys, arguments);
+        }
+        if (revision <= 0)
+        {
+            throw CreateConflict(address);
+        }
+
+        return new StateWriteResult(revision.ToString(CultureInfo.InvariantCulture));
+    }
+
+    public ValueTask WaitForChangeAsync(
+        RedisResourceAddress address,
+        string? observedRevision,
+        CancellationToken cancellationToken
+    ) =>
+        _changeHub.Hub.WaitForChangeAsync(
+            address.NotificationIdentity,
+            observedRevision,
+            token => ReadAsync(address, token),
+            cancellationToken
+        );
+
+    public void Dispose() => _changeHub.Dispose();
+
+    private IDatabase GetDatabase(int database) => _multiplexer.GetDatabase(database);
+
+    private static StateConflictException CreateConflict(RedisResourceAddress address) =>
+        new($"The Redis resource '{address.Key}' no longer matches its expected revision.");
+}
+
+/// <summary>
+/// Rents, fills, and recycles the script argument/key buffers used by
+/// <see cref="RedisStateBackend.WriteAsync"/>. The preparation path performs no I/O,
+/// so allocation microbenchmarks can exercise it directly without mixing in
+/// network latency. Restoring a <c>ToArray()</c> payload copy or a per-write
+/// buffer allocation inside <see cref="PrepareWrite"/> increases the allocated
+/// bytes reported by those benchmarks.
+/// </summary>
+internal sealed class RedisWriteBufferPool
+{
+    private readonly ConcurrentBag<RedisValue[]> _writeArgumentBuffers = new();
+    private readonly ConcurrentBag<RedisKey[]> _writeKeyBuffers = new();
+
+    public void PrepareWrite(
+        RedisResourceAddress address,
+        ResourceWriteRequest request,
+        out RedisKey[] keys,
+        out RedisValue[] arguments
+    )
+    {
         string mode;
         if (request.Condition.IsNone)
         {
@@ -143,69 +211,40 @@ internal sealed class RedisStateBackend : IRedisStateBackend
             )
         )
         {
-            throw CreateConflict(address);
+            throw new StateConflictException(
+                $"The Redis resource '{address.Key}' no longer matches its expected revision."
+            );
         }
 
         var schema = request.Schema;
-        if (!_writeArgumentBuffers.TryTake(out var arguments))
+        if (!_writeArgumentBuffers.TryTake(out arguments!))
         {
             arguments = new RedisValue[9];
         }
-        if (!_writeKeyBuffers.TryTake(out var keys))
+        if (!_writeKeyBuffers.TryTake(out keys!))
         {
             keys = new RedisKey[1];
         }
-        long revision;
-        try
-        {
-            keys[0] = address.Key;
-            arguments[0] = mode;
-            arguments[1] = expectedRevision;
-            arguments[2] = request.Content;
-            arguments[3] = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-            arguments[4] = address.NotificationChannel;
-            arguments[5] = address.NotificationIdentity;
-            arguments[6] = schema is null ? "0" : "1";
-            arguments[7] = schema?.ModelId ?? string.Empty;
-            arguments[8] = schema?.Version.ToString(CultureInfo.InvariantCulture) ?? string.Empty;
-            var result = await GetDatabase(address.Database)
-                .ScriptEvaluateAsync(WriteScript, keys, arguments)
-                .ConfigureAwait(false);
-            revision = (long)result;
-        }
-        finally
-        {
-            Array.Clear(arguments, 0, arguments.Length);
-            Array.Clear(keys, 0, keys.Length);
-            _writeArgumentBuffers.Add(arguments);
-            _writeKeyBuffers.Add(keys);
-        }
-        if (revision <= 0)
-        {
-            throw CreateConflict(address);
-        }
 
-        return new StateWriteResult(revision.ToString(CultureInfo.InvariantCulture));
+        keys[0] = address.Key;
+        arguments[0] = mode;
+        arguments[1] = expectedRevision;
+        arguments[2] = request.Content;
+        arguments[3] = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+        arguments[4] = address.NotificationChannel;
+        arguments[5] = address.NotificationIdentity;
+        arguments[6] = schema is null ? "0" : "1";
+        arguments[7] = schema?.ModelId ?? string.Empty;
+        arguments[8] = schema?.Version.ToString(CultureInfo.InvariantCulture) ?? string.Empty;
     }
 
-    public ValueTask WaitForChangeAsync(
-        RedisResourceAddress address,
-        string? observedRevision,
-        CancellationToken cancellationToken
-    ) =>
-        _changeHub.Hub.WaitForChangeAsync(
-            address.NotificationIdentity,
-            observedRevision,
-            token => ReadAsync(address, token),
-            cancellationToken
-        );
-
-    public void Dispose() => _changeHub.Dispose();
-
-    private IDatabase GetDatabase(int database) => _multiplexer.GetDatabase(database);
-
-    private static StateConflictException CreateConflict(RedisResourceAddress address) =>
-        new($"The Redis resource '{address.Key}' no longer matches its expected revision.");
+    public void ReturnWrite(RedisKey[] keys, RedisValue[] arguments)
+    {
+        Array.Clear(arguments, 0, arguments.Length);
+        Array.Clear(keys, 0, keys.Length);
+        _writeArgumentBuffers.Add(arguments);
+        _writeKeyBuffers.Add(keys);
+    }
 }
 
 internal sealed class RedisChangeHub : IDisposable

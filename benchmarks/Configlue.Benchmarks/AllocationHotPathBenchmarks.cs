@@ -11,6 +11,7 @@ using Configlue.State;
 using Configlue.Transformer.AES;
 using Configlue.Transformer.Compression;
 using Configlue.Transformers;
+using StackExchange.Redis;
 
 [ConfiglueModel("bench-allocation-messagepack", Version = 1)]
 public partial class AllocationMessagePackSettings
@@ -432,7 +433,7 @@ public sealed class MetadataSinglePassReaderBenchmarks
 }
 
 [MemoryDiagnoser]
-public sealed class RedisIdentityAllocationBenchmarks
+public class RedisIdentityAllocationBenchmarks
 {
     private RedisResource _resource = null!;
 
@@ -445,6 +446,123 @@ public sealed class RedisIdentityAllocationBenchmarks
     [Benchmark]
     public ResourceId CreateResourceIdentity() =>
         _resource.GetResourceId(ConfiglueResourceContext.Default);
+}
+
+/// <summary>
+/// Measures the Redis write hot path (script argument / payload preparation)
+/// without performing any network I/O. It exercises the same pooled
+/// <see cref="RedisWriteBufferPool"/> used by production writes, so restoring a
+/// <c>ToArray()</c> payload copy or a per-write argument array increases the
+/// reported allocated bytes (scaling with <see cref="PayloadSize"/> for the copy,
+/// as a fixed cost for the array).
+/// </summary>
+[MemoryDiagnoser]
+public class RedisWriteAllocationBenchmarks
+{
+    private RedisWriteBufferPool _pool = null!;
+    private RedisResourceAddress _address;
+    private byte[] _payload = null!;
+    private ResourceWriteRequest _unconditional;
+    private ResourceWriteRequest _conditional;
+
+    [Params(100, 4096, 65536)]
+    public int PayloadSize { get; set; }
+
+    [Params(false, true)]
+    public bool IncludeSchema { get; set; }
+
+    [GlobalSetup]
+    public void Setup()
+    {
+        _pool = new RedisWriteBufferPool();
+        _address = new RedisResourceAddress(
+            "bench:key",
+            "bench",
+            0,
+            "bench:channel",
+            "bench:identity"
+        );
+        _payload = Enumerable.Range(0, PayloadSize).Select(static value => (byte)value).ToArray();
+        StateSchemaMetadata? schema = IncludeSchema
+            ? new StateSchemaMetadata("bench-allocation", 1)
+            : null;
+        _unconditional = new ResourceWriteRequest(_payload, RevisionCondition.None, schema);
+        _conditional = new ResourceWriteRequest(_payload, RevisionCondition.Match("42"), schema);
+        // Warm the pool so steady-state iterations measure the rent-hit path,
+        // exactly as a reused production backend does.
+        _pool.PrepareWrite(_address, _unconditional, out var keys, out var arguments);
+        _pool.ReturnWrite(keys, arguments);
+    }
+
+    [Benchmark]
+    public int UnconditionalWrite()
+    {
+        _pool.PrepareWrite(_address, _unconditional, out var keys, out var arguments);
+        try
+        {
+            return arguments.Length;
+        }
+        finally
+        {
+            _pool.ReturnWrite(keys, arguments);
+        }
+    }
+
+    [Benchmark]
+    public int ConditionalWrite()
+    {
+        _pool.PrepareWrite(_address, _conditional, out var keys, out var arguments);
+        try
+        {
+            return arguments.Length;
+        }
+        finally
+        {
+            _pool.ReturnWrite(keys, arguments);
+        }
+    }
+}
+
+/// <summary>
+/// Measures the provider-local conversion from already-fetched Redis hash fields
+/// to <see cref="ResourceReadResult"/> without performing any network I/O.
+/// The payload-size dimension verifies the payload handoff stays allocation-flat
+/// (zero-copy view, not scaling with payload size), while the schema dimension
+/// isolates metadata overhead on top of it.
+/// </summary>
+[MemoryDiagnoser]
+public class RedisReadAllocationBenchmarks
+{
+    private const string RedisKey = "bench:key";
+
+    private RedisValue[] _row = null!;
+    private RedisValue[] _missingRow = null!;
+
+    [Params(100, 4096, 65536)]
+    public int PayloadSize { get; set; }
+
+    [Params(false, true)]
+    public bool IncludeSchema { get; set; }
+
+    [GlobalSetup]
+    public void Setup()
+    {
+        var payload = Enumerable
+            .Range(0, PayloadSize)
+            .Select(static value => (byte)value)
+            .ToArray();
+        RedisValue schemaModel = IncludeSchema ? "bench-allocation" : RedisValue.Null;
+        RedisValue schemaVersion = IncludeSchema ? "1" : RedisValue.Null;
+        _row = [payload, "42", schemaModel, schemaVersion];
+        _missingRow = [RedisValue.Null, RedisValue.Null, RedisValue.Null, RedisValue.Null];
+    }
+
+    [Benchmark]
+    public ResourceReadResult ConvertRow() => RedisStateBackend.ConvertReadResult(_row, RedisKey);
+
+    [Benchmark]
+    public ResourceReadResult ConvertMissingRow() =>
+        RedisStateBackend.ConvertReadResult(_missingRow, RedisKey);
 }
 
 [MemoryDiagnoser]
@@ -476,8 +594,7 @@ public class SerializedWriterAllocationBenchmarks
     }
 
     [Benchmark]
-    public ValueTask<StateWriteResult> NormalWriteAsync() =>
-        _writer.WriteAsync(_context, _request);
+    public ValueTask<StateWriteResult> NormalWriteAsync() => _writer.WriteAsync(_context, _request);
 
     [Benchmark]
     public async ValueTask<StateWriteResult> BatchWriteAsync()
