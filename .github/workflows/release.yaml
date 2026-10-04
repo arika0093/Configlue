@@ -1,7 +1,6 @@
 name: Release packages
 
-# Tier 2 / release gate (#273). Auditable required checks before pack +
-# publish: strict-test owns the 3-OS solution matrix, observational
+# Release gate: test.yaml owns the 3-OS solution matrix, observational
 # coverage, Windows host tests, packed asset verification and the nested
 # Godot smoke check; the remaining jobs cover external-service
 # integration (redis/postgresql/s3), packed-package consumers (including
@@ -22,7 +21,7 @@ env:
 
 jobs:
   strict-test:
-    uses: ./.github/workflows/test-strict.yaml
+    uses: ./.github/workflows/test.yaml
 
   redis-integration:
     uses: ./.github/workflows/test-integration-redis.yaml

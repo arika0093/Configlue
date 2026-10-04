@@ -1,10 +1,5 @@
 name: Stress tests
 
-# Tier 3 / scheduled + manual only (#273). Repeated runtime/resource/
-# integration filters are explicitly NOT a routine correctness gate: no
-# pull_request or push triggers. Runs weekly via schedule, on demand via
-# workflow_dispatch, or when reused via workflow_call.
-
 on:
   workflow_call:
     inputs:
@@ -13,9 +8,6 @@ on:
         type: string
         required: false
         default: "5"
-  schedule:
-    # Weekly stress cadence (Monday 03:00 UTC).
-    - cron: '0 3 * * 1'
   workflow_dispatch:
     inputs:
       iterations:

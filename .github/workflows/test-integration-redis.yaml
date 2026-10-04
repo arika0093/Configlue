@@ -1,9 +1,5 @@
 name: Redis integration tests
 
-# Tier 2 / main + release gate with a narrow PR filter (#273). Runs on main
-# pushes, release.yaml and manual dispatch; on pull requests only when Redis
-# provider sources, the shared test project, or this workflow change.
-
 on:
   workflow_call:
     inputs:

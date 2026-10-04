@@ -56,7 +56,7 @@ jobs:
   dotnet-strict:
     needs: metadata
     if: needs.metadata.outputs.run-dotnet == 'true'
-    uses: ./.github/workflows/test-strict.yaml
+    uses: ./.github/workflows/test.yaml
 
   npm-build:
     needs: metadata

@@ -63,7 +63,7 @@ behavior is not executed in CI (the `set-clones` README steps are manual-only
 ad-hoc verification on Windows). Verified runtime stays on `net10.0` (plus
 `net8.0` for the hosts in §1).
 Removed with #281: the `net48` full-suite re-execution in
-`test-strict.yaml`, the `net48` `Compile Remove` exclusion list and `Exe`
+`test-strict.yaml` (later consolidated into `test.yaml`), the `net48` `Compile Remove` exclusion list and `Exe`
 output in `Configlue.Tests.csproj`, the `#if NET48` AWS-SDK sync stubs, the
 `#if NETFRAMEWORK` string-compare branch, and the `#if !NET48` AES/hosting
 exclusions (dead once net48 no longer compiles those files).
