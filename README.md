@@ -105,15 +105,7 @@ Save it as `example.cs` and run it with `dotnet run example.cs` (.NET 10 or late
 using Configlue;
 using Configlue.Source.Presets;
 
-// 1. Define the settings class
-[ConfiglueModel("sample.settings", Version = 1)]
-public partial class AppSettings
-{
-    public string Name { get; set; } = "World";
-    public string Theme { get; set; } = "System";
-}
-
-// 2. Initialize
+// 1. Initialize
 ConfiglueApp.Initialize(config =>
 {
     config.UseCommonSources(sources =>
@@ -123,12 +115,12 @@ ConfiglueApp.Initialize(config =>
     });
 });
 
-// 3. Read
+// 2. Read
 var settings = ConfiglueApp.GetState<AppSettings>();
 var current = await settings.GetValueAsync();
 Console.WriteLine($"Hello, {current.Name}. Theme: {current.Theme}");
 
-// 4. Save
+// 3. Save
 await settings.SaveAsync(patch =>
 {
     patch.Name = "Alice";
@@ -136,6 +128,14 @@ await settings.SaveAsync(patch =>
 });
 
 await ConfiglueApp.ShutdownAsync();
+
+// 4. Define the settings class
+[ConfiglueModel("sample.settings", Version = 1)]
+public partial class AppSettings
+{
+    public string Name { get; set; } = "World";
+    public string Theme { get; set; } = "System";
+}
 ```
 
 ## Installation
