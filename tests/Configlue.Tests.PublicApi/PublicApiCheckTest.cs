@@ -321,6 +321,10 @@ public sealed class PublicApiCheckTest
     public void S3() => PublicApiCheck.Check<S3ObjectSourceOptions>();
 
     [Test]
+    public void AwsAppConfig() =>
+        PublicApiCheck.Check<Configlue.Resource.AwsAppConfig.AwsAppConfigSourceOptions>();
+
+    [Test]
     public void PostgreSql() => PublicApiCheck.Check<PostgreSqlSourceOptions>();
 
     [Test]

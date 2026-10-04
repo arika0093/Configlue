@@ -1,0 +1,100 @@
+[assembly: System.Reflection.AssemblyMetadata("RepositoryUrl", "https://github.com/arika0093/Configlue")]
+namespace Configlue.Resource.AwsAppConfig
+{
+    public sealed class AwsAppConfigAgentSourceOptions
+    {
+        public AwsAppConfigAgentSourceOptions() { }
+        public required string ApplicationId { get; init; }
+        public System.Net.Http.HttpClient? Client { get; init; }
+        public System.Func<System.IServiceProvider?, System.Net.Http.HttpClient>? ClientFactory { get; init; }
+        public required Configlue.Codecs.StateCodecBinding Codec { get; init; }
+        public Configlue.Codecs.StateCodecContext CodecContext { get; init; }
+        public required string ConfigurationProfileId { get; init; }
+        public required string EnvironmentId { get; init; }
+        public Configlue.Sources.StateFallbackCondition FallbackCondition { get; init; }
+        public string? Id { get; init; }
+        public int Priority { get; init; }
+        public Configlue.Resource.AwsAppConfig.AwsAppConfigResourceOptions? ResourceOptions { get; init; }
+    }
+    public class AwsAppConfigException : System.Exception
+    {
+        public AwsAppConfigException(string message) { }
+        public AwsAppConfigException(string message, System.Exception? innerException) { }
+    }
+    public sealed class AwsAppConfigHealthSnapshot : System.IEquatable<Configlue.Resource.AwsAppConfig.AwsAppConfigHealthSnapshot>
+    {
+        public AwsAppConfigHealthSnapshot(System.DateTimeOffset? LastAttemptUtc, System.DateTimeOffset? LastSuccessUtc, string? LastRevision, System.TimeSpan LastPollInterval, string? LastError, int SessionRestarts, long PollCount, long ChangeCount, bool HasValue) { }
+        public long ChangeCount { get; init; }
+        public bool HasValue { get; init; }
+        public System.DateTimeOffset? LastAttemptUtc { get; init; }
+        public string? LastError { get; init; }
+        public System.TimeSpan LastPollInterval { get; init; }
+        public string? LastRevision { get; init; }
+        public System.DateTimeOffset? LastSuccessUtc { get; init; }
+        public long PollCount { get; init; }
+        public int SessionRestarts { get; init; }
+    }
+    public enum AwsAppConfigMode
+    {
+        Direct = 0,
+        Agent = 1,
+    }
+    public sealed class AwsAppConfigResource : Configlue.Resources.IResourceIdentity, Configlue.Resources.IResourceReader, Configlue.Sources.ISourceWatcher, System.IDisposable
+    {
+        public static readonly System.Uri DefaultAgentEndpoint;
+        public AwsAppConfigResource(Amazon.AppConfigData.IAmazonAppConfigData client, string applicationId, string environmentId, string configurationProfileId, Configlue.Resource.AwsAppConfig.AwsAppConfigResourceOptions? options = null) { }
+        public AwsAppConfigResource(System.Net.Http.HttpClient httpClient, string applicationId, string environmentId, string configurationProfileId, Configlue.Resource.AwsAppConfig.AwsAppConfigResourceOptions? options = null) { }
+        public string ApplicationId { get; }
+        public string ConfigurationProfileId { get; }
+        public string EnvironmentId { get; }
+        public Configlue.Resource.AwsAppConfig.AwsAppConfigMode Mode { get; }
+        public void Dispose() { }
+        public Configlue.Resource.AwsAppConfig.AwsAppConfigHealthSnapshot GetHealthSnapshot() { }
+        public Configlue.Resources.ResourceId GetResourceId(Configlue.Resources.ConfiglueResourceContext context) { }
+        public System.Threading.Tasks.ValueTask<Configlue.Resources.ResourceReadResult> ReadAsync(Configlue.Resources.ConfiglueResourceContext context, System.Threading.CancellationToken cancellationToken = default) { }
+        public System.Threading.Tasks.ValueTask WaitForChangeAsync(Configlue.Resources.ConfiglueResourceContext context, string? observedRevision, System.Threading.CancellationToken cancellationToken = default) { }
+    }
+    public sealed class AwsAppConfigResourceOptions
+    {
+        public AwsAppConfigResourceOptions() { }
+        public System.Uri? AgentEndpoint { get; init; }
+        public System.TimeSpan? AgentPollInterval { get; init; }
+        public string? ClientId { get; init; }
+        public Configlue.Resources.ResourceId? FixedResourceId { get; init; }
+        public int? RequiredMinimumPollIntervalInSeconds { get; init; }
+    }
+    public sealed class AwsAppConfigSessionExpiredException : Configlue.Resource.AwsAppConfig.AwsAppConfigException
+    {
+        public AwsAppConfigSessionExpiredException(string message) { }
+        public AwsAppConfigSessionExpiredException(string message, System.Exception? innerException) { }
+    }
+    public sealed class AwsAppConfigSourceOptions
+    {
+        public AwsAppConfigSourceOptions() { }
+        public required string ApplicationId { get; init; }
+        public Amazon.AppConfigData.IAmazonAppConfigData? Client { get; init; }
+        public System.Func<System.IServiceProvider?, Amazon.AppConfigData.IAmazonAppConfigData>? ClientFactory { get; init; }
+        public required Configlue.Codecs.StateCodecBinding Codec { get; init; }
+        public Configlue.Codecs.StateCodecContext CodecContext { get; init; }
+        public required string ConfigurationProfileId { get; init; }
+        public required string EnvironmentId { get; init; }
+        public Configlue.Sources.StateFallbackCondition FallbackCondition { get; init; }
+        public string? Id { get; init; }
+        public int Priority { get; init; }
+        public Configlue.Resource.AwsAppConfig.AwsAppConfigResourceOptions? ResourceOptions { get; init; }
+    }
+    public static class AwsAppConfigSourceRegistration
+    {
+        public static Configlue.Extensibility.ConfiglueSourceRegistration FromAwsAppConfig(this Configlue.ConfiglueSourceSetBuilder sources, Configlue.Resource.AwsAppConfig.AwsAppConfigSourceOptions options) { }
+        public static Configlue.Extensibility.ConfiglueSourceRegistration FromAwsAppConfigAgent(this Configlue.ConfiglueSourceSetBuilder sources, Configlue.Resource.AwsAppConfig.AwsAppConfigAgentSourceOptions options) { }
+        public static void UseAwsAppConfig<TModel>(this Configlue.ConfiglueModelBuilder<TModel> model, Configlue.Resource.AwsAppConfig.AwsAppConfigSourceOptions options, System.Action<Configlue.Resource.AwsAppConfig.AwsAppConfigSourceOptions>? configure = null)
+            where TModel : Configlue.CompilerServices.IConfiglueFacadeModel<TModel> { }
+        public static void UseAwsAppConfigAgent<TModel>(this Configlue.ConfiglueModelBuilder<TModel> model, Configlue.Resource.AwsAppConfig.AwsAppConfigAgentSourceOptions options, System.Action<Configlue.Resource.AwsAppConfig.AwsAppConfigAgentSourceOptions>? configure = null)
+            where TModel : Configlue.CompilerServices.IConfiglueFacadeModel<TModel> { }
+    }
+    public sealed class AwsAppConfigTransientException : Configlue.Resource.AwsAppConfig.AwsAppConfigException
+    {
+        public AwsAppConfigTransientException(string message) { }
+        public AwsAppConfigTransientException(string message, System.Exception? innerException) { }
+    }
+}
