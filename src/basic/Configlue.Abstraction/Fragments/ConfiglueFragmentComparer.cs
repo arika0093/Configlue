@@ -3,10 +3,10 @@ using Configlue.CompilerServices;
 namespace Configlue;
 
 /// <summary>Compares sparse generated fragments while preserving member presence.</summary>
-public static class ConfiglueFragmentComparer
+internal static class ConfiglueFragmentComparer
 {
     /// <summary>Compares two generated fragments, including nested fragments and collection contents.</summary>
-    public static bool AreEqual<TFragment>(TFragment? left, TFragment? right)
+    internal static bool AreEqual<TFragment>(TFragment? left, TFragment? right)
         where TFragment : class, IConfiglueFragment<TFragment> =>
         AreEqual((IConfiglueFragment?)left, right);
 

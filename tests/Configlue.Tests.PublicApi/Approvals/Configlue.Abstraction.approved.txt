@@ -245,11 +245,6 @@ namespace Configlue
         public ConfiglueEnvironmentAttribute(string name) { }
         public string Name { get; }
     }
-    public static class ConfiglueFragmentComparer
-    {
-        public static bool AreEqual<TFragment>(TFragment? left, TFragment? right)
-            where TFragment :  class, Configlue.IConfiglueFragment<TFragment> { }
-    }
     public readonly struct ConfiglueFragmentMember : System.IEquatable<Configlue.ConfiglueFragmentMember>
     {
         public ConfiglueFragmentMember(int Id, string Name, object? Value) { }
