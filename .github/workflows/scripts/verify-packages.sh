@@ -21,6 +21,7 @@ declare -A portable_package_assets=(
     [Configlue.Abstraction]="netstandard2.0 netstandard2.1 net10.0"
     [Configlue.Core]="netstandard2.0 netstandard2.1 net10.0"
     [SparseFragments]="netstandard2.0"
+    [SparseFragments.JsonPatch]="netstandard2.0"
     [Configlue.Extensions.ComponentModel]="netstandard2.0 netstandard2.1 net10.0"
     [Configlue.Extensions.DI]="netstandard2.0 netstandard2.1 net10.0"
     [Configlue.Extensions.MSOptions]="netstandard2.0 netstandard2.1 net10.0"
@@ -36,6 +37,19 @@ declare -A portable_package_assets=(
     [Configlue.Source.Http]="netstandard2.0 netstandard2.1 net10.0"
     [Configlue.Resource.Redis]="netstandard2.0 netstandard2.1 net10.0"
     [Configlue.Resource.S3]="netstandard2.0 netstandard2.1 net10.0"
+    [Configlue.Resource.Vault]="netstandard2.0 netstandard2.1 net10.0"
+    [Configlue.Source.Consul]="netstandard2.0 netstandard2.1 net10.0"
+    [Configlue.Resource.Etcd]="netstandard2.0 netstandard2.1 net10.0"
+    [Configlue.Resource.AzureAppConfiguration]="netstandard2.0 netstandard2.1 net10.0"
+    [Configlue.Resource.AzureKeyVault]="netstandard2.0 netstandard2.1 net10.0"
+    [Configlue.Source.Ssm]="netstandard2.0 netstandard2.1 net10.0"
+    [Configlue.Resource.SecretsManager]="netstandard2.0 netstandard2.1 net10.0"
+    [Configlue.Resource.AwsAppConfig]="netstandard2.0 netstandard2.1 net10.0"
+    [Configlue.Resource.GoogleSecretManager]="netstandard2.0 netstandard2.1 net10.0"
+    [Configlue.Resource.Kubernetes]="netstandard2.0 netstandard2.1 net10.0"
+    [Configlue.Resource.AzureBlob]="netstandard2.0 netstandard2.1 net10.0"
+    [Configlue.Resource.Gcs]="netstandard2.0 netstandard2.1 net10.0"
+    [Configlue.DevTools]="netstandard2.0 netstandard2.1 net10.0"
 )
 
 # Package-specific higher floors.
@@ -48,6 +62,7 @@ declare -A floored_package_assets=(
     [Configlue.Hosting.Godot]="net8.0 net10.0"
     [Configlue.Source.PostgreSql]="net8.0 net10.0"
     [Configlue.Source.PostgreSql.Migrations]="net8.0 net10.0"
+    [Configlue.DevTools.Web]="net10.0"
 )
 
 expected_package_ids=(
