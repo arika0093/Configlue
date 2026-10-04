@@ -86,6 +86,7 @@
     <ProjectReference Include="../../src/resources/Configlue.Resource.SecretsManager/Configlue.Resource.SecretsManager.csproj" />
     <ProjectReference Include="../../src/resources/Configlue.Resource.AwsAppConfig/Configlue.Resource.AwsAppConfig.csproj" />
     <ProjectReference Include="../../src/resources/Configlue.Resource.GoogleSecretManager/Configlue.Resource.GoogleSecretManager.csproj" />
+    <ProjectReference Include="../../src/resources/Configlue.Resource.Kubernetes/Configlue.Resource.Kubernetes.csproj" />
     <ProjectReference Include="../../src/sources/Configlue.Source.Http/Configlue.Source.Http.csproj" />
     <ProjectReference Include="../../src/sources/Configlue.Source.Consul/Configlue.Source.Consul.csproj" />
     <ProjectReference Include="../../src/sources/Configlue.Source.Ssm/Configlue.Source.Ssm.csproj" />

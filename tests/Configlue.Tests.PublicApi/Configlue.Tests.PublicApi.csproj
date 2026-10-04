@@ -32,6 +32,7 @@
     <ProjectReference Include="../../src/sources/Configlue.Source.CommandLine/Configlue.Source.CommandLine.csproj" />
     <ProjectReference Include="../../src/resources/Configlue.Resource.S3/Configlue.Resource.S3.csproj" />
     <ProjectReference Include="../../src/resources/Configlue.Resource.AwsAppConfig/Configlue.Resource.AwsAppConfig.csproj" />
+    <ProjectReference Include="../../src/resources/Configlue.Resource.Kubernetes/Configlue.Resource.Kubernetes.csproj" />
     <ProjectReference Include="../../src/sources/Configlue.Source.Http/Configlue.Source.Http.csproj" />
     <ProjectReference Include="../../src/sources/Configlue.Source.PostgreSql/Configlue.Source.PostgreSql.csproj" />
     <ProjectReference Include="../../src/sources/Configlue.Source.Consul/Configlue.Source.Consul.csproj" />

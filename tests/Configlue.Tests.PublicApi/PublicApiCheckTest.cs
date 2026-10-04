@@ -18,6 +18,7 @@ using Configlue.Resource.Etcd;
 using Configlue.Resource.S3;
 using Configlue.Resource.Vault;
 using Configlue.Resource.GoogleSecretManager;
+using Configlue.Resource.Kubernetes;
 using Configlue.Resource.Zip;
 using Configlue.Source.CommandLine;
 using Configlue.Source.Consul;
@@ -342,6 +343,7 @@ public sealed class PublicApiCheckTest
     public void Etcd() => PublicApiCheck.Check<EtcdStateSourceOptions>();
     public void GoogleSecretManager() =>
         PublicApiCheck.Check<GoogleSecretManagerSourceOptions>();
+    public void Kubernetes() => PublicApiCheck.Check<KubernetesSourceOptions>();
 
     [Test]
     public void Testing() => PublicApiCheck.Check<InMemoryResource>();

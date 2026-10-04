@@ -1,0 +1,161 @@
+[assembly: System.Reflection.AssemblyMetadata("RepositoryUrl", "https://github.com/arika0093/Configlue")]
+namespace Configlue.Resource.Kubernetes
+{
+    public sealed class HttpKubernetesObjectClient : Configlue.Resource.Kubernetes.IKubernetesObjectClient
+    {
+        public HttpKubernetesObjectClient(System.Net.Http.HttpClient httpClient) { }
+        public System.Threading.Tasks.Task<Configlue.Resource.Kubernetes.KubernetesConfigMapSnapshot> GetConfigMapAsync(string @namespace, string name, System.Threading.CancellationToken cancellationToken) { }
+        public System.Threading.Tasks.Task<Configlue.Resource.Kubernetes.KubernetesSecretSnapshot> GetSecretAsync(string @namespace, string name, System.Threading.CancellationToken cancellationToken) { }
+        public System.Threading.Tasks.Task<string?> ReplaceConfigMapAsync(string @namespace, string name, System.Collections.Generic.IReadOnlyDictionary<string, string> data, System.Collections.Generic.IReadOnlyDictionary<string, byte[]> binaryData, string? expectedResourceVersion, bool requireMissing, System.Threading.CancellationToken cancellationToken) { }
+        public System.Threading.Tasks.Task<string?> ReplaceSecretAsync(string @namespace, string name, System.Collections.Generic.IReadOnlyDictionary<string, byte[]> data, string? expectedResourceVersion, bool requireMissing, System.Threading.CancellationToken cancellationToken) { }
+        [System.Runtime.CompilerServices.AsyncIteratorStateMachine(typeof(Configlue.Resource.Kubernetes.HttpKubernetesObjectClient.<WatchConfigMapAsync>d__6))]
+        public System.Collections.Generic.IAsyncEnumerable<Configlue.Resource.Kubernetes.KubernetesWatchEvent> WatchConfigMapAsync(string @namespace, string name, string? resourceVersion, [System.Runtime.CompilerServices.EnumeratorCancellation] System.Threading.CancellationToken cancellationToken) { }
+        [System.Runtime.CompilerServices.AsyncIteratorStateMachine(typeof(Configlue.Resource.Kubernetes.HttpKubernetesObjectClient.<WatchSecretAsync>d__7))]
+        public System.Collections.Generic.IAsyncEnumerable<Configlue.Resource.Kubernetes.KubernetesWatchEvent> WatchSecretAsync(string @namespace, string name, string? resourceVersion, [System.Runtime.CompilerServices.EnumeratorCancellation] System.Threading.CancellationToken cancellationToken) { }
+    }
+    public interface IKubernetesObjectClient
+    {
+        System.Threading.Tasks.Task<Configlue.Resource.Kubernetes.KubernetesConfigMapSnapshot> GetConfigMapAsync(string @namespace, string name, System.Threading.CancellationToken cancellationToken);
+        System.Threading.Tasks.Task<Configlue.Resource.Kubernetes.KubernetesSecretSnapshot> GetSecretAsync(string @namespace, string name, System.Threading.CancellationToken cancellationToken);
+        System.Threading.Tasks.Task<string?> ReplaceConfigMapAsync(string @namespace, string name, System.Collections.Generic.IReadOnlyDictionary<string, string> data, System.Collections.Generic.IReadOnlyDictionary<string, byte[]> binaryData, string? expectedResourceVersion, bool requireMissing, System.Threading.CancellationToken cancellationToken);
+        System.Threading.Tasks.Task<string?> ReplaceSecretAsync(string @namespace, string name, System.Collections.Generic.IReadOnlyDictionary<string, byte[]> data, string? expectedResourceVersion, bool requireMissing, System.Threading.CancellationToken cancellationToken);
+        System.Collections.Generic.IAsyncEnumerable<Configlue.Resource.Kubernetes.KubernetesWatchEvent> WatchConfigMapAsync(string @namespace, string name, string? resourceVersion, System.Threading.CancellationToken cancellationToken);
+        System.Collections.Generic.IAsyncEnumerable<Configlue.Resource.Kubernetes.KubernetesWatchEvent> WatchSecretAsync(string @namespace, string name, string? resourceVersion, System.Threading.CancellationToken cancellationToken);
+    }
+    public sealed class KubernetesConfigMapSnapshot
+    {
+        public KubernetesConfigMapSnapshot(string? resourceVersion, bool immutable, System.Collections.Generic.IReadOnlyDictionary<string, string> data, System.Collections.Generic.IReadOnlyDictionary<string, byte[]> binaryData) { }
+        public System.Collections.Generic.IReadOnlyDictionary<string, byte[]> BinaryData { get; }
+        public System.Collections.Generic.IReadOnlyDictionary<string, string> Data { get; }
+        public bool Immutable { get; }
+        public string? ResourceVersion { get; }
+    }
+    public sealed class KubernetesConfiguration
+    {
+        public KubernetesConfiguration(string server, string? defaultNamespace = null) { }
+        public string? CaCertPem { get; init; }
+        public string? DefaultNamespace { get; init; }
+        public bool InsecureSkipTlsVerify { get; init; }
+        public string Server { get; }
+        public string? Token { get; init; }
+        public static bool IsInCluster { get; }
+        public System.Net.Http.HttpClient CreateHttpClient() { }
+        public override string ToString() { }
+        public static Configlue.Resource.Kubernetes.IKubernetesObjectClient CreateObjectClient(System.Net.Http.HttpClient httpClient) { }
+        public static Configlue.Resource.Kubernetes.KubernetesConfiguration ForInCluster(string? defaultNamespace = null) { }
+        public static Configlue.Resource.Kubernetes.KubernetesConfiguration FromKubeConfigFile(string? path = null, string? contextName = null, string? defaultNamespace = null) { }
+    }
+    public sealed class KubernetesConflictException : Configlue.State.StateConflictException
+    {
+        public KubernetesConflictException(string message) { }
+    }
+    public sealed class KubernetesImmutableException : System.InvalidOperationException
+    {
+        public KubernetesImmutableException(string message) { }
+    }
+    public sealed class KubernetesObjectNotFoundException : System.Exception
+    {
+        public KubernetesObjectNotFoundException(string message) { }
+    }
+    public sealed class KubernetesResource : Configlue.Resources.IResourceIdentity, Configlue.Resources.IResourceReader, Configlue.Resources.IResourceWriter, Configlue.Sources.ISourceWatcher, System.IDisposable
+    {
+        public KubernetesResource(Configlue.Resource.Kubernetes.IKubernetesObjectClient client, Configlue.Resource.Kubernetes.KubernetesResourceKind kind, string @namespace, string name, string? key, Configlue.Resource.Kubernetes.KubernetesResourceOptions? options = null) { }
+        public bool IsWholeObject { get; }
+        public string? Key { get; }
+        public Configlue.Resource.Kubernetes.KubernetesResourceKind Kind { get; }
+        public string Name { get; }
+        public string Namespace { get; }
+        public void Dispose() { }
+        public Configlue.Resources.ResourceId GetResourceId(Configlue.Resources.ConfiglueResourceContext context) { }
+        public System.Threading.Tasks.ValueTask<Configlue.Resources.ResourceReadResult> ReadAsync(Configlue.Resources.ConfiglueResourceContext context, System.Threading.CancellationToken cancellationToken = default) { }
+        public override string ToString() { }
+        public System.Threading.Tasks.ValueTask WaitForChangeAsync(Configlue.Resources.ConfiglueResourceContext context, string? observedRevision, System.Threading.CancellationToken cancellationToken = default) { }
+        public System.Threading.Tasks.ValueTask<Configlue.State.StateWriteResult> WriteAsync(Configlue.Resources.ConfiglueResourceContext context, Configlue.Resources.ResourceWriteRequest request, System.Threading.CancellationToken cancellationToken = default) { }
+    }
+    public sealed class KubernetesResourceExpiredException : System.Exception
+    {
+        public KubernetesResourceExpiredException(string message) { }
+    }
+    public enum KubernetesResourceKind
+    {
+        ConfigMap = 0,
+        Secret = 1,
+    }
+    public sealed class KubernetesResourceOptions
+    {
+        public KubernetesResourceOptions() { }
+        public Configlue.Resources.ResourceId? FixedResourceId { get; init; }
+        public System.Func<Configlue.Resources.ConfiglueResourceContext, string>? KeySelector { get; init; }
+        public System.Func<Configlue.Resources.ConfiglueResourceContext, string>? NameSelector { get; init; }
+        public System.Func<Configlue.Resources.ConfiglueResourceContext, string>? NamespaceSelector { get; init; }
+        public System.TimeSpan WatchReconnectInitialDelay { get; init; }
+        public System.TimeSpan WatchReconnectMaxDelay { get; init; }
+    }
+    public sealed class KubernetesSecretSnapshot
+    {
+        public KubernetesSecretSnapshot(string? resourceVersion, bool immutable, System.Collections.Generic.IReadOnlyDictionary<string, byte[]> data) { }
+        public System.Collections.Generic.IReadOnlyDictionary<string, byte[]> Data { get; }
+        public bool Immutable { get; }
+        public string? ResourceVersion { get; }
+    }
+    public sealed class KubernetesSourceOptions
+    {
+        public KubernetesSourceOptions() { }
+        public Configlue.Resource.Kubernetes.IKubernetesObjectClient? Client { get; init; }
+        public System.Func<System.IServiceProvider?, Configlue.Resource.Kubernetes.IKubernetesObjectClient>? ClientFactory { get; init; }
+        public required Configlue.Codecs.StateCodecBinding Codec { get; init; }
+        public Configlue.Codecs.StateCodecContext CodecContext { get; init; }
+        public Configlue.Sources.StateFallbackCondition FallbackCondition { get; init; }
+        public string? Id { get; init; }
+        public string? Key { get; init; }
+        public required Configlue.Resource.Kubernetes.KubernetesResourceKind Kind { get; init; }
+        public required string Name { get; init; }
+        public required string Namespace { get; init; }
+        public int Priority { get; init; }
+        public Configlue.Resource.Kubernetes.KubernetesResourceOptions? ResourceOptions { get; init; }
+        public bool Writable { get; init; }
+    }
+    public static class KubernetesSourceRegistration
+    {
+        public static Configlue.Extensibility.ConfiglueSourceRegistration FromKubernetes(this Configlue.ConfiglueSourceSetBuilder sources, Configlue.Resource.Kubernetes.KubernetesSourceOptions options) { }
+        public static Configlue.Extensibility.ConfiglueSourceRegistration FromKubernetesConfigMap(this Configlue.ConfiglueSourceSetBuilder sources, string @namespace, string name, string? key, Configlue.Codecs.StateCodecBinding codec, Configlue.Resource.Kubernetes.IKubernetesObjectClient client, System.Action<Configlue.Resource.Kubernetes.KubernetesSourceRegistration.KubernetesSourceOptionsBuilder>? configure = null) { }
+        public static Configlue.Extensibility.ConfiglueSourceRegistration FromKubernetesSecret(this Configlue.ConfiglueSourceSetBuilder sources, string @namespace, string name, string? key, Configlue.Codecs.StateCodecBinding codec, Configlue.Resource.Kubernetes.IKubernetesObjectClient client, System.Action<Configlue.Resource.Kubernetes.KubernetesSourceRegistration.KubernetesSourceOptionsBuilder>? configure = null) { }
+        public sealed class KubernetesSourceOptionsBuilder
+        {
+            public KubernetesSourceOptionsBuilder() { }
+            public Configlue.Resource.Kubernetes.IKubernetesObjectClient? Client { get; set; }
+            public System.Func<System.IServiceProvider?, Configlue.Resource.Kubernetes.IKubernetesObjectClient>? ClientFactory { get; set; }
+            public Configlue.Codecs.StateCodecBinding Codec { get; set; }
+            public Configlue.Codecs.StateCodecContext CodecContext { get; set; }
+            public Configlue.Sources.StateFallbackCondition FallbackCondition { get; set; }
+            public string? Id { get; set; }
+            public string? Key { get; set; }
+            public Configlue.Resource.Kubernetes.KubernetesResourceKind Kind { get; set; }
+            public string Name { get; set; }
+            public string Namespace { get; set; }
+            public int Priority { get; set; }
+            public Configlue.Resource.Kubernetes.KubernetesResourceOptions? ResourceOptions { get; set; }
+            public bool Writable { get; set; }
+            public Configlue.Resource.Kubernetes.KubernetesSourceOptions Build() { }
+        }
+    }
+    public sealed class KubernetesWatchEvent
+    {
+        public KubernetesWatchEvent(Configlue.Resource.Kubernetes.KubernetesWatchType type, string? resourceVersion, Configlue.Resource.Kubernetes.KubernetesConfigMapSnapshot? configMap = null, Configlue.Resource.Kubernetes.KubernetesSecretSnapshot? secret = null, string? errorCode = null, string? errorMessage = null) { }
+        public Configlue.Resource.Kubernetes.KubernetesConfigMapSnapshot? ConfigMap { get; }
+        public string? ErrorCode { get; }
+        public string? ErrorMessage { get; }
+        public bool IsExpired { get; }
+        public string? ResourceVersion { get; }
+        public Configlue.Resource.Kubernetes.KubernetesSecretSnapshot? Secret { get; }
+        public Configlue.Resource.Kubernetes.KubernetesWatchType Type { get; }
+    }
+    public enum KubernetesWatchType
+    {
+        Added = 0,
+        Modified = 1,
+        Deleted = 2,
+        Bookmark = 3,
+        Error = 4,
+    }
+}
