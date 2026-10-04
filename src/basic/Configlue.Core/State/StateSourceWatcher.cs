@@ -34,38 +34,77 @@ public sealed class StateSourceWatcher<T> : ISourceWatcher
         CancellationToken cancellationToken
     )
     {
-        using var watchCancellation = CancellationTokenSource.CreateLinkedTokenSource(
-            cancellationToken
-        );
         using var watchTargets = subject is null
             ? _resolver.GetSourcesForWatch(observedRevision)
             : _resolver.GetSourcesForWatch(subject, context.Route, observedRevision);
-        var watchers = new List<Task>();
+        var targets = watchTargets.Targets;
+
+        var watchableCount = 0;
+        StateSourceWatchTarget<T> singleTarget = default;
+        for (var index = 0; index < targets.Count; index++)
+        {
+            if (targets[index].Source.Watcher is not null)
+            {
+                watchableCount++;
+                if (watchableCount == 1)
+                {
+                    singleTarget = targets[index];
+                }
+            }
+        }
+
+        if (watchableCount == 0)
+        {
+            await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken).ConfigureAwait(false);
+            return;
+        }
+
+        if (watchableCount == 1)
+        {
+            await singleTarget
+                .Source.WaitForChangeAsync(
+                    singleTarget.EffectiveContext,
+                    singleTarget.ObservedRevision,
+                    cancellationToken
+                )
+                .ConfigureAwait(false);
+            return;
+        }
+
+        await WaitManyAsync(watchTargets, watchableCount, cancellationToken).ConfigureAwait(false);
+    }
+
+    private static async ValueTask WaitManyAsync(
+        StateSourceWatchTargets<T> watchTargets,
+        int watchableCount,
+        CancellationToken cancellationToken
+    )
+    {
+        using var watchCancellation = CancellationTokenSource.CreateLinkedTokenSource(
+            cancellationToken
+        );
+        var watchers = new Task[watchableCount];
+        var position = 0;
+        var targets = watchTargets.Targets;
+        for (var index = 0; index < targets.Count; index++)
+        {
+            var target = targets[index];
+            if (target.Source.Watcher is null)
+            {
+                continue;
+            }
+
+            watchers[position++] = target
+                .Source.WaitForChangeAsync(
+                    target.EffectiveContext,
+                    target.ObservedRevision,
+                    watchCancellation.Token
+                )
+                .AsTask();
+        }
+
         try
         {
-            foreach (
-                var target in watchTargets.Targets.Where(static target =>
-                    target.Source.Watcher is not null
-                )
-            )
-            {
-                watchers.Add(
-                    target
-                        .Source.WaitForChangeAsync(
-                            target.EffectiveContext,
-                            target.ObservedRevision,
-                            watchCancellation.Token
-                        )
-                        .AsTask()
-                );
-            }
-
-            if (watchers.Count == 0)
-            {
-                await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken).ConfigureAwait(false);
-                return;
-            }
-
             var finished = await Task.WhenAny(watchers).ConfigureAwait(false);
             await finished.ConfigureAwait(false);
         }
