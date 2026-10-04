@@ -123,6 +123,14 @@ public sealed class SingleBinaryBuilder
     }
 
     /// <summary>Adds one model, optionally selecting a stable storage key independent of its CLR name.</summary>
+    /// <remarks>
+    /// The unnamed state (<c>StateName == ""</c>) is stored at
+    /// <c>models/{storageKey}/options/default.json</c>. The explicit named state
+    /// <c>"default"</c> is stored separately at
+    /// <c>models/{storageKey}/options/named/default.json</c>, so both states persist
+    /// independently. Archives written before this separation keep the shared
+    /// <c>options/default.json</c> entry as the unnamed state's value.
+    /// </remarks>
     public void Add<TModel>(
         Action<ConfiglueModelBuilder<TModel>>? configure = null,
         string? storageKey = null

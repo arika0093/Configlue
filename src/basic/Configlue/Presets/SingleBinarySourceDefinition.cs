@@ -135,9 +135,41 @@ internal static class SingleBinarySourceFactory
         );
     }
 
+    /// <summary>
+    /// Builds the ZIP entry name for a model state.
+    /// </summary>
+    /// <remarks>
+    /// The unnamed state (<paramref name="stateName"/> == "") owns
+    /// <c>models/{modelKey}/options/default.json</c> for backward compatibility.
+    /// The explicit named state <c>"default"</c> is stored separately at
+    /// <c>models/{modelKey}/options/named/default.json</c> so the two states no
+    /// longer overwrite the same entry. Before this fix both names mapped to the
+    /// shared <c>options/default.json</c> entry and the last writer won; existing
+    /// archives keep that shared entry as the unnamed state's value and nothing is
+    /// auto-copied or auto-moved to the named entry. All other non-empty state names
+    /// keep the existing <c>options/{escaped-name}.json</c> layout. State names are
+    /// escaped with <see cref="Uri.EscapeDataString(string)"/>, so <c>'/'</c> becomes
+    /// <c>%2F</c> and user names can never collide with the <c>named/</c> sub-hierarchy.
+    /// The <c>profiles</c> category is unaffected.
+    /// </remarks>
     public static string GetModelEntryName(string modelKey, bool isProfile, string stateName)
     {
         var category = isProfile ? "profiles" : "options";
+        if (!isProfile)
+        {
+            if (stateName.Length == 0)
+            {
+                return $"models/{Escape(modelKey)}/{category}/{Escape("default")}.json";
+            }
+
+            if (string.Equals(stateName, "default", StringComparison.Ordinal))
+            {
+                return $"models/{Escape(modelKey)}/{category}/named/default.json";
+            }
+
+            return $"models/{Escape(modelKey)}/{category}/{Escape(stateName)}.json";
+        }
+
         var name = stateName.Length == 0 ? "default" : stateName;
         return $"models/{Escape(modelKey)}/{category}/{Escape(name)}.json";
     }

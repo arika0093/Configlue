@@ -71,6 +71,319 @@ public sealed class SingleBinaryBuilderTests
     }
 
     [Test]
+    public async Task SingleBinaryUnnamedAndNamedDefaultPersistIndependently()
+    {
+        using var directory = new TemporaryDirectory();
+        var path = Path.Combine(directory.FullPath, "default-collision.bin");
+
+        static void Configure(SingleBinaryBuilder binary)
+        {
+            binary.Add<AppSettings>(storageKey: "app");
+            binary.Add<AppSettings>(model => model.StateName = "default", storageKey: "app");
+            binary.Add<AppSettings>(model => model.StateName = "game", storageKey: "app");
+        }
+
+        await using (var context = CreateContext(path, Configure))
+        {
+            await context.GetState<AppSettings>().SaveAsync(settings => settings.RetryCount = 11);
+            await context
+                .GetState<AppSettings>("default")
+                .SaveAsync(settings => settings.RetryCount = 22);
+            await context
+                .GetState<AppSettings>("game")
+                .SaveAsync(settings => settings.RetryCount = 33);
+
+            (await context.GetState<AppSettings>().GetValueAsync()).RetryCount.ShouldBe(11);
+            (await context.GetState<AppSettings>("default").GetValueAsync()).RetryCount.ShouldBe(
+                22
+            );
+            (await context.GetState<AppSettings>("game").GetValueAsync()).RetryCount.ShouldBe(33);
+        }
+
+        using (var stream = File.OpenRead(path))
+        {
+            using var archive = new ZipArchive(stream, ZipArchiveMode.Read);
+            var entries = archive.Entries.Select(static entry => entry.FullName).ToHashSet();
+            entries.ShouldContain("models/app/options/default.json");
+            entries.ShouldContain("models/app/options/named/default.json");
+            entries.ShouldContain("models/app/options/game.json");
+        }
+
+        await using (var reopened = CreateContext(path, Configure))
+        {
+            (await reopened.GetState<AppSettings>().GetValueAsync()).RetryCount.ShouldBe(11);
+            (await reopened.GetState<AppSettings>("default").GetValueAsync()).RetryCount.ShouldBe(
+                22
+            );
+            (await reopened.GetState<AppSettings>("game").GetValueAsync()).RetryCount.ShouldBe(33);
+
+            // Updating the named default must leave the unnamed state untouched.
+            await reopened
+                .GetState<AppSettings>("default")
+                .SaveAsync(settings => settings.RetryCount = 23);
+            (await reopened.GetState<AppSettings>("default").GetValueAsync()).RetryCount.ShouldBe(
+                23
+            );
+            (await reopened.GetState<AppSettings>().GetValueAsync()).RetryCount.ShouldBe(11);
+        }
+
+        await using var reread = CreateContext(path, Configure);
+        (await reread.GetState<AppSettings>().GetValueAsync()).RetryCount.ShouldBe(11);
+        (await reread.GetState<AppSettings>("default").GetValueAsync()).RetryCount.ShouldBe(23);
+        (await reread.GetState<AppSettings>("game").GetValueAsync()).RetryCount.ShouldBe(33);
+    }
+
+    [Test]
+    public async Task SingleBinaryExistingUnnamedEntryRemainsReadableAfterNamedDefaultSplit()
+    {
+        using var directory = new TemporaryDirectory();
+        var path = Path.Combine(directory.FullPath, "legacy-unnamed.bin");
+
+        // Simulate an archive written before the split: only the unnamed state exists.
+        await using (var legacy = CreateContext(path, binary =>
+            binary.Add<AppSettings>(storageKey: "app")
+        ))
+        {
+            await legacy.GetState<AppSettings>().SaveAsync(settings => settings.RetryCount = 11);
+        }
+
+        static void Configure(SingleBinaryBuilder binary)
+        {
+            binary.Add<AppSettings>(storageKey: "app");
+            binary.Add<AppSettings>(model => model.StateName = "default", storageKey: "app");
+        }
+
+        await using (var context = CreateContext(path, Configure))
+        {
+            // The pre-existing shared entry stays owned by the unnamed state.
+            (await context.GetState<AppSettings>().GetValueAsync()).RetryCount.ShouldBe(11);
+            // The named default starts from defaults instead of copying the unnamed value.
+            (await context.GetState<AppSettings>("default").GetValueAsync()).RetryCount.ShouldBe(
+                3
+            );
+
+            await context
+                .GetState<AppSettings>("default")
+                .SaveAsync(settings => settings.RetryCount = 22);
+            (await context.GetState<AppSettings>().GetValueAsync()).RetryCount.ShouldBe(11);
+            (await context.GetState<AppSettings>("default").GetValueAsync()).RetryCount.ShouldBe(
+                22
+            );
+        }
+
+        using (var stream = File.OpenRead(path))
+        {
+            using var archive = new ZipArchive(stream, ZipArchiveMode.Read);
+            var entries = archive.Entries.Select(static entry => entry.FullName).ToHashSet();
+            entries.ShouldContain("models/app/options/default.json");
+            entries.ShouldContain("models/app/options/named/default.json");
+        }
+
+        await using var reread = CreateContext(path, Configure);
+        (await reread.GetState<AppSettings>().GetValueAsync()).RetryCount.ShouldBe(11);
+        (await reread.GetState<AppSettings>("default").GetValueAsync()).RetryCount.ShouldBe(22);
+    }
+
+    [Test]
+    public async Task SingleBinarySlashStateNamesDoNotCollideWithNamedDefaultHierarchy()
+    {
+        using var directory = new TemporaryDirectory();
+        var path = Path.Combine(directory.FullPath, "slash-names.bin");
+
+        static void Configure(SingleBinaryBuilder binary)
+        {
+            binary.Add<AppSettings>(storageKey: "app");
+            binary.Add<AppSettings>(model => model.StateName = "default", storageKey: "app");
+            binary.Add<AppSettings>(model => model.StateName = "a/b", storageKey: "app");
+            binary.Add<AppSettings>(model => model.StateName = "named", storageKey: "app");
+            binary.Add<AppSettings>(
+                model => model.StateName = "named/default",
+                storageKey: "app"
+            );
+        }
+
+        await using (var context = CreateContext(path, Configure))
+        {
+            await context.GetState<AppSettings>().SaveAsync(settings => settings.RetryCount = 11);
+            await context
+                .GetState<AppSettings>("default")
+                .SaveAsync(settings => settings.RetryCount = 22);
+            await context
+                .GetState<AppSettings>("a/b")
+                .SaveAsync(settings => settings.RetryCount = 33);
+            await context
+                .GetState<AppSettings>("named")
+                .SaveAsync(settings => settings.RetryCount = 44);
+            await context
+                .GetState<AppSettings>("named/default")
+                .SaveAsync(settings => settings.RetryCount = 55);
+        }
+
+        using (var stream = File.OpenRead(path))
+        {
+            using var archive = new ZipArchive(stream, ZipArchiveMode.Read);
+            var entries = archive.Entries.Select(static entry => entry.FullName).ToHashSet();
+            entries.ShouldContain("models/app/options/default.json");
+            entries.ShouldContain("models/app/options/named/default.json");
+            // '/' in state names is escaped, so these never clash with the named/ hierarchy.
+            entries.ShouldContain("models/app/options/a%2Fb.json");
+            entries.ShouldContain("models/app/options/named.json");
+            entries.ShouldContain("models/app/options/named%2Fdefault.json");
+        }
+
+        await using var reopened = CreateContext(path, Configure);
+        (await reopened.GetState<AppSettings>().GetValueAsync()).RetryCount.ShouldBe(11);
+        (await reopened.GetState<AppSettings>("default").GetValueAsync()).RetryCount.ShouldBe(22);
+        (await reopened.GetState<AppSettings>("a/b").GetValueAsync()).RetryCount.ShouldBe(33);
+        (await reopened.GetState<AppSettings>("named").GetValueAsync()).RetryCount.ShouldBe(44);
+        (await reopened.GetState<AppSettings>("named/default").GetValueAsync()).RetryCount.ShouldBe(
+            55
+        );
+    }
+
+    [Test]
+    public async Task SingleBinaryUnnamedAndNamedDefaultAreScopedPerSubject()
+    {
+        using var directory = new TemporaryDirectory();
+        var path = Path.Combine(directory.FullPath, "default-subjects.bin");
+        var subject = new TestSubject("default-user");
+
+        static void Configure(SingleBinaryBuilder binary)
+        {
+            binary.Add<AppSettings>(storageKey: "app");
+            binary.Add<AppSettings>(model => model.StateName = "default", storageKey: "app");
+        }
+
+        await using (var context = CreateContext(path, Configure))
+        {
+            await context.GetState<AppSettings>().SaveAsync(settings => settings.RetryCount = 11);
+            await context
+                .GetState<AppSettings>("default")
+                .SaveAsync(settings => settings.RetryCount = 22);
+
+            var subjects = context.GetSubjectState<AppSettings>();
+            var namedSubjects = context.GetSubjectState<AppSettings>("default");
+            await subjects.ForSubject(subject).SaveAsync(settings => settings.RetryCount = 33);
+            await namedSubjects.ForSubject(subject).SaveAsync(settings => settings.RetryCount = 44);
+
+            (await subjects.ForSubject(subject).GetValueAsync()).RetryCount.ShouldBe(33);
+            (await namedSubjects.ForSubject(subject).GetValueAsync()).RetryCount.ShouldBe(44);
+            (await context.GetState<AppSettings>().GetValueAsync()).RetryCount.ShouldBe(11);
+            (await context.GetState<AppSettings>("default").GetValueAsync()).RetryCount.ShouldBe(
+                22
+            );
+        }
+
+        using (var stream = File.OpenRead(path))
+        {
+            using var archive = new ZipArchive(stream, ZipArchiveMode.Read);
+            var entries = archive.Entries.Select(static entry => entry.FullName).ToHashSet();
+            entries.ShouldContain("models/app/options/default.json");
+            entries.ShouldContain("models/app/options/named/default.json");
+            entries.ShouldContain(SubjectEntryName(subject, "models/app/options/default.json"));
+            entries.ShouldContain(
+                SubjectEntryName(subject, "models/app/options/named/default.json")
+            );
+        }
+
+        await using var reopened = CreateContext(path, Configure);
+        (await reopened.GetState<AppSettings>().GetValueAsync()).RetryCount.ShouldBe(11);
+        (await reopened.GetState<AppSettings>("default").GetValueAsync()).RetryCount.ShouldBe(22);
+        var reopenedSubjects = reopened.GetSubjectState<AppSettings>();
+        var reopenedNamedSubjects = reopened.GetSubjectState<AppSettings>("default");
+        (await reopenedSubjects.ForSubject(subject).GetValueAsync()).RetryCount.ShouldBe(33);
+        (await reopenedNamedSubjects.ForSubject(subject).GetValueAsync()).RetryCount.ShouldBe(44);
+    }
+
+    [Test]
+    public async Task SingleBinaryProfilesRemainSeparateAfterNamedDefaultSplit()
+    {
+        using var directory = new TemporaryDirectory();
+        var path = Path.Combine(directory.FullPath, "profiles-unaffected.bin");
+
+        await using (var context = ConfiglueApp.CreateContext(configure =>
+            configure.UseSingleBinary(binary =>
+            {
+                binary.WithLocal(path).WithProfiles();
+                binary.Add<AppSettings>(storageKey: "app");
+            })
+        ))
+        {
+            await context.GetState<AppSettings>().SaveAsync(settings => settings.RetryCount = 11);
+
+            var profiles = context.GetProfiledState<AppSettings>();
+            var defaultProfile = await profiles.GetProfileAsync("default");
+            await defaultProfile.SaveAsync(settings => settings.RetryCount = 7);
+            await profiles.CreateProfileAsync("work", copyFrom: "default");
+            var workProfile = await profiles.GetProfileAsync("work");
+            await workProfile.SaveAsync(settings => settings.RetryCount = 19);
+        }
+
+        using (var stream = File.OpenRead(path))
+        {
+            using var archive = new ZipArchive(stream, ZipArchiveMode.Read);
+            var entries = archive.Entries.Select(static entry => entry.FullName).ToHashSet();
+            entries.ShouldContain("models/app/options/default.json");
+            entries.ShouldContain("models/app/profiles/default.json");
+            entries.ShouldContain("models/app/profiles/work.json");
+        }
+
+        await using var reopened = ConfiglueApp.CreateContext(configure =>
+            configure.UseSingleBinary(binary =>
+            {
+                binary.WithLocal(path).WithProfiles();
+                binary.Add<AppSettings>(storageKey: "app");
+            })
+        );
+        var reopenedProfiles = reopened.GetProfiledState<AppSettings>();
+        (await reopenedProfiles.GetProfileNamesAsync()).ShouldContain("default");
+        (await reopened.GetState<AppSettings>().GetValueAsync()).RetryCount.ShouldBe(11);
+        (await reopened.GetState<AppSettings>("default").GetValueAsync()).RetryCount.ShouldBe(7);
+        (await reopened.GetState<AppSettings>("work").GetValueAsync()).RetryCount.ShouldBe(19);
+    }
+
+#if !NET48
+    [Test]
+    public async Task SingleBinaryUnnamedAndNamedDefaultRoundTripWithEncryption()
+    {
+        using var directory = new TemporaryDirectory();
+        var path = Path.Combine(directory.FullPath, "encrypted-default.bin");
+
+        await using (var context = ConfiglueApp.CreateContext(configure =>
+            configure.UseSingleBinary(binary =>
+            {
+                binary.WithLocal(path).WithPassphrase("default split secret");
+                binary.Add<AppSettings>(storageKey: "app");
+                binary.Add<AppSettings>(
+                    model => model.StateName = "default",
+                    storageKey: "app"
+                );
+            })
+        ))
+        {
+            await context.GetState<AppSettings>().SaveAsync(settings => settings.RetryCount = 11);
+            await context
+                .GetState<AppSettings>("default")
+                .SaveAsync(settings => settings.RetryCount = 22);
+        }
+
+        await using var reopened = ConfiglueApp.CreateContext(configure =>
+            configure.UseSingleBinary(binary =>
+            {
+                binary.WithLocal(path).WithPassphrase("default split secret");
+                binary.Add<AppSettings>(storageKey: "app");
+                binary.Add<AppSettings>(
+                    model => model.StateName = "default",
+                    storageKey: "app"
+                );
+            })
+        );
+        (await reopened.GetState<AppSettings>().GetValueAsync()).RetryCount.ShouldBe(11);
+        (await reopened.GetState<AppSettings>("default").GetValueAsync()).RetryCount.ShouldBe(22);
+    }
+#endif
+
+    [Test]
     public async Task SingleBinaryUsesTheSelectedHostProfileForUserGlobalPaths()
     {
         using var directory = new TemporaryDirectory();
