@@ -160,6 +160,7 @@ namespace Configlue.DevTools
         public ConfiglueViewerTextEdit(Configlue.DevTools.ConfiglueViewerRange Range, string Text) { }
         public Configlue.DevTools.ConfiglueViewerRange Range { get; init; }
         public string Text { get; init; }
+    }
     public interface IConfiglueDevToolsBrowserLauncher
     {
         System.Threading.Tasks.Task OpenAsync(string url, System.Threading.CancellationToken cancellationToken = default);

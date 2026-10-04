@@ -348,6 +348,8 @@ internal sealed class ConfiglueDevToolsEntry<TModel> : IConfiglueDevToolsEntry
                 _viewerHashes.Remove(oldest);
             }
         }
+    }
+
     private static string DescribeSubject(SubjectKey? key) =>
         key is null || key.Value.IsDefault ? "default" : key.Value.Value;
 
