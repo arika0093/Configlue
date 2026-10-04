@@ -136,6 +136,24 @@ The initial candidate added a scan before detecting changed nested metadata (16-
 
 Eleven semantic cases verify stable/fresh values and all-source reads, captured contributions, changed/removed nested identities and retained old vectors, source retirement, unavailable/recovered statuses, replacement proposals, and concurrent subject values/revisions with both equal and distinct revision tokens. Final Release net10.0 passes 1,697 tests, zero failures, 17 external-service skips. Core builds all three frameworks with zero warnings/errors. Resolution result/probe/contribution types move unchanged to `RuntimeResolutionTypes.cs`, bringing the modified engine file below the repository's 800-line rule. Formatting and whitespace checks pass. Diagnostic coverage allocates approximately 2.11 KB in all ten modes after snapshot reuse (previously 2.2/2.28 KB); several timing changes are within noise.
 
+## Round 8: typed runtime operation leases
+
+`RuntimeLifetime.EnterOperation` now returns its existing readonly OperationLease struct directly rather than through IDisposable. All production callers use a typed using local; operation counting, gates, owner checks, Dispose, and shutdown logic remain unchanged. This removes a box when the lease lives in an async state machine. Reports are retained in `artifacts/perf-round8/before`, `after`, and `confirm`; full runtime before values are round 7 `after-final`.
+
+| Path | Before allocation | After allocation |
+| --- | ---: | ---: |
+| Synchronous lease | 0 B | 0 B |
+| Lease across Task.Yield | 136 B | 112 B |
+| Stable runtime, 1/4/16 sources | 336 B | 312 B |
+| Changed revision, 1 source | 424 B | 400 B |
+| Changed revision, 4 sources | 512 B | 488 B |
+| Changed revision, 16 sources | 1,072 B | 1,048 B |
+| Changed nested vector, 16 sources | 1,104 B | 1,080 B |
+
+The isolated synchronous lease already had zero allocation because the .NET 10 JIT elides its box. That baseline prevented an incorrect blanket allocation claim. Across Task.Yield the mean is unchanged (665.23 to 663.93 ns); the improvement is 24 B per lease. All nine full-runtime cases also remove exactly 24 B. Initial candidate timings include large outliers, so four affected cases were repeated with six measurement iterations: stable 1/4/16 = 306.0/512.4/1,098.9 ns, changed revision/4 = 530.3 ns, with small errors. Versus round 7 final 318.6/482.3/1,108.9 ns and 519.1 ns, the four-source means increase; no universal latency improvement is claimed for this change. Allocation reduction applies to the common lease used by read, write, migration, and edit operations; only the measured read/lease timing/allocation figures are asserted here.
+
+Two async shutdown tests exercise leases spanning an incomplete await and verify draining after both normal and exceptional completion, while new operations are rejected after shutdown. A warmed synchronous budget verifies zero allocation and no leaked active-operation count. Full Release net10.0 passes 1,700 tests, zero failures, 17 external-service skips. Core builds all three target frameworks with zero warnings/errors; formatting and whitespace checks pass.
+
 ## Integrated checkpoint after round 5
 
 All five verified rounds have been committed and cherry-picked into local main, preserving unrelated CI and timer-test fixes. Integrated main at `f1728ab3` passes the full Release net10.0 suite: 1,674 passed, zero failed, 17 skipped external-service tests. Its log is retained in the main worktree's ignored `artifacts/perf-integrated/tests.log`. No remote push has been performed. The working tree is clean after the audit documentation commit. The optimization goal remains active; the following coverage gaps are still outstanding.
@@ -146,7 +164,7 @@ These are outstanding, not claims of saturation:
 
 - Resolver: unchanged revision/watch snapshots now reuse immutable state. Audit changed-revision and cold costs, subject key construction and context equality, and reader allocations. Preserve fresh source reads, failover, immutable escaped snapshots, and subject residency/eviction semantics.
 - JSON: immutable plain schema-bearing object metadata is now cached. Continue auditing envelope/section reads and fallback serialization allocations, including mutable metadata and cold setup costs. Preserve callbacks, polymorphism, converters, ordering, and all serializer options.
-- Runtime reads, validation, diagnostics, and watch notification: sample disabled, snapshot, history, listener, and telemetry modes; check for internal use of materializing public revision views.
+- Runtime reads, validation, diagnostics, and watch notification: diagnostic modes and watcher membership have been measured; stable resolver/runtime revision snapshots and common lease boxing are optimized. Continue auditing annotation-validation allocations, model clone/merge costs, cold/changed paths, and notification fan-out/cancellation/draining.
 - Generated fragments: audit merge, collection merge, clone/diff/equality, sparse routing, nested paths, and member lookup against existing benchmarks and tests.
 - Write paths: audit routed saves, batch plans, composite edits, serialized writes, and file backup/locking overhead.
 - Sources and codecs: audit environment, command line, JSON/JSONC sections, YAML, XML, MessagePack, and schema metadata decode.

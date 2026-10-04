@@ -14,6 +14,19 @@ public partial class NoValidationBudgetSettings
 public sealed class RuntimeHotPathAllocationTests
 {
     [Test]
+    public void RuntimeOperationLease_DoesNotAllocateOrLeaveActiveOperations()
+    {
+        var lifetime = new RuntimeLifetime();
+        Measure(() =>
+            {
+                using var operation = lifetime.EnterOperation();
+            })
+            .ShouldBe(0);
+        lifetime.TryBeginShutdown(out var drained).ShouldBeTrue();
+        drained.IsCompletedSuccessfully.ShouldBeTrue();
+    }
+
+    [Test]
     public void ReadResultFactories_DoNotAllocate()
     {
         var value = new object();

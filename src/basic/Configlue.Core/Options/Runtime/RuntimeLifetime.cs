@@ -35,7 +35,7 @@ internal sealed class RuntimeLifetime
     }
 
     /// <summary>Enters one tracked operation; throws once shutdown has begun.</summary>
-    internal IDisposable EnterOperation()
+    internal OperationLease EnterOperation()
     {
         lock (_gate)
         {
@@ -143,7 +143,7 @@ internal sealed class RuntimeLifetime
         }
     }
 
-    private readonly struct OperationLease(RuntimeLifetime? owner) : IDisposable
+    internal readonly struct OperationLease(RuntimeLifetime? owner) : IDisposable
     {
         public void Dispose() => owner?.ExitOperation();
     }
