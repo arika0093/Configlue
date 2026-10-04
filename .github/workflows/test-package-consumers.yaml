@@ -3,8 +3,13 @@ name: Packed package consumers
 # Tier 2 / main + release gate with a packaging-surface PR filter (#273).
 # Pack + consumer + NativeAOT verification is expensive, so on pull
 # requests it runs only when packaging inputs, consumer fixtures, or this
-# workflow change. Main pushes, release.yaml and manual dispatch always
-# run it.
+# workflow change. Source-only PRs intentionally defer NativeAOT to the
+# main/release gate. Main pushes always run it (the push trigger below has
+# no paths filter, and release.yaml also invokes it via workflow_call
+# alongside strict-test), so a merge cannot slip through unverified even
+# though strict-test no longer nests a NativeAOT check (#275). The weekly
+# schedule is inherited from the removed test-nativeaot.yaml to keep
+# push-independent drift detection (SDK / upstream MessagePack updates).
 
 on:
   workflow_call:
@@ -27,6 +32,10 @@ on:
       - 'tests/fixtures/consumers/**'
       - '.github/workflows/test-package-consumers.yaml'
       - '.github/workflows/scripts/verify-*.sh'
+      - '.github/workflows/scripts/assert-supported-aot-diagnostics.sh'
+  schedule:
+    # Weekly drift cadence inherited from test-nativeaot.yaml (#275).
+    - cron: '0 4 * * 1'
   workflow_dispatch:
 
 permissions:
@@ -214,6 +223,51 @@ jobs:
           version="$(basename "$package" | sed -E 's/^SparseFragments\.(.+)\.nupkg$/\1/')"
           echo "CONFIGLUE_PACKAGE_VERSION=$version" >> "$GITHUB_ENV"
           echo "CONFIGLUE_PACKAGE_FEED=$(realpath artifacts/packages)" >> "$GITHUB_ENV"
+
+      - name: Self-test AOT diagnostic gate (synthetic logs)
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Tripwire for the gate itself (#275): without a negative control the
+          # supported-consumer publish below would stay green even if
+          # assert-supported-aot-diagnostics.sh became blind (e.g. a regex that
+          # matches nothing). These synthetic logs prove the script still
+          # accepts the proven residual and rejects anything else, with no
+          # extra NativeAOT publish cost.
+          gate="./.github/workflows/scripts/assert-supported-aot-diagnostics.sh"
+          tmp="$(mktemp -d)"
+          trap 'rm -rf "$tmp"' EXIT
+          cat > "$tmp/positive.log" <<'EOF'
+          ILC : AOT analysis warning IL3050: MessagePack.MessagePackSecurity.ObjectFallbackEqualityComparer.GetHashCode(Object): Using member 'System.Reflection.MethodInfo.MakeGenericMethod(Type[])' which has 'RequiresDynamicCodeAttribute' can break functionality when AOT compiling. The native code for this instantiation might not be available at runtime. [/home/runner/work/Configlue/Configlue/tests/fixtures/consumers/native-aot-supported/NativeAot.Supported.Consumer.csproj]
+          ILC : Trim analysis warning IL2060: MessagePack.MessagePackSecurity.ObjectFallbackEqualityComparer.GetHashCode(Object): Call to 'System.Reflection.MethodInfo.MakeGenericMethod(Type[])' can not be statically analyzed. It's not possible to guarantee the availability of requirements of the generic method. [/home/runner/work/Configlue/Configlue/tests/fixtures/consumers/native-aot-supported/NativeAot.Supported.Consumer.csproj]
+          EOF
+          cat > "$tmp/empty.log" <<'EOF'
+          Publish succeeded without trimming diagnostics.
+          EOF
+          cat > "$tmp/negative-configlue.log" <<'EOF'
+          ILC : AOT analysis warning IL3050: MessagePack.MessagePackSecurity.ObjectFallbackEqualityComparer.GetHashCode(Object): Using member 'System.Reflection.MethodInfo.MakeGenericMethod(Type[])' which has 'RequiresDynamicCodeAttribute' can break functionality when AOT compiling. The native code for this instantiation might not be available at runtime. [/home/runner/work/Configlue/Configlue/tests/fixtures/consumers/native-aot-supported/NativeAot.Supported.Consumer.csproj]
+          ILC : AOT analysis warning IL3050: Configlue.Provider.Json.JsonFragmentConverter`1.Read(System.Text.Json.Utf8JsonReader&,System.Type,System.Text.Json.JsonSerializerOptions): Using member 'System.Text.Json.JsonSerializer.Deserialize' which has 'RequiresDynamicCodeAttribute' can break functionality when AOT compiling. The native code for this instantiation might not be available at runtime. [/home/runner/work/Configlue/Configlue/tests/fixtures/consumers/native-aot-supported/NativeAot.Supported.Consumer.csproj]
+          EOF
+          cat > "$tmp/negative-code.log" <<'EOF'
+          ILC : Trim analysis warning IL2026: Configlue.Core.Something.Do(): Using member 'System.Reflection.MethodInfo.Invoke' which has 'RequiresUnreferencedCodeAttribute' can break functionality when trimming application code. [/home/runner/work/Configlue/Configlue/tests/fixtures/consumers/native-aot-supported/NativeAot.Supported.Consumer.csproj]
+          EOF
+          if ! bash "$gate" "$tmp/positive.log"; then
+            echo "Gate rejected the proven-residual-only log; it should have passed." >&2
+            exit 1
+          fi
+          if ! bash "$gate" "$tmp/empty.log"; then
+            echo "Gate rejected a diagnostic-free log; it should have passed." >&2
+            exit 1
+          fi
+          if bash "$gate" "$tmp/negative-configlue.log"; then
+            echo "Gate accepted a Configlue IL3050 diagnostic; it should have failed." >&2
+            exit 1
+          fi
+          if bash "$gate" "$tmp/negative-code.log"; then
+            echo "Gate accepted an unexpected IL2026 diagnostic; it should have failed." >&2
+            exit 1
+          fi
+          echo "Diagnostic-gate self-test passed (positive/negative controls)."
 
       - name: Publish warning-clean NativeAOT consumer
         shell: bash
