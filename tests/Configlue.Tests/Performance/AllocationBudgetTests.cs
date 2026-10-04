@@ -1,93 +1,23 @@
 #if NET10_0_OR_GREATER
-using System.Buffers;
-using Configlue.CompilerServices;
-using Configlue.Provider.Json;
-
 namespace Configlue.Tests;
 
-/// <summary>Reference-only fragment used by the fragment equality allocation budgets.</summary>
-[ConfiglueModel("fragment-equality-budget")]
-public partial class FragmentEqualityBudgetSettings
-{
-    /// <summary>Gets or sets the fragment equality budget name.</summary>
-    public string Name { get; set; } = "default";
-
-    /// <summary>Gets or sets the fragment equality budget label.</summary>
-    public string Label { get; set; } = "label";
-}
-
 /// <summary>
-/// Deterministic allocation budgets for the hot paths optimized in issues
-/// #164-#176. These are coarse invariants measured with
+/// Deterministic allocation budgets for material hot-path contracts (issue #276).
+/// These are coarse invariants measured with
 /// <see cref="GC.GetAllocatedBytesForCurrentThread"/> after warm-up, not exact
-/// byte counts: they fail only if an optimization regresses back to a
-/// materializing implementation. BenchmarkDotNet groups in
-/// <c>benchmarks/Configlue.Benchmarks</c> provide the fine-grained
-/// before/after numbers.
+/// byte counts: they fail only if an implementation regresses to a materializing
+/// shape (hundreds of entries, per-chunk buffers, per-read dictionaries).
+/// Exact zero-allocation assertions for nanosecond-scale paths were removed:
+/// they coupled production complexity to incidental JIT/allocator behavior
+/// without moving the simple-settings product budgets. BenchmarkDotNet groups in
+/// <c>benchmarks/Configlue.Benchmarks</c> (notably
+/// <c>SingleFileSettingsBenchmarks</c>) remain the investigative and
+/// decision-making metric.
 /// </summary>
 // Allocation measurements share the process GC and ArrayPool caches.
 [NotInParallel]
 public sealed class AllocationBudgetTests
 {
-    [Test]
-    public void FragmentEquality_ReferenceMembers_AllocatesNothing()
-    {
-        var left = new FragmentEqualityBudgetSettings.Fragment
-        {
-            Name = Optional<string>.Present("root"),
-            Label = Optional<string>.Present("label"),
-        };
-        var right = new FragmentEqualityBudgetSettings.Fragment
-        {
-            Name = Optional<string>.Present("root"),
-            Label = Optional<string>.Present("label"),
-        };
-
-        var equal = false;
-        var allocated = Measure(() =>
-        {
-            equal = ConfiglueFragmentComparer.AreEqual(left, right);
-        });
-
-        equal.ShouldBeTrue();
-        allocated.ShouldBe(0);
-    }
-
-    [Test]
-    public void SequenceEquality_StreamsWithoutAllocating()
-    {
-        var left = Enumerable.Range(0, 64).Select(static index => $"item-{index}").ToList();
-        var right = Enumerable.Range(0, 64).Select(static index => $"item-{index}").ToList();
-
-        var equal = false;
-        var allocated = Measure(() =>
-        {
-            equal = ConfiglueValueComparer.AreEqual(left, right);
-        });
-
-        equal.ShouldBeTrue();
-        allocated.ShouldBe(0);
-    }
-
-    [Test]
-    public void SetEquality_UsesNativeSemanticsWithoutAllocating()
-    {
-        var left = Enumerable.Range(0, 64).Select(static index => $"item-{index}").ToHashSet();
-        var right = Enumerable
-            .Range(0, 64)
-            .Select(static index => $"item-{63 - index}")
-            .ToHashSet();
-
-        var equal = false;
-        var allocated = Measure(() =>
-        {
-            equal = ConfiglueValueComparer.AreEqual(left, right);
-        });
-
-        equal.ShouldBeTrue();
-        allocated.ShouldBe(0);
-    }
-
     [Test]
     public void DictionaryEquality_DoesNotMaterializeEntries()
     {
@@ -122,51 +52,18 @@ public sealed class AllocationBudgetTests
             .ToDictionary(static index => $"key-{index}", static index => $"value-{index}");
 
     [Test]
-    public void StripUtf8Bom_SingleSegmentPrefix_AllocatesNothing()
-    {
-        var withBom = new byte[] { 0xEF, 0xBB, 0xBF, (byte)'{', (byte)'}' };
-        var withoutBom = new byte[] { (byte)'{', (byte)'}' };
-        var withBomSequence = new ReadOnlySequence<byte>(withBom);
-        var withoutBomSequence = new ReadOnlySequence<byte>(withoutBom);
-
-        var allocated = Measure(() =>
-        {
-            _ = JsonStateCodecOperations.StripUtf8Bom(in withBomSequence);
-            _ = JsonStateCodecOperations.StripUtf8Bom(in withoutBomSequence);
-        });
-
-        allocated.ShouldBe(0);
-    }
-
-    [Test]
-    public void StripUtf8Bom_SegmentedPrefix_AllocatesNothing()
-    {
-        // Split the 3-byte BOM across two segments so the slow prefix path runs.
-        var first = new TestSequenceSegment(new byte[] { 0xEF });
-        var second = first.Append(new byte[] { 0xBB, 0xBF, (byte)'{', (byte)'}' });
-        var sequence = new ReadOnlySequence<byte>(first, 0, second, 4);
-
-        // Shouldly builds assertion messages on the calling thread, so record the
-        // outcome and assert outside the measured region.
-        var strippedLength = 0;
-        var allocated = Measure(() =>
-        {
-            strippedLength = (int)JsonStateCodecOperations.StripUtf8Bom(in sequence).Length;
-        });
-
-        strippedLength.ShouldBe(2);
-        allocated.ShouldBe(0);
-    }
-
-    [Test]
     public void SingleSourceRevisionVector_ConstructionAndLookup_HasFixedSmallBudget()
     {
         var revision = new StateRevision(SourceId.From("source"), "revision-1");
         var missing = SourceId.From("missing");
 
-        // One small vector object (~88 bytes); the lookup itself allocates nothing.
-        // Outcomes are recorded and asserted outside the measured region because
-        // assertion helpers allocate on the calling thread.
+        // One small dictionary-backed vector per construction (~288 bytes on
+        // net10.0/x64 for the dictionary, its entries, and the read-only
+        // wrapper); the lookups themselves allocate nothing. The bound stays
+        // coarse so allocator alignment differences across platforms do not
+        // turn it into trivia. Outcomes are recorded and asserted outside
+        // the measured region because assertion helpers allocate on the calling
+        // thread.
         var hit = false;
         var miss = true;
         var allocated = Measure(() =>
@@ -178,49 +75,7 @@ public sealed class AllocationBudgetTests
 
         hit.ShouldBeTrue();
         miss.ShouldBeFalse();
-        allocated.ShouldBeLessThanOrEqualTo(128 * Iterations);
-    }
-
-    [Test]
-    public void OrdinalFragmentEnumeration_DoesNotAllocateIterator()
-    {
-        var fragment = new AppSettings.Fragment { Label = Optional<string?>.Present("label") };
-        fragment.ShouldBeAssignableTo<IConfiglueOrdinalDynamicFragment>();
-
-        // Assertion helpers allocate on the calling thread, so record the
-        // traversal outcome and assert outside the measured region.
-        var count = 0;
-        object? value = null;
-        var allocated = Measure(() =>
-        {
-            count = 0;
-            value = null;
-            foreach (var member in fragment.EnumeratePresentMembersFast())
-            {
-                count++;
-                value = member.Value;
-            }
-        });
-
-        count.ShouldBe(1);
-        value.ShouldBe("label");
-        allocated.ShouldBe(0);
-    }
-
-    [Test]
-    public void TransformerAsyncCapabilityCheck_DoesNotRescanPerOperation()
-    {
-        IStateByteTransformer[] transformers = [new SyncTransformer()];
-
-        // The first call populates the cached capability; later calls reuse it.
-        var hasAsync = true;
-        var allocated = Measure(() =>
-        {
-            hasAsync = StateByteTransformerPipeline.HasAsync(transformers);
-        });
-
-        hasAsync.ShouldBeFalse();
-        allocated.ShouldBe(0);
+        allocated.ShouldBeLessThanOrEqualTo(384 * Iterations);
     }
 
     [Test]
@@ -284,28 +139,6 @@ public sealed class AllocationBudgetTests
             contentFingerprintCompleted: static _ => { }
         );
         _ = await result.ReadAllAsync().ConfigureAwait(false);
-    }
-
-    private sealed class SyncTransformer : ISynchronousStateByteTransformer
-    {
-        public ReadOnlyMemory<byte> TransformRead(ReadOnlyMemory<byte> source) => source;
-
-        public ReadOnlyMemory<byte> TransformWrite(ReadOnlyMemory<byte> source) => source;
-    }
-
-    private sealed class TestSequenceSegment : ReadOnlySequenceSegment<byte>
-    {
-        public TestSequenceSegment(ReadOnlyMemory<byte> memory) => Memory = memory;
-
-        public TestSequenceSegment Append(ReadOnlyMemory<byte> memory)
-        {
-            var segment = new TestSequenceSegment(memory)
-            {
-                RunningIndex = RunningIndex + Memory.Length,
-            };
-            Next = segment;
-            return segment;
-        }
     }
 
     private sealed class ChunkedMemoryStream(byte[] content, int chunkSize)

@@ -1,4 +1,3 @@
-using System.Buffers;
 using System.Collections.Concurrent;
 using System.Diagnostics;
 using Configlue.Resources;
@@ -123,196 +122,114 @@ internal sealed class StateSourceResolver<T> : ISourceReader<T>
         CancellationToken cancellationToken
     )
     {
-        if (_sourceSet.Count == 1)
-        {
-            return await ReadSingleSourceAsync(_sourceSet[0], subject, context, cancellationToken)
-                .ConfigureAwait(false);
-        }
-
         StateReadResult<T> lastResult = default;
-        var revisions = ArrayPool<StateRevision>.Shared.Rent(_sourceSet.Count);
+        // Scratch observation state is freshly allocated per read and never retained. The
+        // retained topology and unchanged revision observations are reused from the
+        // previous resolution; only changed reads allocate a new revision vector.
+        // Per-read scratch arrays are small Gen0 allocations (issue #276): pooling them
+        // saved on the order of a hundred bytes per multi-source read while adding
+        // Rent/Clear/Return discipline to every read, which is negligible within
+        // budgets dominated by source I/O.
+        var revisions = new StateRevision[_sourceSet.Count];
         var revisionCount = 0;
-        // Scratch observation state: pooled per read and never retained. The retained
-        // topology and unchanged revision observations are reused from the previous
-        // resolution. Changed observations are copied into freshly owned escaping arrays,
-        // never retained in pooled scratch storage.
-        var watchScratch = ArrayPool<WatchScratchEntry>.Shared.Rent(_sourceSet.Count);
+        var watchScratch = new WatchScratchEntry[_sourceSet.Count];
         var watchTargetCount = 0;
         var previousResolution = PeekResolution(subject, context);
         var previousTopology = previousResolution?.Topology;
         var topologyMatches = previousTopology is not null;
         KeyValuePair<SourceId, StateRevisionVector>[]? nestedRevisions = null;
         var nestedRevisionCount = 0;
-        try
+        for (var index = 0; index < _sourceSet.Count; index++)
         {
-            for (var index = 0; index < _sourceSet.Count; index++)
-            {
-                var source = _sourceSet[index];
-                cancellationToken.ThrowIfCancellationRequested();
-                var effectiveContext = GetEffectiveContext(source, subject, context);
-                var result = (
-                    await ReadSourceAsync(source, effectiveContext, cancellationToken)
-                        .ConfigureAwait(false)
-                ).FromSource(source.Id, source.PhysicalOrigin);
-                watchScratch[watchTargetCount] = new WatchScratchEntry(
-                    source,
-                    effectiveContext,
-                    result.Revision,
-                    result.Revisions
-                );
-                if (topologyMatches)
-                {
-                    topologyMatches = TopologyMatches(
-                        previousTopology!,
-                        watchTargetCount,
-                        source,
-                        effectiveContext
-                    );
-                }
-
-                watchTargetCount++;
-                if (_logger is { } readLogger)
-                {
-                    ResolverLogging.Read(readLogger, source.Id, result.Status, null);
-                }
-                revisions[revisionCount++] = new StateRevision(source.Id, result.Revision);
-                if (result.Revisions is { } nestedVector)
-                {
-                    nestedRevisions ??= ArrayPool<
-                        KeyValuePair<SourceId, StateRevisionVector>
-                    >.Shared.Rent(_sourceSet.Count);
-                    nestedRevisions[nestedRevisionCount++] = new(source.Id, nestedVector);
-                }
-
-                if (result.Status == StateReadStatus.Success)
-                {
-                    var resolution = CreateOrReuseResolution(
-                        previousResolution,
-                        topologyMatches,
-                        watchScratch,
-                        watchTargetCount,
-                        source,
-                        revisions,
-                        nestedRevisions,
-                        nestedRevisionCount
-                    );
-                    SetResolution(subject, context, resolution);
-                    return result with { Revisions = resolution.Revisions };
-                }
-
-                var canFallBack = CanFallBack(source.FallbackCondition, result.Status);
-                if (_logger is { } fallbackLogger)
-                {
-                    ResolverLogging.Fallback(fallbackLogger, source.Id, result.Status, canFallBack);
-                }
-                if (!canFallBack)
-                {
-                    var resolution = CreateOrReuseResolution(
-                        previousResolution,
-                        topologyMatches,
-                        watchScratch,
-                        watchTargetCount,
-                        null,
-                        revisions,
-                        nestedRevisions,
-                        nestedRevisionCount
-                    );
-                    SetResolution(subject, context, resolution);
-                    return result with { Revisions = resolution.Revisions };
-                }
-
-                lastResult = result;
-            }
-
-            var finalResolution = CreateOrReuseResolution(
-                previousResolution,
-                topologyMatches,
-                watchScratch,
-                watchTargetCount,
-                null,
-                revisions,
-                nestedRevisions,
-                nestedRevisionCount
+            var source = _sourceSet[index];
+            cancellationToken.ThrowIfCancellationRequested();
+            var effectiveContext = GetEffectiveContext(source, subject, context);
+            var result = (
+                await ReadSourceAsync(source, effectiveContext, cancellationToken)
+                    .ConfigureAwait(false)
+            ).FromSource(source.Id, source.PhysicalOrigin);
+            watchScratch[watchTargetCount] = new WatchScratchEntry(
+                source,
+                effectiveContext,
+                result.Revision,
+                result.Revisions
             );
-            SetResolution(subject, context, finalResolution);
-            return lastResult with { Revisions = finalResolution.Revisions };
-        }
-        finally
-        {
-            Array.Clear(revisions, 0, revisions.Length);
-            ArrayPool<StateRevision>.Shared.Return(revisions);
-            Array.Clear(watchScratch, 0, watchScratch.Length);
-            ArrayPool<WatchScratchEntry>.Shared.Return(watchScratch);
-            if (nestedRevisions is not null)
+            if (topologyMatches)
             {
-                ArrayPool<KeyValuePair<SourceId, StateRevisionVector>>.Shared.Return(
-                    nestedRevisions,
-                    clearArray: true
+                topologyMatches = TopologyMatches(
+                    previousTopology!,
+                    watchTargetCount,
+                    source,
+                    effectiveContext
                 );
             }
-        }
-    }
 
-    private async ValueTask<StateReadResult<T>> ReadSingleSourceAsync(
-        StateSource<T> source,
-        IConfiglueSubject? subject,
-        ConfiglueResourceContext context,
-        CancellationToken cancellationToken
-    )
-    {
-        cancellationToken.ThrowIfCancellationRequested();
-        var effectiveContext = GetEffectiveContext(source, subject, context);
-        var result = (
-            await ReadSourceAsync(source, effectiveContext, cancellationToken).ConfigureAwait(false)
-        ).FromSource(source.Id, source.PhysicalOrigin);
-        if (_logger is { } logger)
-        {
-            ResolverLogging.Read(logger, source.Id, result.Status, null);
-        }
-        // Single-source topology is stored inline (no heap array). When routing is
-        // unchanged the previous immutable topology instance is reused outright.
-        var previousResolution = PeekResolution(subject, context);
-        var previousTopology = previousResolution?.Topology;
-        var activeSource = result.Status == StateReadStatus.Success ? source : null;
-        ResolverWatchTopology<T> topology;
-        if (
-            previousTopology is not null
-            && previousTopology.Count == 1
-            && TopologyMatches(previousTopology, 0, source, effectiveContext)
-        )
-        {
-            topology = previousTopology;
-            previousResolution!.Revisions.TryGetNestedRevisions(source.Id, out var nested);
-            if (
-                ReferenceEquals(previousResolution.ActiveSource, activeSource)
-                && string.Equals(
-                    previousResolution.SingleObservedRevision,
-                    result.Revision,
-                    StringComparison.Ordinal
-                )
-                && ReferenceEquals(nested, result.Revisions)
-            )
+            watchTargetCount++;
+            if (_logger is { } readLogger)
             {
-                // Only immutable watch/revision identity is reused. Source reads and result values stay fresh.
-                SetResolution(subject, context, previousResolution);
-                return result with { Revisions = previousResolution.Revisions };
+                ResolverLogging.Read(readLogger, source.Id, result.Status, null);
             }
-        }
-        else
-        {
-            topology = new ResolverWatchTopology<T>(source, effectiveContext);
+            revisions[revisionCount++] = new StateRevision(source.Id, result.Revision);
+            if (result.Revisions is { } nestedVector)
+            {
+                nestedRevisions ??= new KeyValuePair<SourceId, StateRevisionVector>[
+                    _sourceSet.Count
+                ];
+                nestedRevisions[nestedRevisionCount++] = new(source.Id, nestedVector);
+            }
+
+            if (result.Status == StateReadStatus.Success)
+            {
+                var resolution = CreateOrReuseResolution(
+                    previousResolution,
+                    topologyMatches,
+                    watchScratch,
+                    watchTargetCount,
+                    source,
+                    revisions,
+                    nestedRevisions,
+                    nestedRevisionCount
+                );
+                SetResolution(subject, context, resolution);
+                return result with { Revisions = resolution.Revisions };
+            }
+
+            var canFallBack = CanFallBack(source.FallbackCondition, result.Status);
+            if (_logger is { } fallbackLogger)
+            {
+                ResolverLogging.Fallback(fallbackLogger, source.Id, result.Status, canFallBack);
+            }
+            if (!canFallBack)
+            {
+                var resolution = CreateOrReuseResolution(
+                    previousResolution,
+                    topologyMatches,
+                    watchScratch,
+                    watchTargetCount,
+                    null,
+                    revisions,
+                    nestedRevisions,
+                    nestedRevisionCount
+                );
+                SetResolution(subject, context, resolution);
+                return result with { Revisions = resolution.Revisions };
+            }
+
+            lastResult = result;
         }
 
-        var revisionVector = StateRevisionVector.FromSingle(
-            new(source.Id, result.Revision),
-            result.Revisions
+        var finalResolution = CreateOrReuseResolution(
+            previousResolution,
+            topologyMatches,
+            watchScratch,
+            watchTargetCount,
+            null,
+            revisions,
+            nestedRevisions,
+            nestedRevisionCount
         );
-        SetResolution(
-            subject,
-            context,
-            new Resolution(activeSource, revisionVector, topology, result.Revision)
-        );
-        return result with { Revisions = revisionVector };
+        SetResolution(subject, context, finalResolution);
+        return lastResult with { Revisions = finalResolution.Revisions };
     }
 
     private static ConfiglueResourceContext GetEffectiveContext(

@@ -125,10 +125,13 @@ Streaming comparison: every group above uses `MemoryDiagnoser`. Compare `Allocat
 Deterministic allocation budgets live in `tests/Configlue.Tests/Performance/AllocationBudgetTests.cs`
 (net10.0 only) and run in the normal test suite. They use
 `GC.GetAllocatedBytesForCurrentThread()` after warm-up with coarse budgets, covering
-BOM detection (#175), single-source revision vectors (#169), ordinal fragment
-enumeration (#170), transformer async-capability caching (#175), and
-chunk-count-independent pipeline fingerprinting (#173). Assert outcomes outside the
+dictionary-equality without entry materialization, chunk-count-independent pipeline
+fingerprinting, and single-source revision-vector construction. Exact zero-allocation
+assertions were removed in issue #276: they coupled production complexity to incidental
+JIT/allocator behavior without moving the product budgets. Assert outcomes outside the
 measured region: assertion helpers allocate on the calling thread.
+`SingleFileSettingsBenchmarks` above is the higher-level decision metric for
+allocation work, not isolated nanosecond/allocation tests.
 
 ```shell
 dotnet test tests/Configlue.Tests/Configlue.Tests.csproj -c Release -f net10.0 -- --treenode-filter "/*/*/*AllocationBudgetTests/*"

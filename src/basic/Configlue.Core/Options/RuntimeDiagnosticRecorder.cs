@@ -59,8 +59,9 @@ internal sealed class RuntimeDiagnosticRecorder : IConfiglueRuntimeDiagnostics
     // Fast path for the fully-disabled case: one cached static branch plus only the
     // truly-dynamic checks (explicit listeners, Activity/Meter listeners). Logger checks
     // are hoisted behind _hasLogger so the common logger-less path performs no virtual
-    // calls, and when a logger is present only the level relevant to the event kind is
-    // probed instead of all four levels.
+    // calls (issue #276 keeps this shape: every resolve/read/migration probes it, and
+    // the DiagnosticOperation.Id == 0 branch keeps disabled diagnostics free of async
+    // state machines and event construction).
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private bool IsEnabled(ConfiglueDiagnosticEventKind kind)
     {
@@ -70,43 +71,22 @@ internal sealed class RuntimeDiagnosticRecorder : IConfiglueRuntimeDiagnostics
             return true;
         if (ConfiglueTelemetry.IsEnabled(kind))
             return true;
-        return _hasLogger && LoggerIsEnabled(kind);
+        return _hasLogger && LoggerIsEnabled();
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private bool LoggerIsEnabled(ConfiglueDiagnosticEventKind kind)
+    private bool LoggerIsEnabled()
     {
-        // Mirrors RuntimeDiagnosticLogging.Log level mapping. Checking only the relevant
-        // level is safe: when configuration, listeners, and telemetry are all disabled,
-        // logging is the sole observable effect, and kinds mapped to other levels would
-        // not emit anyway.
-        var level = kind switch
-        {
-            ConfiglueDiagnosticEventKind.ResolveStarted
-            or ConfiglueDiagnosticEventKind.SourceReadStarted
-            or ConfiglueDiagnosticEventKind.WriteStarted
-            or ConfiglueDiagnosticEventKind.ReloadStarted
-            or ConfiglueDiagnosticEventKind.MigrationStarted
-            or ConfiglueDiagnosticEventKind.WatchStarted
-            or ConfiglueDiagnosticEventKind.WatchStopped => LogLevel.Trace,
-            ConfiglueDiagnosticEventKind.WriteConflict
-            or ConfiglueDiagnosticEventKind.ValidationFailed => LogLevel.Warning,
-            ConfiglueDiagnosticEventKind.ResolveFailed
-            or ConfiglueDiagnosticEventKind.SourceReadFailed
-            or ConfiglueDiagnosticEventKind.WriteFailed
-            or ConfiglueDiagnosticEventKind.ReloadFailed
-            or ConfiglueDiagnosticEventKind.MigrationFailed
-            or ConfiglueDiagnosticEventKind.ObserverFailed => LogLevel.Error,
-            ConfiglueDiagnosticEventKind.SourceFallback => LogLevel.Debug,
-            _ => LogLevel.Debug,
-        };
-        if (kind == ConfiglueDiagnosticEventKind.SourceFallback)
-        {
-            // Fallback maps to Warning when unavailable, Debug otherwise; probe both.
-            // This path is cold (multi-source miss only).
-            return _logger!.IsEnabled(LogLevel.Debug) || _logger.IsEnabled(LogLevel.Warning);
-        }
-        return _logger!.IsEnabled(level);
+        // Conservative probe over every level the diagnostic logging mapping can emit
+        // (see RuntimeDiagnosticLogging.Log). The previous per-kind switch mirrored that
+        // mapping so only the relevant level was probed, but the mirror was a
+        // maintenance hazard: any mapping change silently dropped events here. This
+        // path runs only when a logger is attached (rare next to the logger-less
+        // default), so up to three extra IsEnabled probes are negligible.
+        return _logger!.IsEnabled(LogLevel.Trace)
+            || _logger.IsEnabled(LogLevel.Debug)
+            || _logger.IsEnabled(LogLevel.Warning)
+            || _logger.IsEnabled(LogLevel.Error);
     }
 
     internal DiagnosticOperation Start(

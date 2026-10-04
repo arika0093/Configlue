@@ -162,7 +162,51 @@ All five verified rounds have been committed and cherry-picked into local main, 
 
 Committed main changes through `b0b94106` (including the standard/file-source package split and Godot generator-reference fix) have been merged into the isolated performance worktree. `git diff main --stat` is empty at this checkpoint, so validation covers the current committed main tree, not only the earlier package layout. The integrated Release net10.0 suite passes 1,722 tests, zero failures, 17 skipped external-service tests. Its log is retained in `artifacts/perf-integrated-round8/tests.log`. No push was performed by this performance work. The goal remains active; fragment and collection benchmarks are the next measured coverage gap.
 
+## Round 9 (issue #276): reassess allocation micro-optimizations for maintainability
+
+Rebalance rule: optimize where measured application-level benefit is material, but do
+not preserve complex representations merely to maintain zero-byte microbenchmarks.
+`SingleFileSettingsBenchmarks` (warm read at most 3x the direct STJ deserialize
+baseline, small patch save at most 3x direct serialize-plus-write) is the higher-level
+decision metric, not isolated nanosecond/allocation tests. Deltas below are the
+same-machine before/after figures recorded in rounds 1-8.
+
+| Area | Complexity | Allocation/time delta | Frequency in realistic scenarios | GC / end-to-end impact | Verdict |
+| --- | --- | --- | --- | --- | --- |
+| `StateRevisionVector` small representations (empty/single/small maps, lazy views, custom matching paths) | ~400 lines: 3 representation kinds, 2 private dictionary types, lazy `Interlocked` views, branchy lookups | Saved ~1 dictionary per changed-read construction; stable reads already reused the previous resolution without constructing. Round 7: 1-source changed revision mean +12 ns (regression) for the tradeoff | Construction only on first/changed reads; lookups per watch-membership check | Infrequent small Gen0; negligible next to file I/O plus deserialization | Simplified to eager plain dictionaries (`StateRevisionVector.cs` 781 to ~330 lines). `StateRevisionVectorBenchmarks` / `RevisionVectorViewBenchmarks214` allocate more by design |
+| Resolver/engine `ArrayPool` scratch (`StateRevision`, `WatchScratchEntry`, nested pairs, fragments) | `Rent`/`Clear`/`Return` plus `try`/`finally` on the hottest paths, plus pooled-storage aliasing rules | Rounds 2/4: on the order of 100-300 B per multi-source stable read | Every multi-source read | Small Gen0 arrays; negligible next to source I/O | Simplified to freshly owned arrays. Resolution/topology/vector reuse is retained: stable identity is asserted by `ResolverSnapshotReuseTests` / `RuntimeRevisionSnapshotTests` and watchers depend on stable snapshots |
+| Specialized one-source resolver path (`ReadSingleSourceAsync`) | ~60-line parallel method duplicating resolution logic | Avoided 3 scratch arrays on 1-source reads | Every 1-source read (the simple-settings topology) | ~3 small Gen0 arrays per read; negligible within the 3x STJ budget | Removed; the general path handles `count == 1` (covered by `count = 1` reuse cases) |
+| Operation-lease boxing avoidance (typed `OperationLease` return) | Zero: return the struct directly, typed `using` locals | Round 8: 24 B per async-spanning lease; sync was already 0 via JIT elision; timing unchanged | Every runtime operation (read, write, migration, edit) | Tiny but universal; zero maintenance cost | Retained. The exact-zero deterministic test is removed (it depended on JIT elision); `RuntimeOperationLeaseBenchmarks` stays for investigation |
+| Runtime diagnostic fast paths (`IsEnabled`, `DiagnosticOperation.Id == 0`) | Low: one cached branch plus dynamic checks; avoids async state machines and event construction when disabled | Round 6/7: diagnostic mode changes timing, not allocation (~2.1-2.3 KB annotated-model baseline) | Every resolve/read/migration probes it | Material by frequency: keeps disabled diagnostics free | Structure retained. The per-kind logger-level switch (a mirror of `RuntimeDiagnosticLogging.Log` that silently dropped events on mapping drift) is simplified to a conservative 4-level probe; extra probes run only when a logger is attached (rare) |
+| Resolver logging (`LoggerMessage.Define` delegates) | Standard pattern, no custom complexity | Round 1: disabled-logger resolver 1/4/16 sources faster with less allocation; enabled counting-logger parity | Per source read when a logger is attached | Covered by `ResolverLoggingBenchmarks` | Retained unchanged |
+| Generated routing helpers (`IConfiglueRoutablePatch.Route`, `EnumeratePresentMembersFast`, ordinal fragment surface) | Hand-written surface is `ConfigluePresentMembers` (~80 lines); per-member branching lives in generated code | Reverting adds an iterator, a materialized array, and one box per value-type member on the routing path (see `benchmarks/README.md` revert experiment) | Every routed save and every present-member traversal (validation, merge, routing) | Material for multi-member models on the write path | Retained. `GeneratedWriteRoutingBenchmarks` / `NestedWriteRoutingBenchmarks220` stay for investigation |
+
+Test policy applied:
+
+- Deleted `tests/Configlue.Tests/Performance/RuntimeHotPathAllocationTests.cs` (5 exact-zero
+  tests: lease, factories, stable resolver reads, logger parity, no-attribute validation).
+  Resolution identity is still asserted by reference (`ShouldBeSameAs`) in
+  `ResolverSnapshotReuseTests` / `RuntimeRevisionSnapshotTests`; allocation trends stay in
+  BenchmarkDotNet groups.
+- `tests/Configlue.Tests/Performance/AllocationBudgetTests.cs` keeps 3 coarse material
+  contracts: dictionary-equality without 500-entry materialization, chunk-count-independent
+  pipeline fingerprinting, and single-source vector construction (rebased 128 to 384 B per
+  iteration after eager dictionaries; lookups still allocate nothing). Removed exact-zero
+  trivia: fragment/sequence/set equality, BOM detection x2, ordinal enumeration, transformer
+  capability caching.
+- Semantic tests that named pooled internals were renamed without behavior change
+  (`RuntimeResolutionScratchTests`, `StateRevisionVectorTests`); ownership and
+  post-exception/cancellation behavior they assert still passes.
+
+Verification for this round: Release builds of Abstraction/Core/Test projects with zero
+warnings/errors, CSharpier clean, plus the affected suites
+(`StateRevisionVectorTests`, `WatchRevisionMembershipTests`,
+`ResolverSnapshotReuseTests`, `RuntimeRevisionSnapshotTests`,
+`RuntimeResolutionScratchTests`, `ResolverRetainedWatchTests`, `AllocationBudgetTests`)
+and the full Release net10.0 suite (see commit).
+
 ## Remaining audit
+
 
 These are outstanding, not claims of saturation:
 

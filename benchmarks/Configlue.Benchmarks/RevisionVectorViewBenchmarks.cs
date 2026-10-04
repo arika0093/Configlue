@@ -5,12 +5,9 @@ using Configlue.State;
 // Follow-up #214 for #169: splits the combined
 // StateRevisionVectorBenchmarks.ConstructAndLookup case into internal lookup
 // versus public Revisions-view costs measured at identical entry counts.
-// Lookup benchmarks reuse one pre-built vector and never touch the public
-// view, so lazy materialization cannot leak into the lookup numbers.
-// ViewMaterializeFirstAccess builds a fresh (unmaterialized) vector per
-// invocation and touches the view once; ViewCachedAccess repeats access on a
-// pre-materialized vector. The ViewMaterializeFirstAccess minus
-// ViewCachedAccess delta isolates the first-touch materialization cost.
+// Since issue #276 the views are materialized eagerly at construction, so
+// ViewMaterializeFirstAccess measures construction plus one view access and
+// ViewCachedAccess measures steady-state access only.
 [MemoryDiagnoser]
 public class RevisionVectorViewBenchmarks214
 {
@@ -59,10 +56,9 @@ public class RevisionVectorViewBenchmarks214
     [Benchmark]
     public int ViewMaterializeFirstAccess()
     {
-        // A fresh vector starts unmaterialized; construction is included
-        // because an unmaterialized vector cannot be reused across
-        // invocations. Compare against ViewCachedAccess to isolate the
-        // first-touch cost.
+        // Views are eager since issue #276; construction is included because a
+        // fresh vector cannot be reused across invocations. Compare against
+        // ViewCachedAccess to isolate the construction cost.
         var vector = StateRevisionVector.FromSpan(_revisions);
         return vector.Revisions.Count;
     }

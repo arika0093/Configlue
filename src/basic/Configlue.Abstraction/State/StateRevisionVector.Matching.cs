@@ -9,11 +9,10 @@ public sealed partial class StateRevisionVector
         ReadOnlySpan<KeyValuePair<SourceId, StateRevisionVector>> nestedRevisions
     )
     {
-        var count = _hasSingleRevision ? 1 : _smallRevisions?.Length ?? _revisions?.Count ?? 0;
-        var nestedCount = _hasSingleNestedRevision
-            ? 1
-            : _smallNestedRevisions?.Length ?? _nestedRevisions?.Count ?? 0;
-        if (count != revisions.Length || nestedCount != nestedRevisions.Length)
+        if (
+            _revisions.Count != revisions.Length
+            || _nestedRevisions.Count != nestedRevisions.Length
+        )
             return false;
         // Nested identities and deeper source revisions often change while earlier
         // fallback observations remain stable. Reject those misses before scanning
@@ -38,17 +37,18 @@ public sealed partial class StateRevisionVector
         return true;
     }
 
-    internal bool MatchesSingle(StateRevision revision, StateRevisionVector? nested) =>
-        _hasSingleRevision
-        && _singleRevisionSource == revision.SourceId
-        && string.Equals(_singleRevision, revision.Revision, StringComparison.Ordinal)
-        && (
-            nested is null
-                ? !_hasSingleNestedRevision
-                    && _smallNestedRevisions is null
-                    && (_nestedRevisions?.Count ?? 0) == 0
-                : _hasSingleNestedRevision
-                    && _singleNestedRevisionSource == revision.SourceId
-                    && ReferenceEquals(_singleNestedRevision, nested)
-        );
+    internal bool MatchesSingle(StateRevision revision, StateRevisionVector? nested)
+    {
+        if (
+            _revisions.Count != 1
+            || !TryGetRevision(revision.SourceId, out var previous)
+            || !string.Equals(previous, revision.Revision, StringComparison.Ordinal)
+        )
+            return false;
+        if (nested is null)
+            return _nestedRevisions.Count == 0;
+        return _nestedRevisions.Count == 1
+            && TryGetNestedRevisions(revision.SourceId, out var current)
+            && ReferenceEquals(current, nested);
+    }
 }

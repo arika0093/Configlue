@@ -27,7 +27,9 @@ public sealed class StateRevisionVectorTests
         vector.NestedRevisions[SourceId.From("composite")].ShouldBeSameAs(child);
         vector.NestedRevisions.Keys.Single().ShouldBe(SourceId.From("composite"));
         vector.NestedRevisions.Values.Single().ShouldBeSameAs(child);
-        vector.TryGetNestedRevisions(SourceId.From("missing"), out var missingNested).ShouldBeFalse();
+        vector
+            .TryGetNestedRevisions(SourceId.From("missing"), out var missingNested)
+            .ShouldBeFalse();
         missingNested.ShouldBeNull();
     }
 
@@ -52,14 +54,16 @@ public sealed class StateRevisionVectorTests
 
         vector.TryGetRevision(SourceId.From("second"), out var revision).ShouldBeTrue();
         revision.ShouldBeNull();
-        vector.TryGetNestedRevisions(SourceId.From("composite"), out var nestedVector).ShouldBeTrue();
+        vector
+            .TryGetNestedRevisions(SourceId.From("composite"), out var nestedVector)
+            .ShouldBeTrue();
         nestedVector.ShouldBeSameAs(child);
         vector.NestedRevisions.Count.ShouldBe(2);
         vector.NestedRevisions.ContainsKey(SourceId.From("other-composite")).ShouldBeTrue();
     }
 
     [Test]
-    public void FromSpanKeepsSingleEntriesInlineUntilDictionaryViewsAreRequested()
+    public void FromSpanExposesSingleEntryLookupsAndDictionaryViews()
     {
         var child = new StateRevisionVector([]);
         var revision = new StateRevision(SourceId.From("source"), "revision-1");
@@ -68,14 +72,13 @@ public sealed class StateRevisionVectorTests
             child
         );
 
-        var vector = StateRevisionVector.FromSpan(
-            new[] { revision },
-            new[] { nested }
-        );
+        var vector = StateRevisionVector.FromSpan(new[] { revision }, new[] { nested });
 
         vector.TryGetRevision(SourceId.From("source"), out var revisionValue).ShouldBeTrue();
         revisionValue.ShouldBe("revision-1");
-        vector.TryGetNestedRevisions(SourceId.From("composite"), out var nestedValue).ShouldBeTrue();
+        vector
+            .TryGetNestedRevisions(SourceId.From("composite"), out var nestedValue)
+            .ShouldBeTrue();
         nestedValue.ShouldBeSameAs(child);
         vector.Revisions.Single().Key.ShouldBe(SourceId.From("source"));
         vector.NestedRevisions.Single().Value.ShouldBeSameAs(child);
@@ -95,7 +98,7 @@ public sealed class StateRevisionVectorTests
     }
 
     [Test]
-    public void FromSpanSupportsCompactMultiEntryLookupBeforeViewsAreRequested()
+    public void FromSpanSupportsMultiEntryLookupAndDictionaryViews()
     {
         var revisions = new StateRevision[]
         {

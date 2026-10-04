@@ -1,4 +1,3 @@
-using System.Buffers;
 using Configlue.CompilerServices;
 
 namespace Configlue;
@@ -301,16 +300,20 @@ internal sealed partial class RuntimeResolutionEngine<TModel, TFragment>
         List<ResolvedContribution<TFragment>>? contributions = captureContributions
             ? new List<ResolvedContribution<TFragment>>(activeSources.Length + 1)
             : null;
+        // Scratch fragments and revision observations are freshly allocated per
+        // resolution and never retained (issue #276). Pooling them saved on the order
+        // of a hundred bytes per multi-source resolution while adding
+        // Rent/Clear/Return discipline to the hottest runtime path; the single-source
+        // fast path below (the simple-settings topology) already avoids arrays
+        // entirely via locals.
         TFragment[]? fragments =
             !captureContributions && activeSources.Length > 1
-                ? ArrayPool<TFragment>.Shared.Rent(activeSources.Length + 1)
+                ? new TFragment[activeSources.Length + 1]
                 : null;
         TFragment singleFragment = default!;
         List<ResolvedFailure<TFragment>>? failures = null;
         StateRevision[]? revisions =
-            activeSources.Length > 1
-                ? ArrayPool<StateRevision>.Shared.Rent(activeSources.Length)
-                : null;
+            activeSources.Length > 1 ? new StateRevision[activeSources.Length] : null;
         var singleRevision = default(StateRevision);
         var revisionCount = 0;
         KeyValuePair<SourceId, StateRevisionVector>[]? nestedRevisions = null;
@@ -320,236 +323,191 @@ internal sealed partial class RuntimeResolutionEngine<TModel, TFragment>
         StateReadResult<TFragment> activeResult = default;
         var successfulCount = 0;
 
-        try
+        foreach (var source in activeSources)
         {
-            foreach (var source in activeSources)
+            cancellationToken.ThrowIfCancellationRequested();
+            ConfiglueResourceContext? resourceContext = subject is null
+                ? null
+                : source.GetResourceContext(subject);
+            ResourceId? resourceId = null;
+            if (captureContributions || observeSource is not null)
             {
-                cancellationToken.ThrowIfCancellationRequested();
-                ConfiglueResourceContext? resourceContext = subject is null
-                    ? null
-                    : source.GetResourceContext(subject);
-                ResourceId? resourceId = null;
-                if (captureContributions || observeSource is not null)
+                resourceId = resourceContext is not null
+                    ? source.GetResourceId(resourceContext.Value)
+                    : source.GetResourceId(RuntimeModel<TModel, TFragment>.DefaultResourceContext);
+            }
+            StateReadResult<TFragment> sourceResult;
+            if (
+                replacements is not null
+                && replacements.TryGetValue(source.Id, out var replacement)
+            )
+            {
+                sourceResult = replacement;
+            }
+            else
+            {
+                try
                 {
-                    resourceId = resourceContext is not null
-                        ? source.GetResourceId(resourceContext.Value)
-                        : source.GetResourceId(
-                            RuntimeModel<TModel, TFragment>.DefaultResourceContext
-                        );
-                }
-                StateReadResult<TFragment> sourceResult;
-                if (
-                    replacements is not null
-                    && replacements.TryGetValue(source.Id, out var replacement)
-                )
-                {
-                    sourceResult = replacement;
-                }
-                else
-                {
-                    try
-                    {
-                        sourceResult = await ReadSourceAsync(
-                                source,
-                                resourceContext,
-                                cancellationToken,
-                                operationId
-                            )
-                            .ConfigureAwait(false);
-                    }
-                    catch (OperationCanceledException)
-                        when (cancellationToken.IsCancellationRequested)
-                    {
-                        throw;
-                    }
-                    // Preserve the codec's original exception type so its recoverability policy can classify it.
-                    catch (Exception exception)
-                    {
-                        observeSource?.Invoke(
-                            new ResolvedSourceProbe<TFragment>
-                            {
-                                Source = source,
-                                Contributed = false,
-                                FallbackContinued = false,
-                                ResourceContext = resourceContext,
-                                ResourceId = resourceId,
-                                Exception = exception,
-                            }
-                        );
-                        throw;
-                    }
-                }
-
-                var result = sourceResult.FromSource(source.Id, source.PhysicalOrigin);
-                var sourceRevision = new StateRevision(source.Id, result.Revision);
-                if (revisions is null)
-                {
-                    singleRevision = sourceRevision;
-                }
-                else
-                {
-                    revisions[revisionCount] = sourceRevision;
-                }
-                revisionCount++;
-                if (sourceResult.Revisions is { } nestedVector)
-                {
-                    nestedRevisions ??= ArrayPool<
-                        KeyValuePair<SourceId, StateRevisionVector>
-                    >.Shared.Rent(activeSources.Length);
-                    nestedRevisions[nestedRevisionCount++] = new(source.Id, nestedVector);
-                }
-
-                if (result.Status == StateReadStatus.Success)
-                {
-                    if (result.Value is null)
-                    {
-                        throw new InvalidOperationException(
-                            $"State source '{source.Id}' returned a null configuration fragment."
-                        );
-                    }
-
-                    var fragment = result.Value;
-                    if (result.Schema is { } sourceSchema)
-                    {
-                        fragment = await MigrateFragmentAsync(
-                                fragment,
-                                sourceSchema,
-                                cancellationToken,
-                                source.Id,
-                                operationId
-                            )
-                            .ConfigureAwait(false);
-                    }
-
-                    // Read validation governs source state; proposal resolutions (replacements)
-                    // are validated by their write paths instead.
-                    if (
-                        replacements is null
-                        && _readValidationMode == ReadValidationMode.StrictThrow
-                    )
-                    {
-                        _validation.ValidateContribution(source, fragment, _modelDefaultsFragment);
-                    }
-                    else if (
-                        replacements is null
-                        && _readValidationMode == ReadValidationMode.IgnoreValue
-                    )
-                    {
-                        var pruned = _validation.PruneInvalidMembers(
+                    sourceResult = await ReadSourceAsync(
                             source,
-                            fragment,
-                            _modelDefaultsFragment
-                        );
-                        if (pruned is TFragment prunedFragment)
-                        {
-                            fragment = prunedFragment;
-                        }
-                    }
-
-                    if (captureContributions)
-                    {
-                        contributions!.Add(
-                            new ResolvedContribution<TFragment>(
-                                source,
-                                result.WithValue(fragment),
-                                ResourceContext: resourceContext,
-                                ResourceId: resourceId
-                            )
-                        );
-                    }
-                    else
-                    {
-                        if (fragments is null)
-                        {
-                            singleFragment = fragment;
-                        }
-                        else
-                        {
-                            fragments[successfulCount] = fragment;
-                        }
-                    }
-
-                    if (activeSource is null)
-                    {
-                        activeSource = source;
-                        activeResult = result.WithValue(fragment);
-                    }
-                    successfulCount++;
+                            resourceContext,
+                            cancellationToken,
+                            operationId
+                        )
+                        .ConfigureAwait(false);
+                }
+                catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+                {
+                    throw;
+                }
+                // Preserve the codec's original exception type so its recoverability policy can classify it.
+                catch (Exception exception)
+                {
                     observeSource?.Invoke(
                         new ResolvedSourceProbe<TFragment>
                         {
                             Source = source,
-                            Result = result.WithValue(fragment),
-                            Contributed = true,
+                            Contributed = false,
                             FallbackContinued = false,
                             ResourceContext = resourceContext,
                             ResourceId = resourceId,
+                            Exception = exception,
                         }
                     );
-                    continue;
+                    throw;
                 }
+            }
 
-                lastFailure = result;
-                var canFallBack = RuntimeState.CanFallBack(source.FallbackCondition, result.Status);
-                if (canFallBack && replacements is null)
+            var result = sourceResult.FromSource(source.Id, source.PhysicalOrigin);
+            var sourceRevision = new StateRevision(source.Id, result.Revision);
+            if (revisions is null)
+            {
+                singleRevision = sourceRevision;
+            }
+            else
+            {
+                revisions[revisionCount] = sourceRevision;
+            }
+            revisionCount++;
+            if (sourceResult.Revisions is { } nestedVector)
+            {
+                nestedRevisions ??= new KeyValuePair<SourceId, StateRevisionVector>[
+                    activeSources.Length
+                ];
+                nestedRevisions[nestedRevisionCount++] = new(source.Id, nestedVector);
+            }
+
+            if (result.Status == StateReadStatus.Success)
+            {
+                if (result.Value is null)
                 {
-                    _diagnostics.Record(
-                        ConfiglueDiagnosticEventKind.SourceFallback,
-                        operationId,
-                        sourceId: source.Id,
-                        readStatus: result.Status
+                    throw new InvalidOperationException(
+                        $"State source '{source.Id}' returned a null configuration fragment."
                     );
                 }
+
+                var fragment = result.Value;
+                if (result.Schema is { } sourceSchema)
+                {
+                    fragment = await MigrateFragmentAsync(
+                            fragment,
+                            sourceSchema,
+                            cancellationToken,
+                            source.Id,
+                            operationId
+                        )
+                        .ConfigureAwait(false);
+                }
+
+                // Read validation governs source state; proposal resolutions (replacements)
+                // are validated by their write paths instead.
+                if (replacements is null && _readValidationMode == ReadValidationMode.StrictThrow)
+                {
+                    _validation.ValidateContribution(source, fragment, _modelDefaultsFragment);
+                }
+                else if (
+                    replacements is null
+                    && _readValidationMode == ReadValidationMode.IgnoreValue
+                )
+                {
+                    var pruned = _validation.PruneInvalidMembers(
+                        source,
+                        fragment,
+                        _modelDefaultsFragment
+                    );
+                    if (pruned is TFragment prunedFragment)
+                    {
+                        fragment = prunedFragment;
+                    }
+                }
+
+                if (captureContributions)
+                {
+                    contributions!.Add(
+                        new ResolvedContribution<TFragment>(
+                            source,
+                            result.WithValue(fragment),
+                            ResourceContext: resourceContext,
+                            ResourceId: resourceId
+                        )
+                    );
+                }
+                else
+                {
+                    if (fragments is null)
+                    {
+                        singleFragment = fragment;
+                    }
+                    else
+                    {
+                        fragments[successfulCount] = fragment;
+                    }
+                }
+
+                if (activeSource is null)
+                {
+                    activeSource = source;
+                    activeResult = result.WithValue(fragment);
+                }
+                successfulCount++;
                 observeSource?.Invoke(
                     new ResolvedSourceProbe<TFragment>
                     {
                         Source = source,
-                        Result = result,
-                        Contributed = false,
-                        FallbackContinued = canFallBack,
+                        Result = result.WithValue(fragment),
+                        Contributed = true,
+                        FallbackContinued = false,
                         ResourceContext = resourceContext,
                         ResourceId = resourceId,
                     }
                 );
-                if (!canFallBack)
+                continue;
+            }
+
+            lastFailure = result;
+            var canFallBack = RuntimeState.CanFallBack(source.FallbackCondition, result.Status);
+            if (canFallBack && replacements is null)
+            {
+                _diagnostics.Record(
+                    ConfiglueDiagnosticEventKind.SourceFallback,
+                    operationId,
+                    sourceId: source.Id,
+                    readStatus: result.Status
+                );
+            }
+            observeSource?.Invoke(
+                new ResolvedSourceProbe<TFragment>
                 {
-                    if (captureContributions)
-                    {
-                        (failures ??= []).Add(
-                            new ResolvedFailure<TFragment>(
-                                source,
-                                result,
-                                ResourceContext: resourceContext,
-                                ResourceId: resourceId
-                            )
-                        );
-                    }
-
-                    return new ResolvedState<TModel, TFragment>(
-                        StateReadResult<TModel>.Create(
-                            result.Status,
-                            default,
-                            result.Revision,
-                            result.SourceId,
-                            result.PhysicalOrigin,
-                            result.Schema,
-                            CreateRevisionVector(
-                                activeSources,
-                                revisions,
-                                singleRevision,
-                                revisionCount,
-                                nestedRevisions,
-                                nestedRevisionCount
-                            )
-                        ),
-                        (IReadOnlyList<ResolvedContribution<TFragment>>?)contributions
-                            ?? Array.Empty<ResolvedContribution<TFragment>>(),
-                        null,
-                        (IReadOnlyList<ResolvedFailure<TFragment>>?)failures
-                            ?? Array.Empty<ResolvedFailure<TFragment>>()
-                    );
+                    Source = source,
+                    Result = result,
+                    Contributed = false,
+                    FallbackContinued = canFallBack,
+                    ResourceContext = resourceContext,
+                    ResourceId = resourceId,
                 }
-
+            );
+            if (!canFallBack)
+            {
                 if (captureContributions)
                 {
                     (failures ??= []).Add(
@@ -561,18 +519,15 @@ internal sealed partial class RuntimeResolutionEngine<TModel, TFragment>
                         )
                     );
                 }
-            }
 
-            if (successfulCount == 0 && lastFailure.Status == StateReadStatus.Unavailable)
-            {
                 return new ResolvedState<TModel, TFragment>(
                     StateReadResult<TModel>.Create(
-                        lastFailure.Status,
+                        result.Status,
                         default,
-                        lastFailure.Revision,
-                        lastFailure.SourceId,
-                        lastFailure.PhysicalOrigin,
-                        lastFailure.Schema,
+                        result.Revision,
+                        result.SourceId,
+                        result.PhysicalOrigin,
+                        result.Schema,
                         CreateRevisionVector(
                             activeSources,
                             revisions,
@@ -592,101 +547,120 @@ internal sealed partial class RuntimeResolutionEngine<TModel, TFragment>
 
             if (captureContributions)
             {
-                contributions!.Add(
-                    new ResolvedContribution<TFragment>(
-                        _modelDefaultsSource,
-                        StateReadResult<TFragment>.Success(_modelDefaultsFragment),
-                        IsModelDefaults: true
+                (failures ??= []).Add(
+                    new ResolvedFailure<TFragment>(
+                        source,
+                        result,
+                        ResourceContext: resourceContext,
+                        ResourceId: resourceId
                     )
                 );
             }
-            else
-            {
-                if (fragments is not null)
-                {
-                    fragments[successfulCount] = _modelDefaultsFragment;
-                }
-            }
+        }
 
-            var contributionCount = successfulCount + 1;
-            TFragment merged;
-            if (captureContributions)
-            {
-                merged = contributions![^1].Result.Value!;
-            }
-            else if (fragments is null)
-            {
-                merged =
-                    successfulCount == 0
-                        ? _modelDefaultsFragment
-                        : _modelDefaultsFragment.Merge(singleFragment);
-            }
-            else
-            {
-                merged = fragments[successfulCount];
-            }
-
-            var mergeStartIndex =
-                fragments is null && !captureContributions ? -1 : contributionCount - 2;
-            for (var index = mergeStartIndex; index >= 0; index--)
-            {
-                var fragment = captureContributions
-                    ? contributions![index].Result.Value!
-                    : fragments![index];
-                merged = merged.Merge(fragment);
-            }
-
-            var model = RuntimeModel<TModel, TFragment>.FromFragment(merged);
-            if (replacements is null)
-            {
-                _validation.ValidateResolvedModel(model, merged);
-            }
-            var resolvedResult = StateReadResult<TModel>.Success(
-                model,
-                activeSource is null ? null : activeResult.Revision,
-                RuntimeModel<TModel, TFragment>.Schema.ToMetadata()
-            ) with
-            {
-                SourceId = activeSource?.Id,
-                PhysicalOrigin = activeSource is null ? null : activeResult.PhysicalOrigin,
-                Revisions = CreateRevisionVector(
-                    activeSources,
-                    revisions,
-                    singleRevision,
-                    revisionCount,
-                    nestedRevisions,
-                    nestedRevisionCount
-                ),
-            };
-
+        if (successfulCount == 0 && lastFailure.Status == StateReadStatus.Unavailable)
+        {
             return new ResolvedState<TModel, TFragment>(
-                resolvedResult,
+                StateReadResult<TModel>.Create(
+                    lastFailure.Status,
+                    default,
+                    lastFailure.Revision,
+                    lastFailure.SourceId,
+                    lastFailure.PhysicalOrigin,
+                    lastFailure.Schema,
+                    CreateRevisionVector(
+                        activeSources,
+                        revisions,
+                        singleRevision,
+                        revisionCount,
+                        nestedRevisions,
+                        nestedRevisionCount
+                    )
+                ),
                 (IReadOnlyList<ResolvedContribution<TFragment>>?)contributions
                     ?? Array.Empty<ResolvedContribution<TFragment>>(),
-                merged,
+                null,
                 (IReadOnlyList<ResolvedFailure<TFragment>>?)failures
                     ?? Array.Empty<ResolvedFailure<TFragment>>()
             );
         }
-        finally
+
+        if (captureContributions)
+        {
+            contributions!.Add(
+                new ResolvedContribution<TFragment>(
+                    _modelDefaultsSource,
+                    StateReadResult<TFragment>.Success(_modelDefaultsFragment),
+                    IsModelDefaults: true
+                )
+            );
+        }
+        else
         {
             if (fragments is not null)
             {
-                ArrayPool<TFragment>.Shared.Return(fragments, clearArray: true);
-            }
-
-            if (revisions is not null)
-            {
-                ArrayPool<StateRevision>.Shared.Return(revisions, clearArray: true);
-            }
-
-            if (nestedRevisions is not null)
-            {
-                ArrayPool<KeyValuePair<SourceId, StateRevisionVector>>.Shared.Return(
-                    nestedRevisions,
-                    clearArray: true
-                );
+                fragments[successfulCount] = _modelDefaultsFragment;
             }
         }
+
+        var contributionCount = successfulCount + 1;
+        TFragment merged;
+        if (captureContributions)
+        {
+            merged = contributions![^1].Result.Value!;
+        }
+        else if (fragments is null)
+        {
+            merged =
+                successfulCount == 0
+                    ? _modelDefaultsFragment
+                    : _modelDefaultsFragment.Merge(singleFragment);
+        }
+        else
+        {
+            merged = fragments[successfulCount];
+        }
+
+        var mergeStartIndex =
+            fragments is null && !captureContributions ? -1 : contributionCount - 2;
+        for (var index = mergeStartIndex; index >= 0; index--)
+        {
+            var fragment = captureContributions
+                ? contributions![index].Result.Value!
+                : fragments![index];
+            merged = merged.Merge(fragment);
+        }
+
+        var model = RuntimeModel<TModel, TFragment>.FromFragment(merged);
+        if (replacements is null)
+        {
+            _validation.ValidateResolvedModel(model, merged);
+        }
+        var resolvedResult = StateReadResult<TModel>.Success(
+            model,
+            activeSource is null ? null : activeResult.Revision,
+            RuntimeModel<TModel, TFragment>.Schema.ToMetadata()
+        ) with
+        {
+            SourceId = activeSource?.Id,
+            PhysicalOrigin = activeSource is null ? null : activeResult.PhysicalOrigin,
+            Revisions = CreateRevisionVector(
+                activeSources,
+                revisions,
+                singleRevision,
+                revisionCount,
+                nestedRevisions,
+                nestedRevisionCount
+            ),
+        };
+
+        return new ResolvedState<TModel, TFragment>(
+            resolvedResult,
+            (IReadOnlyList<ResolvedContribution<TFragment>>?)contributions
+                ?? Array.Empty<ResolvedContribution<TFragment>>(),
+            merged,
+            (IReadOnlyList<ResolvedFailure<TFragment>>?)failures
+                ?? Array.Empty<ResolvedFailure<TFragment>>()
+        );
     }
 }

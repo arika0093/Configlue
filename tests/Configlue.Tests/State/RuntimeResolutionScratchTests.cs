@@ -56,7 +56,7 @@ public sealed class RuntimeResolutionScratchTests
     }
 
     [Test]
-    public async Task NestedRevisionsAreRetainedAfterPooledScratchIsReturned()
+    public async Task NestedRevisionsAreRetainedAfterScratchIsReleased()
     {
         var child = new StateRevisionVector([
             new StateRevision(SourceId.From("leaf"), "leaf-revision"),
@@ -95,7 +95,7 @@ public sealed class RuntimeResolutionScratchTests
     }
 
     [Test]
-    public async Task PooledScratchIsReturnedAfterReadExceptionAndCancellation()
+    public async Task ScratchIsReleasedAfterReadExceptionAndCancellation()
     {
         var throwingReader = new ThrowOnceReader();
         var sources = new StateSourceSet<AppSettings.Fragment>([
@@ -160,7 +160,9 @@ public sealed class RuntimeResolutionScratchTests
                 throw new InvalidOperationException("read failed");
             }
 
-            return ValueTaskCompat.FromResult(StateReadResult<AppSettings.Fragment>.NotFound("missing"));
+            return ValueTaskCompat.FromResult(
+                StateReadResult<AppSettings.Fragment>.NotFound("missing")
+            );
         }
     }
 }
