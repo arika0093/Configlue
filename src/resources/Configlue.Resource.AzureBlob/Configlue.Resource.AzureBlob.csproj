@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFrameworks>netstandard2.0;netstandard2.1;net10.0</TargetFrameworks>
+    <AssemblyName>Configlue.Resource.AzureBlob</AssemblyName>
+    <RootNamespace>Configlue.Resource.AzureBlob</RootNamespace>
+    <IsPackable>true</IsPackable>
+    <PackageDescription>Azure Blob Storage resources for Configlue.</PackageDescription>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Azure.Storage.Blobs" Version="12.30.0" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../basic/Configlue.Abstraction/Configlue.Abstraction.csproj" />
+    <ProjectReference Include="../../basic/Configlue.Core/Configlue.Core.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="Configlue.Tests" />
+    <InternalsVisibleTo Include="Configlue.Benchmarks" />
+  </ItemGroup>
+</Project>

@@ -1,0 +1,54 @@
+[assembly: System.Reflection.AssemblyMetadata("RepositoryUrl", "https://github.com/arika0093/Configlue")]
+namespace Configlue.Resource.AzureBlob
+{
+    public sealed class AzureBlobResource : Configlue.Resources.IResourceIdentity, Configlue.Resources.IResourceReader, Configlue.Resources.IResourceWriter, Configlue.Sources.ISourceWatcher, Configlue.State.IPipelineResourceReader, System.IDisposable
+    {
+        public AzureBlobResource(Azure.Storage.Blobs.BlobClient blobClient, Configlue.Resource.AzureBlob.AzureBlobResourceOptions? options = null) { }
+        public AzureBlobResource(Azure.Storage.Blobs.BlobContainerClient containerClient, string blobName, Configlue.Resource.AzureBlob.AzureBlobResourceOptions? options = null) { }
+        public AzureBlobResource(Azure.Storage.Blobs.BlobServiceClient serviceClient, string containerName, string blobName, Configlue.Resource.AzureBlob.AzureBlobResourceOptions? options = null) { }
+        public string BlobName { get; }
+        public string ContainerName { get; }
+        public bool IsPipelineReadPreferred { get; }
+        public void Dispose() { }
+        public Configlue.Resources.ResourceId GetResourceId(Configlue.Resources.ConfiglueResourceContext context) { }
+        public System.Threading.Tasks.ValueTask<Configlue.Resources.ResourceReadResult> ReadAsync(Configlue.Resources.ConfiglueResourceContext context, System.Threading.CancellationToken cancellationToken = default) { }
+        public System.Threading.Tasks.ValueTask<Configlue.Resources.PipelineResourceReadResult> ReadPipelineAsync(Configlue.Resources.ConfiglueResourceContext context, System.Threading.CancellationToken cancellationToken = default) { }
+        public System.Threading.Tasks.ValueTask WaitForChangeAsync(Configlue.Resources.ConfiglueResourceContext context, string? observedRevision, System.Threading.CancellationToken cancellationToken = default) { }
+        public System.Threading.Tasks.ValueTask<Configlue.State.StateWriteResult> WriteAsync(Configlue.Resources.ConfiglueResourceContext context, Configlue.Resources.ResourceWriteRequest request, System.Threading.CancellationToken cancellationToken = default) { }
+    }
+    public sealed class AzureBlobResourceOptions
+    {
+        public AzureBlobResourceOptions() { }
+        public System.Func<Configlue.Resources.ConfiglueResourceContext, Azure.Storage.Blobs.BlobClient>? BlobClientSelector { get; init; }
+        public System.Func<Configlue.Resources.ConfiglueResourceContext, string>? BlobNameSelector { get; init; }
+        public System.Func<Configlue.Resources.ConfiglueResourceContext, string>? ContainerNameSelector { get; init; }
+        public string? ContentType { get; init; }
+        public bool EnableWatching { get; init; }
+        public Configlue.Resources.ResourceId? FixedResourceId { get; init; }
+        public System.Collections.Generic.IDictionary<string, string>? Metadata { get; init; }
+        public System.TimeSpan WatchPollInterval { get; init; }
+    }
+    public sealed class AzureBlobSourceOptions
+    {
+        public AzureBlobSourceOptions() { }
+        public required string BlobName { get; init; }
+        public System.Uri? BlobUri { get; init; }
+        public Azure.Storage.Blobs.BlobClient? Client { get; init; }
+        public System.Func<System.IServiceProvider?, Azure.Storage.Blobs.BlobClient>? ClientFactory { get; init; }
+        public required Configlue.Codecs.StateCodecBinding Codec { get; init; }
+        public Configlue.Codecs.StateCodecContext CodecContext { get; init; }
+        public string? ConnectionString { get; init; }
+        public required string ContainerName { get; init; }
+        public Azure.Core.TokenCredential? Credential { get; init; }
+        public Configlue.Sources.StateFallbackCondition FallbackCondition { get; init; }
+        public string? Id { get; init; }
+        public int Priority { get; init; }
+        public Configlue.Resource.AzureBlob.AzureBlobResourceOptions? ResourceOptions { get; init; }
+        public System.Uri? ServiceEndpoint { get; init; }
+        public bool Writable { get; init; }
+    }
+    public static class AzureBlobSourceRegistration
+    {
+        public static Configlue.Extensibility.ConfiglueSourceRegistration FromAzureBlob(this Configlue.ConfiglueSourceSetBuilder sources, Configlue.Resource.AzureBlob.AzureBlobSourceOptions options) { }
+    }
+}

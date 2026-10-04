@@ -13,6 +13,8 @@ using Configlue.Provider.Json;
 using Configlue.Provider.MessagePack;
 using Configlue.Provider.Xml;
 using Configlue.Provider.Yaml;
+using Configlue.Source.Http;
+using Configlue.Resource.AzureBlob;
 using Configlue.Resource.Redis;
 using Configlue.Resource.Etcd;
 using Configlue.Resource.S3;
@@ -325,6 +327,7 @@ public sealed class PublicApiCheckTest
     [Test]
     public void AwsAppConfig() =>
         PublicApiCheck.Check<Configlue.Resource.AwsAppConfig.AwsAppConfigSourceOptions>();
+    public void AzureBlob() => PublicApiCheck.Check<AzureBlobSourceOptions>();
 
     [Test]
     public void PostgreSql() => PublicApiCheck.Check<PostgreSqlSourceOptions>();
