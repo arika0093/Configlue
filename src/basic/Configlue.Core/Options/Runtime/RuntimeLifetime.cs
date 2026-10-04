@@ -8,7 +8,7 @@ namespace Configlue;
 /// only lock shared with other coordinators. Watch registration and shutdown both run
 /// through it, so a watcher is either observed by shutdown or rejected because
 /// shutdown already began. Listener lists themselves are owned by
-/// <c>RuntimeWatchCoordinator</c>; only the lock lives here.
+/// <c>RuntimeWatchNotificationHub</c>; only the lock lives here.
 /// </summary>
 internal sealed class RuntimeLifetime
 {

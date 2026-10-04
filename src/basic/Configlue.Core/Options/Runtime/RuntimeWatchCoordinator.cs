@@ -1,35 +1,34 @@
-using System.Collections.Concurrent;
 using Configlue.CompilerServices;
 
 namespace Configlue;
 
 /// <summary>
-/// Owns watch/subscription lifecycle for one runtime: change/reload listeners,
-/// the shared watch loop, per-subject watchers, debounce, and watcher shutdown.
+/// Thin orchestration over the decomposed watch owners for one runtime: the shared
+/// source watch loop, the notification hub, and the per-subject watch manager.
 ///
-/// Listener lists are mutated only under the <see cref="RuntimeLifetime"/> gate
-/// so registration races with shutdown exactly as before; the watcher-operation
-/// table is a concurrent dictionary drained by disposal. Reload reads go through
-/// the resolution engine.
+/// This type owns only the default/global watch lifecycle (its cancellation, task,
+/// wait-task scratch, and read-baseline seed) and ties the collaborators to the
+/// <see cref="RuntimeLifetime"/> gate. Source waiting and debounce live in
+/// <see cref="RuntimeSourceWatchLoop{TModel, TFragment}"/>, listener storage and
+/// failure-isolated dispatch in
+/// <see cref="RuntimeWatchNotificationHub{TModel, TFragment}"/>, and keyed subject
+/// watcher lifetimes in <see cref="RuntimeSubjectWatchManager{TModel, TFragment}"/>.
+///
+/// Listener registration and shutdown both run through the lifetime gate so a
+/// watcher is either observed by shutdown or rejected because shutdown already
+/// began. Reload reads go through the resolution engine.
 /// </summary>
 internal sealed class RuntimeWatchCoordinator<TModel, TFragment>
     where TModel : IConfiglueModel<TModel, TFragment>
     where TFragment : class, IConfiglueFragment<TFragment>
 {
     private readonly RuntimeResolutionEngine<TModel, TFragment> _engine;
-    private readonly RuntimeSourceTopology<TFragment> _topology;
+    private readonly RuntimeSourceWatchLoop<TModel, TFragment> _watchLoop;
+    private readonly RuntimeWatchNotificationHub<TModel, TFragment> _notifications;
+    private readonly RuntimeSubjectWatchManager<TModel, TFragment> _subjectsManager;
     private readonly RuntimeDiagnosticRecorder _diagnostics;
     private readonly RuntimeLifetime _lifetime;
     private readonly RuntimeSubjectContext _subjects;
-    private readonly RuntimeModelCloner<TModel, TFragment> _cloner;
-    private readonly TimeSpan _onChangeDebounce;
-    private readonly TimeProvider _timeProvider;
-    private readonly ConcurrentDictionary<SubjectWatchSubscription, byte> _watcherOperations =
-        new();
-    private Func<Task>? _watcherCleanupBarrier;
-    private readonly List<Action<TModel>> _changeListeners = [];
-    private readonly List<Action<Exception>> _reloadFailureListeners = [];
-    private readonly List<Action<StateRevisionVector?>> _reloadListeners = [];
     private CancellationTokenSource? _watchCancellation;
     private Task? _watchTask;
     private List<Task>? _watchWaitTasks;
@@ -62,13 +61,30 @@ internal sealed class RuntimeWatchCoordinator<TModel, TFragment>
     )
     {
         _engine = engine;
-        _topology = topology;
         _diagnostics = diagnostics;
         _lifetime = lifetime;
         _subjects = subjects;
-        _cloner = cloner;
-        _onChangeDebounce = onChangeDebounce;
-        _timeProvider = timeProvider;
+        _watchLoop = new RuntimeSourceWatchLoop<TModel, TFragment>(
+            engine,
+            topology,
+            diagnostics,
+            subjects,
+            onChangeDebounce,
+            timeProvider
+        );
+        _notifications = new RuntimeWatchNotificationHub<TModel, TFragment>(
+            lifetime,
+            diagnostics,
+            cloner
+        );
+        _subjectsManager = new RuntimeSubjectWatchManager<TModel, TFragment>(
+            engine,
+            _watchLoop,
+            subjects,
+            diagnostics,
+            lifetime,
+            cloner
+        );
     }
 
     /// <summary>
@@ -78,12 +94,12 @@ internal sealed class RuntimeWatchCoordinator<TModel, TFragment>
     /// </summary>
     internal Func<Task>? WatcherCleanupBarrier
     {
-        get => Volatile.Read(ref _watcherCleanupBarrier);
-        set => Volatile.Write(ref _watcherCleanupBarrier, value);
+        get => _subjectsManager.WatcherCleanupBarrier;
+        set => _subjectsManager.WatcherCleanupBarrier = value;
     }
 
     /// <summary>Number of subject watchers whose complete lifetime has not yet been drained.</summary>
-    internal int WatcherOperationCount => _watcherOperations.Count;
+    internal int WatcherOperationCount => _subjectsManager.WatcherOperationCount;
 
     /// <summary>
     /// Records the revisions of the most recent successful read as a candidate
@@ -132,9 +148,9 @@ internal sealed class RuntimeWatchCoordinator<TModel, TFragment>
         ArgumentNullException.ThrowIfNull(listener);
         return _lifetime.Register(() =>
         {
-            _changeListeners.Add(listener);
+            var subscription = _notifications.AddChangeListenerCore(listener);
             EnsureWatcherStarted();
-            return (IDisposable)new ChangeSubscription(this, listener);
+            return subscription;
         });
     }
 
@@ -143,9 +159,9 @@ internal sealed class RuntimeWatchCoordinator<TModel, TFragment>
         ArgumentNullException.ThrowIfNull(listener);
         return _lifetime.Register(() =>
         {
-            _reloadListeners.Add(listener);
+            var subscription = _notifications.AddReloadListenerCore(listener);
             EnsureWatcherStarted();
-            return (IDisposable)new ReloadSubscription(this, listener);
+            return subscription;
         });
     }
 
@@ -154,23 +170,14 @@ internal sealed class RuntimeWatchCoordinator<TModel, TFragment>
         ArgumentNullException.ThrowIfNull(listener);
         return _lifetime.Register(() =>
         {
-            _reloadFailureListeners.Add(listener);
+            var subscription = _notifications.AddReloadFailureListenerCore(listener);
             EnsureWatcherStarted();
-            return (IDisposable)new ReloadFailureSubscription(this, listener);
+            return subscription;
         });
     }
 
-    internal IDisposable WatchSubject(IConfiglueSubject subject, Action<TModel> listener)
-    {
-        ArgumentNullException.ThrowIfNull(listener);
-        return _lifetime.Register(() =>
-        {
-            var subscription = new SubjectWatchSubscription(this, subject, listener);
-            _watcherOperations.TryAdd(subscription, 0);
-            subscription.Start();
-            return (IDisposable)subscription;
-        });
-    }
+    internal IDisposable WatchSubject(IConfiglueSubject subject, Action<TModel> listener) =>
+        _subjectsManager.WatchSubject(subject, listener);
 
     /// <summary>
     /// Captures watch tasks and cancels all watchers. Runs under the lifetime gate
@@ -182,18 +189,10 @@ internal sealed class RuntimeWatchCoordinator<TModel, TFragment>
         Task[] watcherTasks = [];
         _lifetime.ExecuteUnderGate(() =>
         {
-            _changeListeners.Clear();
-            _reloadFailureListeners.Clear();
-            _reloadListeners.Clear();
+            _notifications.ClearCore();
             _watchCancellation?.Cancel();
-            foreach (var operation in _watcherOperations.Keys)
-            {
-                operation.RequestCancellation();
-            }
             watchTask = _watchTask;
-            watcherTasks = _watcherOperations
-                .Keys.Select(static operation => operation.Completion)
-                .ToArray();
+            watcherTasks = _subjectsManager.CaptureShutdownCore();
         });
         return (watchTask, watcherTasks);
     }
@@ -203,30 +202,6 @@ internal sealed class RuntimeWatchCoordinator<TModel, TFragment>
     {
         var cancellation = Interlocked.Exchange(ref _watchCancellation, null);
         cancellation?.Dispose();
-    }
-
-    private void RemoveChangeListener(Action<TModel> listener)
-    {
-        _lifetime.Unregister(() =>
-        {
-            _changeListeners.Remove(listener);
-        });
-    }
-
-    private void RemoveReloadFailureListener(Action<Exception> listener)
-    {
-        _lifetime.Unregister(() =>
-        {
-            _reloadFailureListeners.Remove(listener);
-        });
-    }
-
-    private void RemoveReloadListener(Action<StateRevisionVector?> listener)
-    {
-        _lifetime.Unregister(() =>
-        {
-            _reloadListeners.Remove(listener);
-        });
     }
 
     private async Task WatchChangesAsync(CancellationToken cancellationToken)
@@ -272,18 +247,14 @@ internal sealed class RuntimeWatchCoordinator<TModel, TFragment>
                     waitRevisions = previous.Revisions;
                 }
 
-                await WaitForAnyChangeAsync(waitRevisions, cancellationToken).ConfigureAwait(false);
-                if (_onChangeDebounce > TimeSpan.Zero)
-                {
-                    await DelayForChangeDebounceAsync(cancellationToken).ConfigureAwait(false);
-                }
+                await _watchLoop
+                    .WaitForChangeAsync(waitRevisions, cancellationToken, GetWatchWaitTasks())
+                    .ConfigureAwait(false);
+                await _watchLoop.WaitForDebounceAsync(cancellationToken).ConfigureAwait(false);
 
                 reloadStarted = true;
-                var (current, valueChanged) = await ReadReloadAsync(
-                        previousEffective,
-                        hasEffective,
-                        cancellationToken
-                    )
+                var (current, valueChanged) = await _watchLoop
+                    .ReadReloadAsync(previousEffective, hasEffective, cancellationToken)
                     .ConfigureAwait(false);
                 if (
                     current.Status == StateReadStatus.Success
@@ -292,16 +263,16 @@ internal sealed class RuntimeWatchCoordinator<TModel, TFragment>
                 {
                     if (valueChanged)
                     {
-                        NotifyListeners(current.Value!);
+                        _notifications.NotifyChanged(current.Value!);
                     }
                     else
                     {
-                        NotifyReloaded(current.Revisions);
+                        _notifications.NotifyReloaded(current.Revisions);
                     }
                 }
                 else if (current.Status != StateReadStatus.Success)
                 {
-                    NotifyReloadFailed(
+                    _notifications.NotifyReloadFailed(
                         new InvalidOperationException(
                             $"Configuration reload resolved to state status '{current.Status}'."
                         )
@@ -333,7 +304,7 @@ internal sealed class RuntimeWatchCoordinator<TModel, TFragment>
                         ConfiglueDiagnosticEventKind.ReloadFailed,
                         errorCategory: exception.GetType().FullName
                     );
-                NotifyReloadFailed(exception);
+                _notifications.NotifyReloadFailed(exception);
                 try
                 {
                     await Task.Delay(TimeSpan.FromMilliseconds(250), cancellationToken)
@@ -343,222 +314,6 @@ internal sealed class RuntimeWatchCoordinator<TModel, TFragment>
                 {
                     return;
                 }
-            }
-        }
-    }
-
-    private async ValueTask<(StateReadResult<TModel> Result, bool ValueChanged)> ReadReloadAsync(
-        TModel previousEffective,
-        bool hasEffective,
-        CancellationToken cancellationToken
-    )
-    {
-        var diagnostic = _diagnostics.Start(ConfiglueDiagnosticOperation.Reload);
-        try
-        {
-            var result = await _engine
-                .ReadPublicValueAsync(cancellationToken)
-                .ConfigureAwait(false);
-            var changed =
-                result.Status == StateReadStatus.Success
-                && (
-                    !hasEffective
-                    || !RuntimeModel<TModel, TFragment>
-                        .Diff(previousEffective, result.Value!)
-                        .IsEmpty
-                );
-            if (changed)
-            {
-                _diagnostics.Record(
-                    ConfiglueDiagnosticEventKind.EffectiveValueChanged,
-                    effectiveValueChanged: true
-                );
-            }
-            diagnostic.Complete(
-                result.Status == StateReadStatus.Success
-                    ? ConfiglueDiagnosticEventKind.ReloadCompleted
-                    : ConfiglueDiagnosticEventKind.ReloadFailed,
-                result.Status,
-                result.Revision is not null,
-                changed
-            );
-            return (result, changed);
-        }
-        catch (Exception exception)
-        {
-            diagnostic.Fail(
-                ConfiglueDiagnosticEventKind.ReloadFailed,
-                exception,
-                exception is OperationCanceledException && cancellationToken.IsCancellationRequested
-            );
-            throw;
-        }
-    }
-
-    private Task DelayForChangeDebounceAsync(CancellationToken cancellationToken)
-    {
-#if NETSTANDARD
-        return _timeProvider.Delay(_onChangeDebounce, cancellationToken);
-#else
-        return Task.Delay(_onChangeDebounce, _timeProvider, cancellationToken);
-#endif
-    }
-
-    private async ValueTask WaitForSourceChangeAsync(
-        StateSource<TFragment> source,
-        string? revision,
-        CancellationToken cancellationToken
-    )
-    {
-        _diagnostics.NoteWatchStarted(source.Id);
-        try
-        {
-            await source
-                .WaitForChangeAsync(GetResourceContext(source), revision, cancellationToken)
-                .ConfigureAwait(false);
-            _diagnostics.NoteWatchSignaled(source.Id);
-        }
-        finally
-        {
-            _diagnostics.NoteWatchStopped(source.Id);
-        }
-    }
-
-    private ConfiglueResourceContext GetResourceContext(StateSource<TFragment> source) =>
-        _subjects.GetResourceContext(
-            source,
-            RuntimeModel<TModel, TFragment>.DefaultResourceContext
-        );
-
-    private async Task WaitForAnyChangeAsync(
-        StateRevisionVector? revisions,
-        CancellationToken cancellationToken
-    )
-    {
-        var activeSources = _topology.GetActiveSources();
-        var topologyChanged = _topology.TopologyChangedTask;
-
-        if (revisions is null)
-        {
-            return;
-        }
-
-        if (
-            _topology.IsSingleSourceFastPath
-            && ReferenceEquals(activeSources, _topology.FastPathSources)
-        )
-        {
-            // Single-file fast path (#231): one watchable source needs no fan-out list or
-            // multi-task coordination. Topology retirement replaces the active array, which
-            // drops back to the general implementation below.
-            await WaitForSingleSourceChangeAsync(
-                    activeSources[0],
-                    revisions,
-                    topologyChanged,
-                    cancellationToken
-                )
-                .ConfigureAwait(false);
-            return;
-        }
-
-        var activeSourceIds = _topology.GetActiveSourceIds(activeSources);
-        if (!revisions.ContainsOnlySources(activeSourceIds))
-        {
-            return;
-        }
-
-        var waitTasks = GetWatchWaitTasks();
-        using var waitCancellation = CancellationTokenSource.CreateLinkedTokenSource(
-            cancellationToken
-        );
-        try
-        {
-            foreach (var source in activeSources)
-            {
-                if (
-                    source.Watcher is not null
-                    && revisions.TryGetRevision(source.Id, out var revision)
-                )
-                {
-                    waitTasks.Add(
-                        WaitForSourceChangeAsync(source, revision, waitCancellation.Token).AsTask()
-                    );
-                }
-            }
-
-            waitTasks.Add(topologyChanged.WaitAsync(waitCancellation.Token));
-            var completed = await Task.WhenAny(waitTasks).ConfigureAwait(false);
-            await completed.ConfigureAwait(false);
-        }
-        finally
-        {
-            try
-            {
-                await waitCancellation.CancelAsync().ConfigureAwait(false);
-            }
-            finally
-            {
-                try
-                {
-                    // Drain every source wait even when the winning wait throws or shutdown
-                    // cancels it. Otherwise asynchronous watcher cleanup outlives the runtime.
-                    await Task.WhenAll(waitTasks).ConfigureAwait(false);
-                }
-                catch (OperationCanceledException) when (waitCancellation.IsCancellationRequested)
-                {
-                    // Cancellation of losing waits is expected; the winning exception, if
-                    // any, propagates from the try block after all waits finish cleanup.
-                }
-                finally
-                {
-                    waitTasks.Clear();
-                }
-            }
-        }
-    }
-
-    private async Task WaitForSingleSourceChangeAsync(
-        StateSource<TFragment> source,
-        StateRevisionVector? revisions,
-        Task topologyChanged,
-        CancellationToken cancellationToken
-    )
-    {
-        if (
-            source.Watcher is null
-            || revisions is null
-            || !revisions.TryGetRevision(source.Id, out var revision)
-        )
-        {
-            await topologyChanged.WaitAsync(cancellationToken).ConfigureAwait(false);
-            return;
-        }
-
-        using var waitCancellation = CancellationTokenSource.CreateLinkedTokenSource(
-            cancellationToken
-        );
-        var sourceWait = WaitForSourceChangeAsync(source, revision, waitCancellation.Token)
-            .AsTask();
-        var topologyWait = topologyChanged.WaitAsync(waitCancellation.Token);
-        var completed = await Task.WhenAny(sourceWait, topologyWait).ConfigureAwait(false);
-        await waitCancellation.CancelAsync().ConfigureAwait(false);
-        try
-        {
-            await completed.ConfigureAwait(false);
-        }
-        finally
-        {
-            // Drain the loser so asynchronous watcher cleanup cannot outlive the runtime,
-            // mirroring the fan-out coordination below. Cancellation requested through the
-            // linked source is expected; any winning failure has already propagated.
-            var loser = ReferenceEquals(completed, sourceWait) ? topologyWait : sourceWait;
-            try
-            {
-                await loser.ConfigureAwait(false);
-            }
-            catch (OperationCanceledException) when (waitCancellation.IsCancellationRequested)
-            {
-                // Cancellation of the losing wait is expected.
             }
         }
     }
@@ -571,81 +326,8 @@ internal sealed class RuntimeWatchCoordinator<TModel, TFragment>
             waitTasks = [];
             _watchWaitTasks = waitTasks;
         }
-        else
-        {
-            waitTasks.Clear();
-        }
 
         return waitTasks;
-    }
-
-    private void NotifyListeners(TModel value)
-    {
-        if (!_lifetime.TrySnapshot(_changeListeners, out var listeners))
-        {
-            return;
-        }
-
-        foreach (var listener in listeners)
-        {
-            try
-            {
-                listener(_cloner.Clone(value));
-            }
-            catch (Exception exception)
-            {
-                _diagnostics.Record(
-                    ConfiglueDiagnosticEventKind.ObserverFailed,
-                    errorCategory: exception.GetType().FullName
-                );
-            }
-        }
-    }
-
-    private void NotifyReloaded(StateRevisionVector? revisions)
-    {
-        if (!_lifetime.TrySnapshot(_reloadListeners, out var listeners))
-        {
-            return;
-        }
-
-        foreach (var listener in listeners)
-        {
-            try
-            {
-                listener(revisions);
-            }
-            catch (Exception listenerException)
-            {
-                _diagnostics.Record(
-                    ConfiglueDiagnosticEventKind.ObserverFailed,
-                    errorCategory: listenerException.GetType().FullName
-                );
-            }
-        }
-    }
-
-    private void NotifyReloadFailed(Exception exception)
-    {
-        if (!_lifetime.TrySnapshot(_reloadFailureListeners, out var listeners))
-        {
-            return;
-        }
-
-        foreach (var listener in listeners)
-        {
-            try
-            {
-                listener(exception);
-            }
-            catch (Exception listenerException)
-            {
-                _diagnostics.Record(
-                    ConfiglueDiagnosticEventKind.ObserverFailed,
-                    errorCategory: listenerException.GetType().FullName
-                );
-            }
-        }
     }
 
     private void EnsureWatcherStarted()
@@ -655,264 +337,6 @@ internal sealed class RuntimeWatchCoordinator<TModel, TFragment>
             _watchCancellation?.Dispose();
             _watchCancellation = new CancellationTokenSource();
             _watchTask = WatchChangesAsync(_watchCancellation.Token);
-        }
-    }
-
-    internal async Task WatchSubjectChangesAsync(
-        SubjectWatchSubscription subscription,
-        CancellationToken cancellationToken
-    )
-    {
-        using var scope = _subjects.Enter(subscription.Subject);
-        StateReadResult<TModel> previous = default;
-        TModel previousEffective = default!;
-        var hasEffective = false;
-        var hasPrevious = false;
-        while (!cancellationToken.IsCancellationRequested)
-        {
-            var reloadStarted = false;
-            try
-            {
-                if (!hasPrevious)
-                {
-                    previous = await _engine
-                        .ReadPublicValueAsync(cancellationToken)
-                        .ConfigureAwait(false);
-                    if (previous.Status == StateReadStatus.Success)
-                    {
-                        previousEffective = previous.Value!;
-                        hasEffective = true;
-                    }
-
-                    hasPrevious = true;
-                }
-
-                await WaitForSubjectChangeAsync(previous.Revisions, cancellationToken)
-                    .ConfigureAwait(false);
-                if (_onChangeDebounce > TimeSpan.Zero)
-                {
-                    await DelayForChangeDebounceAsync(cancellationToken).ConfigureAwait(false);
-                }
-
-                reloadStarted = true;
-                var (current, valueChanged) = await ReadReloadAsync(
-                        previousEffective,
-                        hasEffective,
-                        cancellationToken
-                    )
-                    .ConfigureAwait(false);
-                if (
-                    current.Status == StateReadStatus.Success
-                    && !RuntimeState.HaveSameRevisions(previous.Revisions, current.Revisions)
-                )
-                {
-                    if (valueChanged)
-                    {
-                        try
-                        {
-                            subscription.Listener(_cloner.Clone(current.Value!));
-                        }
-                        catch (Exception exception)
-                        {
-                            _diagnostics.Record(
-                                ConfiglueDiagnosticEventKind.ObserverFailed,
-                                errorCategory: exception.GetType().FullName
-                            );
-                        }
-                    }
-                }
-                else if (current.Status != StateReadStatus.Success)
-                {
-                    await Task.Delay(TimeSpan.FromMilliseconds(250), cancellationToken)
-                        .ConfigureAwait(false);
-                }
-
-                previous = current;
-                if (current.Status == StateReadStatus.Success)
-                {
-                    previousEffective = current.Value!;
-                    hasEffective = true;
-                }
-            }
-            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-            {
-                return;
-            }
-            catch (Exception exception)
-            {
-                if (!reloadStarted)
-                    _diagnostics.Record(
-                        ConfiglueDiagnosticEventKind.ReloadFailed,
-                        errorCategory: exception.GetType().FullName
-                    );
-                try
-                {
-                    await Task.Delay(TimeSpan.FromMilliseconds(250), cancellationToken)
-                        .ConfigureAwait(false);
-                }
-                catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-                {
-                    return;
-                }
-            }
-        }
-    }
-
-    private async Task WaitForSubjectChangeAsync(
-        StateRevisionVector? revisions,
-        CancellationToken cancellationToken
-    )
-    {
-        var activeSources = _topology.GetActiveSources();
-        var topologyChanged = _topology.TopologyChangedTask;
-
-        if (revisions is null)
-        {
-            return;
-        }
-
-        var activeSourceIds = _topology.GetActiveSourceIds(activeSources);
-        if (!revisions.ContainsOnlySources(activeSourceIds))
-        {
-            return;
-        }
-
-        var waitTasks = new List<Task>();
-        using var waitCancellation = CancellationTokenSource.CreateLinkedTokenSource(
-            cancellationToken
-        );
-        try
-        {
-            foreach (var source in activeSources)
-            {
-                if (
-                    source.Watcher is not null
-                    && revisions.TryGetRevision(source.Id, out var revision)
-                )
-                {
-                    waitTasks.Add(
-                        WaitForSourceChangeAsync(source, revision, waitCancellation.Token).AsTask()
-                    );
-                }
-            }
-
-            waitTasks.Add(topologyChanged.WaitAsync(waitCancellation.Token));
-            var completed = await Task.WhenAny(waitTasks).ConfigureAwait(false);
-            await completed.ConfigureAwait(false);
-        }
-        finally
-        {
-            await waitCancellation.CancelAsync().ConfigureAwait(false);
-            try
-            {
-                await Task.WhenAll(waitTasks).ConfigureAwait(false);
-            }
-            catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
-            {
-                // The other waits are canceled after the first invalidation.
-            }
-        }
-    }
-
-    private sealed class ChangeSubscription(
-        RuntimeWatchCoordinator<TModel, TFragment> owner,
-        Action<TModel> listener
-    ) : IDisposable
-    {
-        private RuntimeWatchCoordinator<TModel, TFragment>? _owner = owner;
-
-        public void Dispose() =>
-            Interlocked.Exchange(ref _owner, null)?.RemoveChangeListener(listener);
-    }
-
-    private sealed class ReloadFailureSubscription(
-        RuntimeWatchCoordinator<TModel, TFragment> owner,
-        Action<Exception> listener
-    ) : IDisposable
-    {
-        private RuntimeWatchCoordinator<TModel, TFragment>? _owner = owner;
-
-        public void Dispose() =>
-            Interlocked.Exchange(ref _owner, null)?.RemoveReloadFailureListener(listener);
-    }
-
-    private sealed class ReloadSubscription(
-        RuntimeWatchCoordinator<TModel, TFragment> owner,
-        Action<StateRevisionVector?> listener
-    ) : IDisposable
-    {
-        private RuntimeWatchCoordinator<TModel, TFragment>? _owner = owner;
-
-        public void Dispose() =>
-            Interlocked.Exchange(ref _owner, null)?.RemoveReloadListener(listener);
-    }
-
-    internal sealed class SubjectWatchSubscription(
-        RuntimeWatchCoordinator<TModel, TFragment> owner,
-        IConfiglueSubject subject,
-        Action<TModel> listener
-    ) : IDisposable
-    {
-        private readonly CancellationTokenSource _cancellation = new();
-        private Task? _task;
-        private int _disposed;
-
-        public IConfiglueSubject Subject { get; } = subject;
-        public Action<TModel> Listener { get; } = listener;
-
-        // The completion task covers the entire owned lifetime: the watch loop plus the
-        // tracking removal and cancellation-source disposal that follow it. The runtime
-        // drains this single task during shutdown, so no unowned cleanup continuation can
-        // outlive DisposeAsync.
-        public Task Completion => Volatile.Read(ref _task) ?? Task.CompletedTask;
-
-        public void Start() => _task = RunLifetimeAsync();
-
-        public void Dispose()
-        {
-            if (Interlocked.Exchange(ref _disposed, 1) != 0)
-            {
-                return;
-            }
-
-            RequestCancellation();
-        }
-
-        public void RequestCancellation()
-        {
-            try
-            {
-                _cancellation.Cancel();
-            }
-            catch (ObjectDisposedException)
-            {
-                // The watcher already completed and released its cancellation source.
-            }
-        }
-
-        private async Task RunLifetimeAsync()
-        {
-            try
-            {
-                await owner
-                    .WatchSubjectChangesAsync(this, _cancellation.Token)
-                    .ConfigureAwait(false);
-            }
-            finally
-            {
-                try
-                {
-                    if (owner.WatcherCleanupBarrier is { } barrier)
-                    {
-                        await barrier().ConfigureAwait(false);
-                    }
-                }
-                finally
-                {
-                    _cancellation.Dispose();
-                    owner._watcherOperations.TryRemove(this, out _);
-                }
-            }
         }
     }
 }
