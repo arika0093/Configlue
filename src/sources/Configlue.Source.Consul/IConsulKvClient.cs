@@ -1,10 +1,16 @@
 namespace Configlue.Source.Consul;
 
 /// <summary>
-/// Injected Consul KV transport. Implementations remain caller-owned; the source never disposes them.
+/// Internal Consul KV transport. Implementations remain caller-owned; the source never disposes them.
 /// ACL tokens are supplied to the implementation and are never logged or exposed in provenance.
 /// </summary>
-public interface IConsulKvClient
+/// <remarks>
+/// Production code never implements this interface directly: inject a configured
+/// <see cref="HttpClient"/> plus the agent address and optional ACL token through the
+/// resource/source surface, and the package adapts them internally. Tests implement this
+/// interface with in-memory fakes or drive the internal HTTP transport with a fake handler.
+/// </remarks>
+internal interface IConsulKvClient
 {
     /// <summary>Recursively reads every entry under <paramref name="prefix"/>.</summary>
     /// <remarks>

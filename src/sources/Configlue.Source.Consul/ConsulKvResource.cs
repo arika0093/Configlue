@@ -21,17 +21,41 @@ public sealed class ConsulKvResource
     private int _disposed;
 
     /// <summary>Creates a resource for one Consul KV key.</summary>
+    /// <param name="httpClient">
+    /// A caller-owned HTTP client targeting the Consul agent. The agent address is taken from
+    /// <see cref="ConsulKvResourceOptions.BaseAddress"/> when set, otherwise from the HTTP
+    /// client's own base address.
+    /// </param>
+    /// <param name="key">The Consul key.</param>
+    /// <param name="options">Key, routing, endpoint, and identity settings.</param>
     public ConsulKvResource(
-        IConsulKvClient client,
+        HttpClient httpClient,
         string key,
         ConsulKvResourceOptions? options = null
     )
         : this(
-            client,
+            CreateTransport(httpClient, options ?? new ConsulKvResourceOptions()),
             key,
             options,
-            options?.ClientSelector is { } selector ? context => selector(context) : null
+            options?.ClientSelector is { } selector
+                ? context =>
+                    CreateTransport(
+                        selector(context)
+                            ?? throw new InvalidOperationException(
+                                "The Consul client selector returned null."
+                            ),
+                        options ?? new ConsulKvResourceOptions()
+                    )
+                : null
         ) { }
+
+    /// <summary>Creates a resource over an internal transport. Tests use this with fakes.</summary>
+    internal ConsulKvResource(
+        IConsulKvClient client,
+        string key,
+        ConsulKvResourceOptions? options = null
+    )
+        : this(client, key, options, clientSelector: null) { }
 
     internal ConsulKvResource(
         IConsulKvClient client,
@@ -315,6 +339,16 @@ public sealed class ConsulKvResource
 
     private IConsulKvClient GetClient(ConfiglueResourceContext context) =>
         _clientSelector?.Invoke(context) ?? _client;
+
+    private static IConsulKvClient CreateTransport(
+        HttpClient httpClient,
+        ConsulKvResourceOptions options
+    )
+    {
+        ArgumentNullException.ThrowIfNull(httpClient);
+        ArgumentNullException.ThrowIfNull(options);
+        return new HttpConsulKvClient(httpClient, options.BaseAddress, options.Token);
+    }
 
     private string ResolveKey(ConfiglueResourceContext context)
     {

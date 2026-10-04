@@ -3,21 +3,21 @@ using Azure.Security.KeyVault.Secrets;
 
 namespace Configlue.Resource.AzureKeyVault;
 
-/// <summary>Adapts the Azure SDK <c>SecretClient</c> to <see cref="IKeyVaultSecretClient"/>.</summary>
+/// <summary>Adapts the Azure SDK <c>SecretClient</c> to the internal transport.</summary>
 /// <remarks>The supplied client remains caller-owned and is never disposed by Configlue.</remarks>
-public sealed class SecretClientAdapter : IKeyVaultSecretClient
+internal sealed class SecretClientAdapter : IKeyVaultSecretClient
 {
     private readonly SecretClient _client;
 
     /// <summary>Creates an adapter over an externally owned client.</summary>
-    public SecretClientAdapter(SecretClient client)
+    internal SecretClientAdapter(SecretClient client)
     {
         ArgumentNullException.ThrowIfNull(client);
         _client = client;
     }
 
     /// <summary>The wrapped SDK client.</summary>
-    public SecretClient InnerClient => _client;
+    internal SecretClient InnerClient => _client;
 
     /// <inheritdoc />
     public async ValueTask<KeyVaultSecretResult> GetSecretAsync(

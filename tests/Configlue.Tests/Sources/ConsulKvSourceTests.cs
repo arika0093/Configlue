@@ -453,7 +453,11 @@ public sealed class ConsulKvSourceTests
         var runtime = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
             new StateSourceSet<AppSettings.Fragment>([
                 consulState,
-                new StateSource<AppSettings.Fragment>("defaults", defaults, new StateSourceOptions<AppSettings.Fragment> { Priority = 0 }),
+                new StateSource<AppSettings.Fragment>(
+                    "defaults",
+                    defaults,
+                    new StateSourceOptions<AppSettings.Fragment> { Priority = 0 }
+                ),
             ])
         );
 
@@ -556,14 +560,15 @@ public sealed class ConsulKvSourceTests
         Should.Throw<ArgumentException>(() =>
             builder.FromConsul(new ConsulKvPrefixSourceOptions { KeyPrefix = "config/app" })
         );
+        using var httpClient = new HttpClient();
         Should.Throw<ArgumentException>(() =>
             builder.FromConsulObject(
                 new ConsulKvObjectSourceOptions
                 {
                     Key = "config/key",
                     Codec = codec,
-                    Client = new FakeConsulKvClient(),
-                    ClientFactory = _ => new FakeConsulKvClient(),
+                    Client = httpClient,
+                    ClientFactory = _ => httpClient,
                 }
             )
         );
@@ -572,7 +577,7 @@ public sealed class ConsulKvSourceTests
     [Test]
     public void RegistrationFromConsulObjectAcceptsValidOptions()
     {
-        var client = new FakeConsulKvClient();
+        using var httpClient = new HttpClient();
         var codec = StateCodecBinding.Typed(new JsonStateCodec<string>());
         var builder = new ConfiglueSourceSetBuilder();
         var registration = builder.FromConsulObject(
@@ -580,7 +585,7 @@ public sealed class ConsulKvSourceTests
             {
                 Id = "consul-object",
                 Key = "config/greeting",
-                Client = client,
+                Client = httpClient,
                 Codec = codec,
             }
         );

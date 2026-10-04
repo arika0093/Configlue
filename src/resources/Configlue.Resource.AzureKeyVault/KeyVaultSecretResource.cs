@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using System.Text;
+using Azure.Security.KeyVault.Secrets;
 
 namespace Configlue.Resource.AzureKeyVault;
 
@@ -28,7 +29,22 @@ public sealed class KeyVaultSecretResource
     private int _disposed;
 
     /// <summary>Creates a resource for one secret.</summary>
+    /// <param name="client">The Azure SDK client. It remains caller-owned.</param>
+    /// <param name="vaultUri">The vault URI.</param>
+    /// <param name="secretName">The secret name.</param>
+    /// <param name="secretVersion">A fixed version, or null for the current version.</param>
+    /// <param name="options">Resource identity settings.</param>
     public KeyVaultSecretResource(
+        SecretClient client,
+        Uri vaultUri,
+        string secretName,
+        string? secretVersion = null,
+        KeyVaultSecretResourceOptions? options = null
+    )
+        : this(new SecretClientAdapter(client), vaultUri, secretName, secretVersion, options) { }
+
+    /// <summary>Creates a resource over an internal transport. Tests use this with fakes.</summary>
+    internal KeyVaultSecretResource(
         IKeyVaultSecretClient client,
         Uri vaultUri,
         string secretName,

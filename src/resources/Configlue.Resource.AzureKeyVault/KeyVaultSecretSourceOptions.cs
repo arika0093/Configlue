@@ -1,4 +1,5 @@
 using Azure.Core;
+using Azure.Security.KeyVault.Secrets;
 using Configlue.Codecs;
 
 namespace Configlue.Resource.AzureKeyVault;
@@ -23,11 +24,11 @@ public sealed class KeyVaultSecretSourceOptions
     /// <summary>A fixed secret version, or null for the current version.</summary>
     public string? SecretVersion { get; init; }
 
-    /// <summary>A directly supplied client. It remains caller-owned.</summary>
-    public IKeyVaultSecretClient? Client { get; init; }
+    /// <summary>A directly supplied Azure SDK client. It remains caller-owned.</summary>
+    public SecretClient? Client { get; init; }
 
-    /// <summary>Resolves a client at context creation, for example from dependency injection.</summary>
-    public Func<IServiceProvider?, IKeyVaultSecretClient>? ClientFactory { get; init; }
+    /// <summary>Resolves an Azure SDK client at context creation, for example from dependency injection.</summary>
+    public Func<IServiceProvider?, SecretClient>? ClientFactory { get; init; }
 
     /// <summary>
     /// A credential used to build a client when <see cref="Client"/> and

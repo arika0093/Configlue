@@ -1,11 +1,15 @@
 namespace Configlue.Resource.Kubernetes;
 
 /// <summary>
-/// Shared Kubernetes object client used by ConfigMap and Secret resources.
-/// Implementations remain caller-owned; resources never dispose them.
-/// Secret values and cluster credentials must never appear in diagnostics.
+/// Internal Kubernetes object transport shared by ConfigMap and Secret resources.
 /// </summary>
-public interface IKubernetesObjectClient
+/// <remarks>
+/// Production code never implements this interface directly: inject a configured
+/// <see cref="HttpClient"/> (see <see cref="KubernetesConfiguration"/>) and the package
+/// adapts it internally. Tests implement this interface with in-memory fakes.
+/// Secret values and cluster credentials must never appear in diagnostics.
+/// </remarks>
+internal interface IKubernetesObjectClient
 {
     /// <summary>Reads one ConfigMap object.</summary>
     /// <exception cref="KubernetesObjectNotFoundException">The object does not exist.</exception>

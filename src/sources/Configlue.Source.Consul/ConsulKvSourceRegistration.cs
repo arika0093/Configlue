@@ -12,14 +12,14 @@ public sealed class ConsulKvPrefixSourceOptions
     /// <summary>The Consul key prefix mapping to one model contribution.</summary>
     public required string KeyPrefix { get; init; }
 
-    /// <summary>A directly supplied client. It remains caller-owned.</summary>
-    public IConsulKvClient? Client { get; init; }
+    /// <summary>A directly supplied HTTP client targeting the Consul agent. It remains caller-owned.</summary>
+    public HttpClient? Client { get; init; }
 
-    /// <summary>Resolves a client at context creation, for example from dependency injection.</summary>
-    public Func<IServiceProvider?, IConsulKvClient>? ClientFactory { get; init; }
+    /// <summary>Resolves an HTTP client at context creation, for example from dependency injection.</summary>
+    public Func<IServiceProvider?, HttpClient>? ClientFactory { get; init; }
 
-    /// <summary>Resolves a caller-owned, shared client for each physical route.</summary>
-    public Func<IServiceProvider?, RouteKey, IConsulKvClient>? ClientResolver { get; init; }
+    /// <summary>Resolves a caller-owned HTTP client for each physical route.</summary>
+    public Func<IServiceProvider?, RouteKey, HttpClient>? ClientResolver { get; init; }
 
     /// <summary>Prefix, datacenter, namespace, and consistency settings.</summary>
     public ConsulKvPrefixOptions? PrefixOptions { get; init; }
@@ -44,11 +44,11 @@ public sealed class ConsulKvObjectSourceOptions
     /// <summary>The single Consul key holding the serialized payload.</summary>
     public required string Key { get; init; }
 
-    /// <summary>A directly supplied client. It remains caller-owned.</summary>
-    public IConsulKvClient? Client { get; init; }
+    /// <summary>A directly supplied HTTP client targeting the Consul agent. It remains caller-owned.</summary>
+    public HttpClient? Client { get; init; }
 
-    /// <summary>Resolves a client at context creation, for example from dependency injection.</summary>
-    public Func<IServiceProvider?, IConsulKvClient>? ClientFactory { get; init; }
+    /// <summary>Resolves an HTTP client at context creation, for example from dependency injection.</summary>
+    public Func<IServiceProvider?, HttpClient>? ClientFactory { get; init; }
 
     /// <summary>The codec for the serialized object.</summary>
     public required StateCodecBinding Codec { get; init; }

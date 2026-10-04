@@ -25,16 +25,18 @@ public static class KeyVaultClients
         return new SecretClient(vaultUri, credential ?? new DefaultAzureCredential());
     }
 
-    /// <summary>Creates an injectable <see cref="IKeyVaultSecretClient"/> over the Azure SDK client.</summary>
-    public static IKeyVaultSecretClient CreateAdapter(SecretClient client) =>
+    /// <summary>Creates the internal transport over the Azure SDK client.</summary>
+    internal static IKeyVaultSecretClient CreateAdapter(SecretClient client) =>
         new SecretClientAdapter(client);
 
     /// <summary>
-    /// Creates an injectable client directly from a vault URI and optional credential.
+    /// Creates the internal transport directly from a vault URI and optional credential.
     /// The underlying <c>SecretClient</c> remains caller-owned via the adapter.
     /// </summary>
-    public static IKeyVaultSecretClient Create(Uri vaultUri, TokenCredential? credential = null) =>
-        new SecretClientAdapter(CreateSecretClient(vaultUri, credential));
+    internal static IKeyVaultSecretClient Create(
+        Uri vaultUri,
+        TokenCredential? credential = null
+    ) => new SecretClientAdapter(CreateSecretClient(vaultUri, credential));
 
     /// <summary>Returns a redacted vault origin for diagnostics; never includes secret material.</summary>
     public static string GetPhysicalOrigin(Uri vaultUri)

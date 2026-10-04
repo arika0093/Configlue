@@ -1,27 +1,6 @@
 [assembly: System.Reflection.AssemblyMetadata("RepositoryUrl", "https://github.com/arika0093/Configlue")]
 namespace Configlue.Resource.Kubernetes
 {
-    public sealed class HttpKubernetesObjectClient : Configlue.Resource.Kubernetes.IKubernetesObjectClient
-    {
-        public HttpKubernetesObjectClient(System.Net.Http.HttpClient httpClient) { }
-        public System.Threading.Tasks.Task<Configlue.Resource.Kubernetes.KubernetesConfigMapSnapshot> GetConfigMapAsync(string @namespace, string name, System.Threading.CancellationToken cancellationToken) { }
-        public System.Threading.Tasks.Task<Configlue.Resource.Kubernetes.KubernetesSecretSnapshot> GetSecretAsync(string @namespace, string name, System.Threading.CancellationToken cancellationToken) { }
-        public System.Threading.Tasks.Task<string?> ReplaceConfigMapAsync(string @namespace, string name, System.Collections.Generic.IReadOnlyDictionary<string, string> data, System.Collections.Generic.IReadOnlyDictionary<string, byte[]> binaryData, string? expectedResourceVersion, bool requireMissing, System.Threading.CancellationToken cancellationToken) { }
-        public System.Threading.Tasks.Task<string?> ReplaceSecretAsync(string @namespace, string name, System.Collections.Generic.IReadOnlyDictionary<string, byte[]> data, string? expectedResourceVersion, bool requireMissing, System.Threading.CancellationToken cancellationToken) { }
-        [System.Runtime.CompilerServices.AsyncIteratorStateMachine(typeof(Configlue.Resource.Kubernetes.HttpKubernetesObjectClient.<WatchConfigMapAsync>d__6))]
-        public System.Collections.Generic.IAsyncEnumerable<Configlue.Resource.Kubernetes.KubernetesWatchEvent> WatchConfigMapAsync(string @namespace, string name, string? resourceVersion, [System.Runtime.CompilerServices.EnumeratorCancellation] System.Threading.CancellationToken cancellationToken) { }
-        [System.Runtime.CompilerServices.AsyncIteratorStateMachine(typeof(Configlue.Resource.Kubernetes.HttpKubernetesObjectClient.<WatchSecretAsync>d__7))]
-        public System.Collections.Generic.IAsyncEnumerable<Configlue.Resource.Kubernetes.KubernetesWatchEvent> WatchSecretAsync(string @namespace, string name, string? resourceVersion, [System.Runtime.CompilerServices.EnumeratorCancellation] System.Threading.CancellationToken cancellationToken) { }
-    }
-    public interface IKubernetesObjectClient
-    {
-        System.Threading.Tasks.Task<Configlue.Resource.Kubernetes.KubernetesConfigMapSnapshot> GetConfigMapAsync(string @namespace, string name, System.Threading.CancellationToken cancellationToken);
-        System.Threading.Tasks.Task<Configlue.Resource.Kubernetes.KubernetesSecretSnapshot> GetSecretAsync(string @namespace, string name, System.Threading.CancellationToken cancellationToken);
-        System.Threading.Tasks.Task<string?> ReplaceConfigMapAsync(string @namespace, string name, System.Collections.Generic.IReadOnlyDictionary<string, string> data, System.Collections.Generic.IReadOnlyDictionary<string, byte[]> binaryData, string? expectedResourceVersion, bool requireMissing, System.Threading.CancellationToken cancellationToken);
-        System.Threading.Tasks.Task<string?> ReplaceSecretAsync(string @namespace, string name, System.Collections.Generic.IReadOnlyDictionary<string, byte[]> data, string? expectedResourceVersion, bool requireMissing, System.Threading.CancellationToken cancellationToken);
-        System.Collections.Generic.IAsyncEnumerable<Configlue.Resource.Kubernetes.KubernetesWatchEvent> WatchConfigMapAsync(string @namespace, string name, string? resourceVersion, System.Threading.CancellationToken cancellationToken);
-        System.Collections.Generic.IAsyncEnumerable<Configlue.Resource.Kubernetes.KubernetesWatchEvent> WatchSecretAsync(string @namespace, string name, string? resourceVersion, System.Threading.CancellationToken cancellationToken);
-    }
     public sealed class KubernetesConfigMapSnapshot
     {
         public KubernetesConfigMapSnapshot(string? resourceVersion, bool immutable, System.Collections.Generic.IReadOnlyDictionary<string, string> data, System.Collections.Generic.IReadOnlyDictionary<string, byte[]> binaryData) { }
@@ -41,7 +20,6 @@ namespace Configlue.Resource.Kubernetes
         public static bool IsInCluster { get; }
         public System.Net.Http.HttpClient CreateHttpClient() { }
         public override string ToString() { }
-        public static Configlue.Resource.Kubernetes.IKubernetesObjectClient CreateObjectClient(System.Net.Http.HttpClient httpClient) { }
         public static Configlue.Resource.Kubernetes.KubernetesConfiguration ForInCluster(string? defaultNamespace = null) { }
         public static Configlue.Resource.Kubernetes.KubernetesConfiguration FromKubeConfigFile(string? path = null, string? contextName = null, string? defaultNamespace = null) { }
     }
@@ -59,7 +37,7 @@ namespace Configlue.Resource.Kubernetes
     }
     public sealed class KubernetesResource : Configlue.Resources.IResourceIdentity, Configlue.Resources.IResourceReader, Configlue.Resources.IResourceWriter, Configlue.Sources.ISourceWatcher, System.IDisposable
     {
-        public KubernetesResource(Configlue.Resource.Kubernetes.IKubernetesObjectClient client, Configlue.Resource.Kubernetes.KubernetesResourceKind kind, string @namespace, string name, string? key, Configlue.Resource.Kubernetes.KubernetesResourceOptions? options = null) { }
+        public KubernetesResource(System.Net.Http.HttpClient httpClient, Configlue.Resource.Kubernetes.KubernetesResourceKind kind, string @namespace, string name, string? key, Configlue.Resource.Kubernetes.KubernetesResourceOptions? options = null) { }
         public bool IsWholeObject { get; }
         public string? Key { get; }
         public Configlue.Resource.Kubernetes.KubernetesResourceKind Kind { get; }
@@ -101,8 +79,8 @@ namespace Configlue.Resource.Kubernetes
     public sealed class KubernetesSourceOptions
     {
         public KubernetesSourceOptions() { }
-        public Configlue.Resource.Kubernetes.IKubernetesObjectClient? Client { get; init; }
-        public System.Func<System.IServiceProvider?, Configlue.Resource.Kubernetes.IKubernetesObjectClient>? ClientFactory { get; init; }
+        public System.Net.Http.HttpClient? Client { get; init; }
+        public System.Func<System.IServiceProvider?, System.Net.Http.HttpClient>? ClientFactory { get; init; }
         public required Configlue.Codecs.StateCodecBinding Codec { get; init; }
         public Configlue.Codecs.StateCodecContext CodecContext { get; init; }
         public Configlue.Sources.StateFallbackCondition FallbackCondition { get; init; }
@@ -118,13 +96,13 @@ namespace Configlue.Resource.Kubernetes
     public static class KubernetesSourceRegistration
     {
         public static Configlue.Extensibility.ConfiglueSourceRegistration FromKubernetes(this Configlue.ConfiglueSourceSetBuilder sources, Configlue.Resource.Kubernetes.KubernetesSourceOptions options) { }
-        public static Configlue.Extensibility.ConfiglueSourceRegistration FromKubernetesConfigMap(this Configlue.ConfiglueSourceSetBuilder sources, string @namespace, string name, string? key, Configlue.Codecs.StateCodecBinding codec, Configlue.Resource.Kubernetes.IKubernetesObjectClient client, System.Action<Configlue.Resource.Kubernetes.KubernetesSourceRegistration.KubernetesSourceOptionsBuilder>? configure = null) { }
-        public static Configlue.Extensibility.ConfiglueSourceRegistration FromKubernetesSecret(this Configlue.ConfiglueSourceSetBuilder sources, string @namespace, string name, string? key, Configlue.Codecs.StateCodecBinding codec, Configlue.Resource.Kubernetes.IKubernetesObjectClient client, System.Action<Configlue.Resource.Kubernetes.KubernetesSourceRegistration.KubernetesSourceOptionsBuilder>? configure = null) { }
+        public static Configlue.Extensibility.ConfiglueSourceRegistration FromKubernetesConfigMap(this Configlue.ConfiglueSourceSetBuilder sources, string @namespace, string name, string? key, Configlue.Codecs.StateCodecBinding codec, System.Net.Http.HttpClient httpClient, System.Action<Configlue.Resource.Kubernetes.KubernetesSourceRegistration.KubernetesSourceOptionsBuilder>? configure = null) { }
+        public static Configlue.Extensibility.ConfiglueSourceRegistration FromKubernetesSecret(this Configlue.ConfiglueSourceSetBuilder sources, string @namespace, string name, string? key, Configlue.Codecs.StateCodecBinding codec, System.Net.Http.HttpClient httpClient, System.Action<Configlue.Resource.Kubernetes.KubernetesSourceRegistration.KubernetesSourceOptionsBuilder>? configure = null) { }
         public sealed class KubernetesSourceOptionsBuilder
         {
             public KubernetesSourceOptionsBuilder() { }
-            public Configlue.Resource.Kubernetes.IKubernetesObjectClient? Client { get; set; }
-            public System.Func<System.IServiceProvider?, Configlue.Resource.Kubernetes.IKubernetesObjectClient>? ClientFactory { get; set; }
+            public System.Net.Http.HttpClient? Client { get; set; }
+            public System.Func<System.IServiceProvider?, System.Net.Http.HttpClient>? ClientFactory { get; set; }
             public Configlue.Codecs.StateCodecBinding Codec { get; set; }
             public Configlue.Codecs.StateCodecContext CodecContext { get; set; }
             public Configlue.Sources.StateFallbackCondition FallbackCondition { get; set; }

@@ -31,8 +31,20 @@ public sealed class ConsulKvResourceOptions
     /// <summary>How long a blocking watch query may wait. Defaults to five minutes.</summary>
     public TimeSpan BlockingWaitTimeout { get; init; } = TimeSpan.FromMinutes(5);
 
-    /// <summary>Resolves an externally owned client for each subject-aware operation.</summary>
-    public Func<ConfiglueResourceContext, IConsulKvClient>? ClientSelector { get; init; }
+    /// <summary>
+    /// The Consul agent address, for example <c>http://127.0.0.1:8500</c>. When null,
+    /// each selected HTTP client's own base address is used.
+    /// </summary>
+    public string? BaseAddress { get; init; }
+
+    /// <summary>
+    /// An optional ACL token. It is stored opaquely and never logged or exposed in provenance.
+    /// When null, no token header is sent and the HTTP client's own headers apply.
+    /// </summary>
+    public string? Token { get; init; }
+
+    /// <summary>Resolves a caller-owned HTTP client for each subject-aware operation.</summary>
+    public Func<ConfiglueResourceContext, HttpClient>? ClientSelector { get; init; }
 
     /// <summary>
     /// An advanced fixed identity override shared by every operation context. Configuring this
@@ -88,6 +100,18 @@ public sealed class ConsulKvPrefixOptions
 
     /// <summary>Whether multi-key writes use the atomic transaction API. Defaults to true.</summary>
     public bool UseTransaction { get; init; } = true;
+
+    /// <summary>
+    /// The Consul agent address, for example <c>http://127.0.0.1:8500</c>. When null,
+    /// each selected HTTP client's own base address is used.
+    /// </summary>
+    public string? BaseAddress { get; init; }
+
+    /// <summary>
+    /// An optional ACL token. It is stored opaquely and never logged or exposed in provenance.
+    /// When null, no token header is sent and the HTTP client's own headers apply.
+    /// </summary>
+    public string? Token { get; init; }
 
     /// <summary>
     /// An advanced fixed identity override shared by every operation context. Configuring this

@@ -201,7 +201,17 @@ public sealed class EtcdCompactedException : EtcdException
     public long CompactRevision { get; }
 }
 
-/// <summary>Reads etcd key ranges and commits compare-and-swap transactions.</summary>
+/// <summary>
+/// Reads etcd key ranges and commits compare-and-swap transactions.
+/// </summary>
+/// <remarks>
+/// External implementation scenario: this interface (with <see cref="IEtcdWatcherClient"/>)
+/// is the supported seam for etcd v3 deployments this package does not bundle a client for.
+/// Implement it over any etcd v3 client (for example a gRPC binding or the HTTP/JSON gateway)
+/// or against an etcd-compatible server. The contract carries only Configlue revisions and
+/// errors; endpoint, TLS, and authentication stay in <see cref="EtcdResourceOptions"/> and the
+/// transport itself. Tests implement this interface with in-memory fakes.
+/// </remarks>
 public interface IEtcdKvClient
 {
     /// <summary>Reads the keys under a prefix at an optional revision.</summary>
@@ -225,7 +235,14 @@ public interface IEtcdKvClient
     );
 }
 
-/// <summary>Streams prefix change notifications from etcd.</summary>
+/// <summary>
+/// Streams prefix change notifications from etcd.
+/// </summary>
+/// <remarks>
+/// External implementation scenario: implement this alongside <see cref="IEtcdKvClient"/>
+/// over any etcd v3 watch mechanism (gRPC streaming or long-poll reads). Tests implement
+/// this interface with in-memory fakes.
+/// </remarks>
 public interface IEtcdWatcherClient
 {
     /// <summary>
@@ -246,5 +263,8 @@ public interface IEtcdWatcherClient
     );
 }
 
-/// <summary>An injected, caller-owned etcd v3 client combining reads, transactions, and watches.</summary>
+/// <summary>
+/// An injected, caller-owned etcd v3 client combining reads, transactions, and watches.
+/// See <see cref="IEtcdKvClient"/> for the supported external implementation scenario.
+/// </summary>
 public interface IEtcdClient : IEtcdKvClient, IEtcdWatcherClient, IDisposable;

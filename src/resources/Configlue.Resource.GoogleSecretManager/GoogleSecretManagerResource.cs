@@ -126,13 +126,22 @@ public sealed class GoogleSecretUnavailableException : GoogleSecretManagerExcept
 /// or credential material in thrown messages.
 /// </summary>
 /// <remarks>
-/// Production implementations adapt <c>Google.Cloud.SecretManager.V1.SecretManagerServiceClient</c>:
-/// <c>AccessSecretVersion</c> maps to <see cref="AccessSecretVersionAsync"/>,
+/// <para>
+/// External implementation scenario: this interface is the supported seam for Google Secret
+/// Manager because this package intentionally takes no dependency on a Google client library.
+/// Adapt <c>Google.Cloud.SecretManager.V1.SecretManagerServiceClient</c>
+/// (<c>AccessSecretVersion</c> maps to <see cref="AccessSecretVersionAsync"/>,
 /// <c>GetSecretVersion</c> maps to <see cref="GetSecretVersionAsync"/>, and
-/// <c>AddSecretVersion</c> maps to <see cref="AddSecretVersionAsync"/>. Application Default
+/// <c>AddSecretVersion</c> maps to <see cref="AddSecretVersionAsync"/>), a REST pipeline
+/// with its own token handling, or an emulator for local development. Application Default
 /// Credentials are supplied by constructing that client with ADC (for example via
 /// <c>SecretManagerServiceClient.Create()</c>) and injecting it through the resource constructors
 /// or a <c>ClientFactory</c>; this package never captures credentials itself.
+/// </para>
+/// <para>
+/// The contract is intentionally small (access, metadata, append) and carries only Configlue
+/// revisions and errors. Tests implement this interface with in-memory fakes.
+/// </para>
 /// </remarks>
 public interface IGoogleSecretManagerClient
 {

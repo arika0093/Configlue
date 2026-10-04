@@ -1,3 +1,8 @@
+using System.Text;
+using Azure;
+using Azure.Core;
+using Azure.Core.Pipeline;
+using Azure.Security.KeyVault.Secrets;
 using Configlue.Provider.Json;
 using Configlue.Resource.AzureKeyVault;
 
@@ -6,6 +11,13 @@ namespace Configlue.Tests;
 public sealed class KeyVaultSecretsTests
 {
     private static readonly Uri VaultUri = new("https://test-vault.vault.azure.net/");
+
+    private static SecretClient CreateSecretClient(IReadOnlyDictionary<string, string> secrets) =>
+        new(
+            VaultUri,
+            new FakeTokenCredential(),
+            new SecretClientOptions { Transport = new FakeKeyVaultTransport(secrets) }
+        );
 
     private static KeyVaultSecretsState<AppSettings.Fragment> CreateState(
         FakeSecretsClient client,
@@ -69,11 +81,7 @@ public sealed class KeyVaultSecretsTests
         var client = new FakeSecretsClient();
         client.Set("Label", "convention-label");
         client.Set("Database-Host", "convention-db");
-        var state = CreateState(
-            client,
-            [],
-            convention: true
-        );
+        var state = CreateState(client, [], convention: true);
 
         var resolved = state.ResolvedMappings.Select(static m => m.SecretName).ToArray();
         resolved.ShouldContain("Label");
@@ -151,10 +159,7 @@ public sealed class KeyVaultSecretsTests
         var first = await state.ReadAsync();
         first.Value!.Label.Value.ShouldBe("before");
 
-        var wait = state.WaitForChangeAsync(
-            ConfiglueResourceContext.Default,
-            first.Revision
-        );
+        var wait = state.WaitForChangeAsync(ConfiglueResourceContext.Default, first.Revision);
         await Task.Delay(50);
         client.Set("app-label", "after");
         await wait.AsTask().WaitAsync(TimeSpan.FromSeconds(30));
@@ -287,14 +292,16 @@ public sealed class KeyVaultSecretsTests
     [Test]
     public async Task ClientFactory_InjectionIsSupported()
     {
-        var client = new FakeSecretsClient();
-        client.Set("app-label", "via-factory");
+        var secrets = new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            ["app-label"] = "via-factory",
+        };
         var builder = new ConfiglueSourceSetBuilder();
         builder.FromKeyVaultSecrets(
             new KeyVaultSecretsOptions
             {
                 VaultUri = VaultUri,
-                ClientFactory = _ => client,
+                ClientFactory = _ => CreateSecretClient(secrets),
                 Mappings = [new KeyVaultSecretMapping("Label", "app-label")],
             }
         );
@@ -308,7 +315,7 @@ public sealed class KeyVaultSecretsTests
                         new KeyVaultSecretsOptions
                         {
                             VaultUri = VaultUri,
-                            ClientFactory = _ => client,
+                            ClientFactory = _ => CreateSecretClient(secrets),
                             Mappings = [new KeyVaultSecretMapping("Label", "app-label")],
                         }
                     );
@@ -323,7 +330,7 @@ public sealed class KeyVaultSecretsTests
     public void Registration_ValidatesClientAndMappingConfiguration()
     {
         var builder = new ConfiglueSourceSetBuilder();
-        var client = new FakeSecretsClient();
+        var client = CreateSecretClient(new Dictionary<string, string>(StringComparer.Ordinal));
 
         Should.Throw<ArgumentException>(() =>
             builder.FromKeyVaultSecrets(
@@ -427,7 +434,12 @@ public sealed class KeyVaultSecretsTests
                         new KeyVaultSecretsOptions
                         {
                             VaultUri = VaultUri,
-                            Client = client,
+                            Client = CreateSecretClient(
+                                new Dictionary<string, string>(StringComparer.Ordinal)
+                                {
+                                    ["app-label"] = secretValue,
+                                }
+                            ),
                             Mappings = [new KeyVaultSecretMapping("Label", "app-label")],
                         }
                     );
@@ -447,7 +459,9 @@ public sealed class KeyVaultSecretsTests
 
     private sealed class FakeSecretsClient : IKeyVaultSecretClient
     {
-        private readonly Dictionary<string, List<StoredSecret>> _secrets = new(StringComparer.Ordinal);
+        private readonly Dictionary<string, List<StoredSecret>> _secrets = new(
+            StringComparer.Ordinal
+        );
         private int _versionCounter;
 
         public int GetCalls { get; private set; }
@@ -463,7 +477,9 @@ public sealed class KeyVaultSecretsTests
                 _secrets[name] = versions;
             }
 
-            versions.RemoveAll(v => string.Equals(v.Version, resolvedVersion, StringComparison.Ordinal));
+            versions.RemoveAll(v =>
+                string.Equals(v.Version, resolvedVersion, StringComparison.Ordinal)
+            );
             versions.Add(new StoredSecret(value, resolvedVersion, enabled));
         }
 
@@ -496,7 +512,9 @@ public sealed class KeyVaultSecretsTests
             }
             else
             {
-                var match = versions.FirstOrDefault(v => string.Equals(v.Version, version, StringComparison.Ordinal));
+                var match = versions.FirstOrDefault(v =>
+                    string.Equals(v.Version, version, StringComparison.Ordinal)
+                );
                 if (match is null)
                 {
                     return ValueTaskCompat.FromException<KeyVaultSecretResult>(
@@ -533,9 +551,188 @@ public sealed class KeyVaultSecretsTests
             }
 
             versions.Add(new StoredSecret(secretValue, version, true));
-            return ValueTaskCompat.FromResult(new KeyVaultSecretMetadata(secretName, version, true));
+            return ValueTaskCompat.FromResult(
+                new KeyVaultSecretMetadata(secretName, version, true)
+            );
         }
 
         private sealed record StoredSecret(string Value, string Version, bool Enabled);
+    }
+
+    private sealed class FakeTokenCredential : TokenCredential
+    {
+        public override AccessToken GetToken(
+            TokenRequestContext requestContext,
+            CancellationToken cancellationToken
+        ) => new("fake-token", DateTimeOffset.UtcNow.AddHours(1));
+
+        public override ValueTask<AccessToken> GetTokenAsync(
+            TokenRequestContext requestContext,
+            CancellationToken cancellationToken
+        ) => new(GetToken(requestContext, cancellationToken));
+    }
+
+    /// <summary>
+    /// Serves canned Key Vault secret payloads over the Azure SDK pipeline so
+    /// registration-level tests exercise the public <c>SecretClient</c> surface.
+    /// </summary>
+    private sealed class FakeKeyVaultTransport : HttpPipelineTransport
+    {
+        private readonly IReadOnlyDictionary<string, string> _secrets;
+
+        public FakeKeyVaultTransport(IReadOnlyDictionary<string, string> secrets) =>
+            _secrets = secrets;
+
+        public override Request CreateRequest() => new FakeKeyVaultRequest();
+
+        public override void Process(HttpMessage message) =>
+            message.Response = CreateResponse(message);
+
+        public override ValueTask ProcessAsync(HttpMessage message)
+        {
+            message.Response = CreateResponse(message);
+            return default;
+        }
+
+        private FakeKeyVaultResponse CreateResponse(HttpMessage message)
+        {
+            var path = message.Request.Uri?.ToUri().AbsolutePath ?? string.Empty;
+            var segments = path.Split('/', StringSplitOptions.RemoveEmptyEntries);
+            if (
+                segments.Length >= 2
+                && string.Equals(segments[0], "secrets", StringComparison.OrdinalIgnoreCase)
+                && _secrets.TryGetValue(Uri.UnescapeDataString(segments[1]), out var value)
+            )
+            {
+                var name = Uri.UnescapeDataString(segments[1]);
+                var version = segments.Length >= 3 ? Uri.UnescapeDataString(segments[2]) : "v1";
+                var body =
+                    "{\"value\":\""
+                    + EscapeJson(value)
+                    + "\",\"id\":\""
+                    + VaultUri.AbsoluteUri.TrimEnd('/')
+                    + "/secrets/"
+                    + EscapeJson(name)
+                    + "/"
+                    + EscapeJson(version)
+                    + "\",\"attributes\":{\"enabled\":true}}";
+                return new FakeKeyVaultResponse(200, body);
+            }
+
+            return new FakeKeyVaultResponse(
+                404,
+                "{\"error\":{\"code\":\"SecretNotFound\",\"message\":\"Secret not found.\"}}"
+            );
+        }
+
+        private static string EscapeJson(string value)
+        {
+            var builder = new StringBuilder(value.Length + 2);
+            foreach (var character in value)
+            {
+                switch (character)
+                {
+                    case '"':
+                        builder.Append("\\\"");
+                        break;
+                    case '\\':
+                        builder.Append("\\\\");
+                        break;
+                    case '\n':
+                        builder.Append("\\n");
+                        break;
+                    case '\r':
+                        builder.Append("\\r");
+                        break;
+                    case '\t':
+                        builder.Append("\\t");
+                        break;
+                    default:
+                        builder.Append(character);
+                        break;
+                }
+            }
+
+            return builder.ToString();
+        }
+    }
+
+    private sealed class FakeKeyVaultRequest : Request
+    {
+        private readonly Dictionary<string, string> _headers = new(
+            StringComparer.OrdinalIgnoreCase
+        );
+
+        public override string ClientRequestId { get; set; } = string.Empty;
+
+        public override void Dispose() { }
+
+        protected override void AddHeader(string name, string value) => _headers[name] = value;
+
+        protected override bool ContainsHeader(string name) => _headers.ContainsKey(name);
+
+        protected override IEnumerable<HttpHeader> EnumerateHeaders() =>
+            _headers.Select(static pair => new HttpHeader(pair.Key, pair.Value));
+
+        protected override bool RemoveHeader(string name) => _headers.Remove(name);
+
+        protected override bool TryGetHeader(string name, out string value)
+        {
+            if (_headers.TryGetValue(name, out var found))
+            {
+                value = found;
+                return true;
+            }
+
+            value = string.Empty;
+            return false;
+        }
+
+        protected override bool TryGetHeaderValues(string name, out IEnumerable<string> values)
+        {
+            if (_headers.TryGetValue(name, out var value))
+            {
+                values = [value];
+                return true;
+            }
+
+            values = [];
+            return false;
+        }
+    }
+
+    private sealed class FakeKeyVaultResponse : Response
+    {
+        public FakeKeyVaultResponse(int status, string body)
+        {
+            Status = status;
+            ContentStream = new MemoryStream(Encoding.UTF8.GetBytes(body));
+        }
+
+        public override int Status { get; }
+
+        public override string ReasonPhrase => Status == 200 ? "OK" : "Not Found";
+
+        public override Stream? ContentStream { get; set; }
+
+        public override string ClientRequestId { get; set; } = string.Empty;
+
+        protected override bool ContainsHeader(string name) => false;
+
+        protected override bool TryGetHeader(string name, out string value)
+        {
+            value = string.Empty;
+            return false;
+        }
+
+        protected override bool TryGetHeaderValues(string name, out IEnumerable<string> values)
+        {
+            values = [];
+            return false;
+        }
+
+        protected override IEnumerable<HttpHeader> EnumerateHeaders() => [];
+
+        public override void Dispose() => ContentStream?.Dispose();
     }
 }

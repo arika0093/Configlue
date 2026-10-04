@@ -1,3 +1,4 @@
+using Azure.Security.KeyVault.Secrets;
 using Configlue.Codecs;
 using Configlue.Sources;
 
@@ -104,8 +105,8 @@ public static class KeyVaultSourceRegistration
     }
 
     private static void ValidateClientConfiguration(
-        IKeyVaultSecretClient? client,
-        Func<IServiceProvider?, IKeyVaultSecretClient>? factory,
+        SecretClient? client,
+        Func<IServiceProvider?, SecretClient>? factory,
         object? credential
     )
     {
@@ -130,8 +131,8 @@ public static class KeyVaultSourceRegistration
     }
 
     private static IKeyVaultSecretClient ResolveClient(
-        IKeyVaultSecretClient? client,
-        Func<IServiceProvider?, IKeyVaultSecretClient>? factory,
+        SecretClient? client,
+        Func<IServiceProvider?, SecretClient>? factory,
         Azure.Core.TokenCredential? credential,
         Uri vaultUri,
         IServiceProvider? services
@@ -139,15 +140,17 @@ public static class KeyVaultSourceRegistration
     {
         if (client is not null)
         {
-            return client;
+            return KeyVaultClients.CreateAdapter(client);
         }
 
         if (factory is not null)
         {
-            return factory(services)
-                ?? throw new InvalidOperationException(
-                    "The Key Vault client factory returned null."
-                );
+            return KeyVaultClients.CreateAdapter(
+                factory(services)
+                    ?? throw new InvalidOperationException(
+                        "The Key Vault client factory returned null."
+                    )
+            );
         }
 
         return KeyVaultClients.Create(vaultUri, credential);

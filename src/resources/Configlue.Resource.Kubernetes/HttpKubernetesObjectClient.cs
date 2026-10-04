@@ -6,17 +6,17 @@ using System.Text.Json;
 namespace Configlue.Resource.Kubernetes;
 
 /// <summary>
-/// Kubernetes REST client backed by an injected <see cref="HttpClient"/>.
+/// Internal Kubernetes REST transport backed by an injected <see cref="HttpClient"/>.
 /// The <see cref="HttpClient"/> remains caller-owned and must already target the cluster
 /// (base address, bearer token, TLS). Response bodies are never logged.
 /// </summary>
-public sealed class HttpKubernetesObjectClient : IKubernetesObjectClient
+internal sealed class HttpKubernetesObjectClient : IKubernetesObjectClient
 {
     private readonly HttpClient _httpClient;
 
-    /// <summary>Creates a REST client over an already-configured HTTP client.</summary>
+    /// <summary>Creates a REST transport over an already-configured HTTP client.</summary>
     /// <param name="httpClient">The configured HTTP client. It remains caller-owned.</param>
-    public HttpKubernetesObjectClient(HttpClient httpClient)
+    internal HttpKubernetesObjectClient(HttpClient httpClient)
     {
         ArgumentNullException.ThrowIfNull(httpClient);
         _httpClient = httpClient;

@@ -152,9 +152,9 @@ public sealed class KubernetesConfiguration
         return client;
     }
 
-    /// <summary>Builds a shared object client over a caller-owned HTTP client.</summary>
+    /// <summary>Builds the internal object transport over a caller-owned HTTP client.</summary>
     /// <param name="httpClient">The configured HTTP client. It remains caller-owned.</param>
-    public static IKubernetesObjectClient CreateObjectClient(HttpClient httpClient) =>
+    internal static IKubernetesObjectClient CreateObjectClient(HttpClient httpClient) =>
         new HttpKubernetesObjectClient(httpClient);
 
     /// <inheritdoc />

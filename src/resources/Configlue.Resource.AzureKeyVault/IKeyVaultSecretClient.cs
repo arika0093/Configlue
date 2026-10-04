@@ -1,11 +1,15 @@
 namespace Configlue.Resource.AzureKeyVault;
 
 /// <summary>
-/// A client-compatible abstraction over Azure Key Vault secrets.
-/// Inject a fake in tests; the production adapter wraps <c>SecretClient</c>.
+/// Internal transport over Azure Key Vault secrets.
 /// </summary>
+/// <remarks>
+/// Production code never implements this interface directly: inject the Azure SDK
+/// <c>SecretClient</c> (see <see cref="KeyVaultClients"/>) and the package adapts it
+/// internally. Tests implement this interface with in-memory fakes.
+/// </remarks>
 /// <remarks>Implementations must never include secret values in thrown messages.</remarks>
-public interface IKeyVaultSecretClient
+internal interface IKeyVaultSecretClient
 {
     /// <summary>
     /// Gets one secret value with safe metadata. Throws

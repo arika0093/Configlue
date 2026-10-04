@@ -36,7 +36,59 @@ public sealed class ConsulKvSource<TFragment>
     private int _disposed;
 
     /// <summary>Creates a prefix source for the supplied schema.</summary>
+    /// <param name="httpClient">
+    /// A caller-owned HTTP client targeting the Consul agent. The agent address is taken from
+    /// <see cref="ConsulKvPrefixOptions.BaseAddress"/> when set, otherwise from the HTTP
+    /// client's own base address.
+    /// </param>
+    /// <param name="schema">The model schema.</param>
+    /// <param name="prefix">The key prefix mapping to one model contribution.</param>
+    /// <param name="options">Prefix, routing, endpoint, and consistency settings.</param>
+    /// <param name="writable">Whether this source exposes a writer.</param>
     public ConsulKvSource(
+        HttpClient httpClient,
+        ConfiglueModelSchema schema,
+        string prefix,
+        ConsulKvPrefixOptions? options = null,
+        bool writable = true
+    )
+        : this(
+            _ => CreateTransport(httpClient, options ?? new ConsulKvPrefixOptions()),
+            schema,
+            prefix,
+            options,
+            writable
+        )
+    {
+        ArgumentNullException.ThrowIfNull(httpClient);
+    }
+
+    /// <summary>Creates a prefix source that resolves a caller-owned HTTP client for each physical route.</summary>
+    /// <param name="clientResolver">Resolves an HTTP client for each physical route.</param>
+    /// <param name="schema">The model schema.</param>
+    /// <param name="prefix">The key prefix mapping to one model contribution.</param>
+    /// <param name="options">Prefix, routing, endpoint, and consistency settings.</param>
+    /// <param name="writable">Whether this source exposes a writer.</param>
+    public ConsulKvSource(
+        Func<RouteKey, HttpClient> clientResolver,
+        ConfiglueModelSchema schema,
+        string prefix,
+        ConsulKvPrefixOptions? options = null,
+        bool writable = true
+    )
+        : this(
+            AdaptResolver(clientResolver, options ?? new ConsulKvPrefixOptions()),
+            schema,
+            prefix,
+            options,
+            writable
+        )
+    {
+        ArgumentNullException.ThrowIfNull(clientResolver);
+    }
+
+    /// <summary>Creates a prefix source over an internal transport. Tests use this with fakes.</summary>
+    internal ConsulKvSource(
         IConsulKvClient client,
         ConfiglueModelSchema schema,
         string prefix,
@@ -48,8 +100,8 @@ public sealed class ConsulKvSource<TFragment>
         ArgumentNullException.ThrowIfNull(client);
     }
 
-    /// <summary>Creates a prefix source that resolves a shared client for each physical route.</summary>
-    public ConsulKvSource(
+    /// <summary>Creates a prefix source that resolves an internal transport for each physical route.</summary>
+    internal ConsulKvSource(
         Func<RouteKey, IConsulKvClient> clientResolver,
         ConfiglueModelSchema schema,
         string prefix,
@@ -276,6 +328,33 @@ public sealed class ConsulKvSource<TFragment>
                 ? throw new InvalidOperationException("No client resolver.")
                 : _client
         );
+
+    private static Func<RouteKey, IConsulKvClient> AdaptResolver(
+        Func<RouteKey, HttpClient> clientResolver,
+        ConsulKvPrefixOptions options
+    )
+    {
+        ArgumentNullException.ThrowIfNull(clientResolver);
+        ArgumentNullException.ThrowIfNull(options);
+        return route =>
+            CreateTransport(
+                clientResolver(route)
+                    ?? throw new InvalidOperationException(
+                        "The Consul client resolver returned null."
+                    ),
+                options
+            );
+    }
+
+    private static IConsulKvClient CreateTransport(
+        HttpClient httpClient,
+        ConsulKvPrefixOptions options
+    )
+    {
+        ArgumentNullException.ThrowIfNull(httpClient);
+        ArgumentNullException.ThrowIfNull(options);
+        return new HttpConsulKvClient(httpClient, options.BaseAddress, options.Token);
+    }
 
     private ConsulKvListOptions CreateListOptions(
         ConfiglueResourceContext context,

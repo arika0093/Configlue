@@ -1,3 +1,4 @@
+using System.Net;
 using System.Runtime.CompilerServices;
 using System.Text;
 using Configlue.Provider.Json;
@@ -834,17 +835,18 @@ public sealed class KubernetesResourceTests
     [Test]
     public async Task ConfigMapAndSecret_BackTypedStateThroughCodec()
     {
-        var client = new FakeKubernetesObjectClient();
         var payload = EncodeFragment(
             new AppSettings.Fragment { RetryCount = Optional<int>.Present(9) }
         );
-        client.SeedConfigMap(
-            "app-config",
-            "settings",
-            "11",
-            new Dictionary<string, string> { ["appsettings.json"] = payload },
-            new Dictionary<string, byte[]>()
+        var handler = new FakeKubernetesHandler(
+            "{\"metadata\":{\"resourceVersion\":\"11\"},\"data\":{\"appsettings.json\":\""
+                + EscapeJson(payload)
+                + "\"}}"
         );
+        using var httpClient = new HttpClient(handler)
+        {
+            BaseAddress = new Uri("https://k8s.example:6443"),
+        };
 
         await using var context = ConfiglueApp.CreateContext(builder =>
         {
@@ -856,7 +858,7 @@ public sealed class KubernetesResourceTests
                         "settings",
                         "appsettings.json",
                         StateCodecBinding.Typed(new JsonStateCodec<AppSettings.Fragment>()),
-                        client
+                        httpClient
                     );
                 })
             );
@@ -877,6 +879,55 @@ public sealed class KubernetesResourceTests
         var buffer = new System.Buffers.ArrayBufferWriter<byte>();
         codec.Serialize(fragment, buffer, new StateCodecContext());
         return Encoding.UTF8.GetString(buffer.WrittenSpan);
+    }
+
+    private static string EscapeJson(string value)
+    {
+        var builder = new StringBuilder(value.Length + 2);
+        foreach (var character in value)
+        {
+            switch (character)
+            {
+                case '"':
+                    builder.Append("\\\"");
+                    break;
+                case '\\':
+                    builder.Append("\\\\");
+                    break;
+                case '\n':
+                    builder.Append("\\n");
+                    break;
+                case '\r':
+                    builder.Append("\\r");
+                    break;
+                case '\t':
+                    builder.Append("\\t");
+                    break;
+                default:
+                    builder.Append(character);
+                    break;
+            }
+        }
+
+        return builder.ToString();
+    }
+
+    /// <summary>
+    /// Serves one canned Kubernetes API response so registration-level tests exercise the
+    /// public <see cref="HttpClient"/> surface.
+    /// </summary>
+    private sealed class FakeKubernetesHandler(string body) : HttpMessageHandler
+    {
+        protected override Task<HttpResponseMessage> SendAsync(
+            HttpRequestMessage request,
+            CancellationToken cancellationToken
+        ) =>
+            Task.FromResult(
+                new HttpResponseMessage(HttpStatusCode.OK)
+                {
+                    Content = new StringContent(body, Encoding.UTF8, "application/json"),
+                }
+            );
     }
 
     private static ConfiglueResourceContext CreateContext() => ConfiglueResourceContext.Default;

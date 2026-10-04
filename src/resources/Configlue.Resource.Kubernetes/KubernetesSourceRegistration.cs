@@ -26,11 +26,11 @@ public sealed class KubernetesSourceOptions
     /// <summary>The entry key, or null for deterministic whole-object mapping.</summary>
     public string? Key { get; init; }
 
-    /// <summary>A directly supplied shared client. It remains caller-owned.</summary>
-    public IKubernetesObjectClient? Client { get; init; }
+    /// <summary>A directly supplied cluster HTTP client. It remains caller-owned.</summary>
+    public HttpClient? Client { get; init; }
 
-    /// <summary>Resolves a shared client at context creation, for example from dependency injection.</summary>
-    public Func<IServiceProvider?, IKubernetesObjectClient>? ClientFactory { get; init; }
+    /// <summary>Resolves a cluster HTTP client at context creation, for example from dependency injection.</summary>
+    public Func<IServiceProvider?, HttpClient>? ClientFactory { get; init; }
 
     /// <summary>The codec for the serialized payload.</summary>
     public required StateCodecBinding Codec { get; init; }
@@ -99,7 +99,7 @@ public static class KubernetesSourceRegistration
         string name,
         string? key,
         StateCodecBinding codec,
-        IKubernetesObjectClient client,
+        HttpClient httpClient,
         Action<KubernetesSourceOptionsBuilder>? configure = null
     )
     {
@@ -111,7 +111,7 @@ public static class KubernetesSourceRegistration
             Name = name,
             Key = key,
             Codec = codec,
-            Client = client,
+            Client = httpClient,
         };
         configure?.Invoke(builder);
         return sources.FromKubernetes(builder.Build());
@@ -125,7 +125,7 @@ public static class KubernetesSourceRegistration
         string name,
         string? key,
         StateCodecBinding codec,
-        IKubernetesObjectClient client,
+        HttpClient httpClient,
         Action<KubernetesSourceOptionsBuilder>? configure = null
     )
     {
@@ -137,7 +137,7 @@ public static class KubernetesSourceRegistration
             Name = name,
             Key = key,
             Codec = codec,
-            Client = client,
+            Client = httpClient,
         };
         configure?.Invoke(builder);
         return sources.FromKubernetes(builder.Build());
@@ -161,11 +161,11 @@ public static class KubernetesSourceRegistration
         /// <summary>The codec for the serialized payload.</summary>
         public StateCodecBinding Codec { get; set; } = null!;
 
-        /// <summary>A directly supplied shared client.</summary>
-        public IKubernetesObjectClient? Client { get; set; }
+        /// <summary>A directly supplied cluster HTTP client.</summary>
+        public HttpClient? Client { get; set; }
 
-        /// <summary>Resolves a shared client at context creation.</summary>
-        public Func<IServiceProvider?, IKubernetesObjectClient>? ClientFactory { get; set; }
+        /// <summary>Resolves a cluster HTTP client at context creation.</summary>
+        public Func<IServiceProvider?, HttpClient>? ClientFactory { get; set; }
 
         /// <summary>An optional stable logical source ID.</summary>
         public string? Id { get; set; }

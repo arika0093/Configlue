@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Azure.Core;
+using Azure.Security.KeyVault.Secrets;
 
 namespace Configlue.Resource.AzureKeyVault;
 
@@ -19,11 +20,11 @@ public sealed class KeyVaultSecretsOptions
     /// <summary>The vault URI (for example <c>https://my-vault.vault.azure.net/</c>).</summary>
     public required Uri VaultUri { get; init; }
 
-    /// <summary>A directly supplied client. It remains caller-owned.</summary>
-    public IKeyVaultSecretClient? Client { get; init; }
+    /// <summary>A directly supplied Azure SDK client. It remains caller-owned.</summary>
+    public SecretClient? Client { get; init; }
 
-    /// <summary>Resolves a client at context creation, for example from dependency injection.</summary>
-    public Func<IServiceProvider?, IKeyVaultSecretClient>? ClientFactory { get; init; }
+    /// <summary>Resolves an Azure SDK client at context creation, for example from dependency injection.</summary>
+    public Func<IServiceProvider?, SecretClient>? ClientFactory { get; init; }
 
     /// <summary>
     /// A credential used to build a client when <see cref="Client"/> and

@@ -60,7 +60,10 @@ public sealed class KubernetesResource
     private int _disposed;
 
     /// <summary>Creates a resource for one ConfigMap or Secret key (or whole object when key is null).</summary>
-    /// <param name="client">The shared object client. It remains caller-owned.</param>
+    /// <param name="httpClient">
+    /// The configured cluster HTTP client (see <see cref="KubernetesConfiguration"/>).
+    /// It remains caller-owned.
+    /// </param>
     /// <param name="kind">Whether this resource reads a ConfigMap or a Secret.</param>
     /// <param name="namespace">The object namespace.</param>
     /// <param name="name">The object name.</param>
@@ -70,6 +73,26 @@ public sealed class KubernetesResource
     /// </param>
     /// <param name="options">Namespace, name, key, and watch settings.</param>
     public KubernetesResource(
+        HttpClient httpClient,
+        KubernetesResourceKind kind,
+        string @namespace,
+        string name,
+        string? key,
+        KubernetesResourceOptions? options = null
+    )
+        : this(new HttpKubernetesObjectClient(httpClient), kind, @namespace, name, key, options) { }
+
+    /// <summary>Creates a resource over an internal transport. Tests use this with fakes.</summary>
+    /// <param name="client">The shared object transport. It remains caller-owned.</param>
+    /// <param name="kind">Whether this resource reads a ConfigMap or a Secret.</param>
+    /// <param name="namespace">The object namespace.</param>
+    /// <param name="name">The object name.</param>
+    /// <param name="key">
+    /// The entry key, or null for whole-object mode. Whole-object mode maps the complete key
+    /// set deterministically (sorted keys, binary entries as base64 JSON).
+    /// </param>
+    /// <param name="options">Namespace, name, key, and watch settings.</param>
+    internal KubernetesResource(
         IKubernetesObjectClient client,
         KubernetesResourceKind kind,
         string @namespace,

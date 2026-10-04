@@ -5,11 +5,11 @@ using System.Text.Json;
 namespace Configlue.Source.Consul;
 
 /// <summary>
-/// Default <see cref="IConsulKvClient"/> over HTTP. The supplied <see cref="HttpClient"/> and
+/// Internal default <see cref="IConsulKvClient"/> over HTTP. The supplied <see cref="HttpClient"/> and
 /// handler remain caller-owned and are never disposed by this client. ACL tokens are sent as a
 /// header and are never included in exceptions, messages, or <see cref="ToString"/> output.
 /// </summary>
-public sealed class HttpConsulKvClient : IConsulKvClient
+internal sealed class HttpConsulKvClient : IConsulKvClient
 {
     private readonly HttpClient _httpClient;
     private readonly string _baseAddress;
@@ -19,13 +19,17 @@ public sealed class HttpConsulKvClient : IConsulKvClient
         PropertyNameCaseInsensitive = true,
     };
 
-    /// <summary>Creates an HTTP Consul KV client.</summary>
+    /// <summary>Creates an HTTP Consul KV transport.</summary>
     /// <param name="httpClient">A caller-owned HTTP client.</param>
-    /// <param name="baseAddress">The Consul agent address, for example <c>http://127.0.0.1:8500</c>.</param>
+    /// <param name="baseAddress">
+    /// The Consul agent address, for example <c>http://127.0.0.1:8500</c>. When null,
+    /// the HTTP client's own base address is used.
+    /// </param>
     /// <param name="token">An optional ACL token. It is stored opaquely and never logged.</param>
-    public HttpConsulKvClient(HttpClient httpClient, string baseAddress, string? token = null)
+    internal HttpConsulKvClient(HttpClient httpClient, string? baseAddress, string? token = null)
     {
         ArgumentNullException.ThrowIfNull(httpClient);
+        baseAddress ??= httpClient.BaseAddress?.ToString();
         ArgumentException.ThrowIfNullOrWhiteSpace(baseAddress);
         if (!string.IsNullOrWhiteSpace(token))
         {
