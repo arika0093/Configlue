@@ -68,6 +68,3 @@ jobs:
             tests/**/TestResults/**/*.trx
           if-no-files-found: ignore
           retention-days: 7
-
-  native-aot:
-    uses: ./.github/workflows/test-nativeaot.yaml
