@@ -68,6 +68,23 @@ Single-segment key construction avoids the params array and StringBuilder; canon
 
 Tests cover all base64 padding lengths, separators, composed/decomposed Unicode, Japanese/emoji, URL substitutions, a large key, invalid/null/whitespace/surrogate input, key getter counts, and existing cross-type/hash identity behavior. Release net10.0 passes 1,666 tests, zero failures, 17 external-service skips. Abstraction builds net10.0/netstandard2.0/netstandard2.1 with zero warnings/errors. Formatting and whitespace checks pass.
 
+## Round 4: read-result status validation
+
+Reports are retained in `artifacts/perf-round4/before` and `after`. Resolver before values are round 3 after values.
+
+| Path | Before mean | After mean | Before allocation | After allocation |
+| --- | ---: | ---: | ---: | ---: |
+| State success factory | 9.122 ns | 0.225 ns | 24 B | 0 B |
+| State not-found factory | 8.606 ns | 0.239 ns | 24 B | 0 B |
+| Resource success factory | 11.954 ns | 0.015 ns | 24 B | 0 B |
+| Resource not-found factory | 8.646 ns | 0.007 ns | 24 B | 0 B |
+| Default resolver, 1 source | 171.2 ns | 166.0 ns | 24 B | 0 B |
+| Default resolver, 4 sources | 382.7 ns | 387.0 ns | 96 B | 0 B |
+| Default resolver, 16 sources | 1,311.7 ns | 1,226.6 ns | 384 B | 0 B |
+| Subject resolver, 16 sources | 2,363.2 ns | 2,332.2 ns | 5,568 B | 5,184 B |
+
+`Enum.IsDefined(Type, object)` boxed every read status. Both typed-state and byte-resource results now validate with explicit enum patterns, preserving rejection of undefined statuses and all schema/value/content checks across all target frameworks. The tiny factory timings are at the harness floor and can benefit from constant folding; the meaningful evidence is zero allocation and the full resolver measurements. The four-source mean does not improve. One deterministic budget exercises all eight public factories, retaining the final payload/status. Four invalid-status tests cover negative, first out-of-range, and integer extremes, retaining the exception parameter name. Release net10.0 passes 1,671 tests, zero failures, 17 external-service skips. Abstraction builds all three target frameworks with zero warnings/errors; formatting/whitespace checks pass.
+
 ## Remaining audit
 
 These are outstanding, not claims of saturation:

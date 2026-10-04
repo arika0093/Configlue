@@ -14,6 +14,29 @@ public partial class NoValidationBudgetSettings
 public sealed class RuntimeHotPathAllocationTests
 {
     [Test]
+    public void ReadResultFactories_DoNotAllocate()
+    {
+        var value = new object();
+        var state = default(StateReadResult<object>);
+        var resource = default(ResourceReadResult);
+        Measure(() =>
+            {
+                state = StateReadResult<object>.Success(value, "revision");
+                state = StateReadResult<object>.NotFound("revision");
+                state = StateReadResult<object>.Unavailable("revision");
+                state = StateReadResult<object>.InvalidPayload(value, "revision");
+                resource = ResourceReadResult.Success(ReadOnlyMemory<byte>.Empty, "revision");
+                resource = ResourceReadResult.NotFound("revision");
+                resource = ResourceReadResult.Unavailable("revision");
+                resource = ResourceReadResult.InvalidPayload("revision");
+            })
+            .ShouldBe(0);
+        state.Status.ShouldBe(StateReadStatus.InvalidPayload);
+        state.Value.ShouldBeSameAs(value);
+        resource.Status.ShouldBe(StateReadStatus.InvalidPayload);
+    }
+
+    [Test]
     [Arguments(1)]
     [Arguments(4)]
     [Arguments(16)]

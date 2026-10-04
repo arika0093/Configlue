@@ -48,7 +48,15 @@ public readonly record struct StateReadResult<T>
         StateRevisionVector? Revisions = null
     )
     {
-        if (!Enum.IsDefined(typeof(StateReadStatus), Status))
+        if (
+            Status
+            is not (
+                StateReadStatus.Success
+                or StateReadStatus.NotFound
+                or StateReadStatus.Unavailable
+                or StateReadStatus.InvalidPayload
+            )
+        )
         {
             throw new ArgumentOutOfRangeException(nameof(Status));
         }
