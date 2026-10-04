@@ -508,19 +508,30 @@ public sealed class StateHttpPatchTests
             {
                 model.Sources(sources =>
                 {
+                    IResourceReader firstSection = new JsonSectionResource(physical, "App:First");
                     sources.Add(
-                        SerializedStateSource.FromResource<AppSettings.Fragment>(
+                        new StateSource<AppSettings.Fragment>(
                             "first",
-                            new JsonSectionResource(physical, "App:First"),
-                            codec,
-                            priority: 10
+                            new SerializedSource<AppSettings.Fragment>(
+                                firstSection,
+                                codec,
+                                writer: firstSection as IResourceWriter,
+                                watcher: firstSection as ISourceWatcher
+                            ),
+                            new StateSourceOptions<AppSettings.Fragment> { Priority = 10 }
                         )
                     );
+                    IResourceReader secondSection = new JsonSectionResource(physical, "App:Second");
                     sources.Add(
-                        SerializedStateSource.FromResource<AppSettings.Fragment>(
+                        new StateSource<AppSettings.Fragment>(
                             "second",
-                            new JsonSectionResource(physical, "App:Second"),
-                            codec
+                            new SerializedSource<AppSettings.Fragment>(
+                                secondSection,
+                                codec,
+                                writer: secondSection as IResourceWriter,
+                                watcher: secondSection as ISourceWatcher
+                            ),
+                            new StateSourceOptions<AppSettings.Fragment>()
                         )
                     );
                 });

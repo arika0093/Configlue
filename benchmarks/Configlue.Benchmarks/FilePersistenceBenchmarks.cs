@@ -171,14 +171,9 @@ public class FilePersistenceBenchmarks
 
     private static ConfiglueContext CreateConfiglueContext(string path, FileResource resource)
     {
-        var source = SerializedStateSource.FromResource<PersistenceBenchmarkSettings.Fragment>(
-            "benchmark",
-            resource,
-            new JsonStateCodec<PersistenceBenchmarkSettings.Fragment>(
+        var source = new StateSource<PersistenceBenchmarkSettings.Fragment>("benchmark", new SerializedSource<PersistenceBenchmarkSettings.Fragment>(resource, new JsonStateCodec<PersistenceBenchmarkSettings.Fragment>(
                 new JsonSerializerOptions { WriteIndented = false }
-            ),
-            physicalOrigin: path
-        );
+            ), writer: (IResourceReader)resource as IResourceWriter, watcher: (IResourceReader)resource as ISourceWatcher), new StateSourceOptions<PersistenceBenchmarkSettings.Fragment> { PhysicalOrigin = path });
         return BenchmarkContextFactory.Create<
             PersistenceBenchmarkSettings,
             PersistenceBenchmarkSettings.Fragment

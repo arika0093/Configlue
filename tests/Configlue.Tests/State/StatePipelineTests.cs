@@ -14,13 +14,7 @@ public sealed class StatePipelineTests
     {
         var resource = new InMemoryResource();
         using var transformer = new AesGcmStateByteTransformer(new byte[32]);
-        var source = SerializedStateSource.FromResource<string>(
-            "encrypted",
-            resource,
-            new JsonStateCodec<string>(),
-            transformers: [transformer],
-            middlewares: [new SuffixMiddleware("!")]
-        );
+        var source = new StateSource<string>("encrypted", new SerializedSource<string>(resource, new JsonStateCodec<string>(), transformers: [transformer], writer: (IResourceReader)resource as IResourceWriter, watcher: (IResourceReader)resource as ISourceWatcher, middlewares: [new SuffixMiddleware("!")]), new StateSourceOptions<string>());
 
         await source.Writer!.WriteAsync(new StateWriteRequest<string>("sensitive"));
         var stored = await resource.ReadAsync();

@@ -47,7 +47,7 @@ public sealed class GeneratedModelContractTests
         );
         var configuration = new ConfiglueModelBuilder<AppSettings>();
         configuration.Sources(sources =>
-            sources.Add(new StateSource<AppSettings.Fragment>("interface-source", store))
+            sources.Add(new StateSource<AppSettings.Fragment>("interface-source", store, new StateSourceOptions<AppSettings.Fragment>()))
         );
         var options = CreateRuntime<AppSettings>(configuration, static _ => { });
         try

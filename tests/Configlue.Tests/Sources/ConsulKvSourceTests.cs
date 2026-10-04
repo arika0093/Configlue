@@ -453,7 +453,7 @@ public sealed class ConsulKvSourceTests
         var runtime = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
             new StateSourceSet<AppSettings.Fragment>([
                 consulState,
-                new StateSource<AppSettings.Fragment>("defaults", defaults, priority: 0),
+                new StateSource<AppSettings.Fragment>("defaults", defaults, new StateSourceOptions<AppSettings.Fragment> { Priority = 0 }),
             ])
         );
 

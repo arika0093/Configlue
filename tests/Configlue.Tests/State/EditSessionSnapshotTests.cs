@@ -11,7 +11,7 @@ public sealed class EditSessionSnapshotTests
     {
         var store = new SignalingStore<AppSettings.Fragment>(Fragment("snapshot", retryCount: 4));
         await using var options = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
-            new StateSourceSet<AppSettings.Fragment>([new("counted", store)])
+            new StateSourceSet<AppSettings.Fragment>([new StateSource<AppSettings.Fragment>("counted", store, new StateSourceOptions<AppSettings.Fragment>())])
         );
 
         var snapshot = await ((IReadOnlyState<AppSettings>)options).GetSnapshotAsync();
@@ -43,8 +43,8 @@ public sealed class EditSessionSnapshotTests
         );
         await using var options = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
             new StateSourceSet<AppSettings.Fragment>([
-                new("policy", policy, priority: 100),
-                new("user", user, priority: 0, writer: user),
+                new StateSource<AppSettings.Fragment>("policy", policy, new StateSourceOptions<AppSettings.Fragment> { Priority = 100 }),
+                new StateSource<AppSettings.Fragment>("user", user, new StateSourceOptions<AppSettings.Fragment> { Priority = 0, Writer = user }),
             ]),
             StateWritePlan.DefaultTo(SourceId.From("user"))
         );
@@ -136,7 +136,7 @@ public sealed class EditSessionSnapshotTests
         var store = new SignalingStore<AppSettings.Fragment>(Fragment("start", retryCount: 3));
         await using var options = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
             new StateSourceSet<AppSettings.Fragment>([
-                new("user", store, writer: store, watcher: store),
+                new StateSource<AppSettings.Fragment>("user", store, new StateSourceOptions<AppSettings.Fragment> { Writer = store, Watcher = store }),
             ]),
             onChangeDebounce: TimeSpan.Zero
         );
@@ -160,7 +160,7 @@ public sealed class EditSessionSnapshotTests
         var store = new SignalingStore<AppSettings.Fragment>(Fragment("start", retryCount: 3));
         await using var options = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
             new StateSourceSet<AppSettings.Fragment>([
-                new("user", store, writer: store, watcher: store),
+                new StateSource<AppSettings.Fragment>("user", store, new StateSourceOptions<AppSettings.Fragment> { Writer = store, Watcher = store }),
             ]),
             onChangeDebounce: TimeSpan.Zero
         );
@@ -181,7 +181,7 @@ public sealed class EditSessionSnapshotTests
         var store = new SignalingStore<AppSettings.Fragment>(Fragment("start", retryCount: 3));
         await using var options = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
             new StateSourceSet<AppSettings.Fragment>([
-                new("user", store, writer: store, watcher: store),
+                new StateSource<AppSettings.Fragment>("user", store, new StateSourceOptions<AppSettings.Fragment> { Writer = store, Watcher = store }),
             ]),
             onChangeDebounce: TimeSpan.Zero
         );
@@ -212,7 +212,7 @@ public sealed class EditSessionSnapshotTests
         var store = new SignalingStore<AppSettings.Fragment>(Fragment("start", retryCount: 3));
         await using var options = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
             new StateSourceSet<AppSettings.Fragment>([
-                new("user", store, writer: store, watcher: store),
+                new StateSource<AppSettings.Fragment>("user", store, new StateSourceOptions<AppSettings.Fragment> { Writer = store, Watcher = store }),
             ]),
             onChangeDebounce: TimeSpan.Zero
         );
@@ -235,7 +235,7 @@ public sealed class EditSessionSnapshotTests
             new AppSettings.Fragment { RetryCount = Optional<int>.Present(1) }
         );
         await using var options = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
-            new StateSourceSet<AppSettings.Fragment>([new("user", store, writer: store)])
+            new StateSourceSet<AppSettings.Fragment>([new StateSource<AppSettings.Fragment>("user", store, new StateSourceOptions<AppSettings.Fragment> { Writer = store })])
         );
         using var session = await options.OpenEditSessionAsync();
 
@@ -478,7 +478,7 @@ public sealed class EditSessionSnapshotTests
         var store = new SignalingStore<AppSettings.Fragment>(Fragment("start", retryCount: 3));
         await using var options = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
             new StateSourceSet<AppSettings.Fragment>([
-                new("user", store, writer: store, watcher: store),
+                new StateSource<AppSettings.Fragment>("user", store, new StateSourceOptions<AppSettings.Fragment> { Writer = store, Watcher = store }),
             ]),
             onChangeDebounce: TimeSpan.Zero,
             writeConflictResolution: WriteConflictResolution.LastWriteWins
@@ -513,7 +513,7 @@ public sealed class EditSessionSnapshotTests
         var store = new SignalingStore<AppSettings.Fragment>(WithPlugins(["base"]));
         await using var options = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
             new StateSourceSet<AppSettings.Fragment>([
-                new("user", store, writer: store, watcher: store),
+                new StateSource<AppSettings.Fragment>("user", store, new StateSourceOptions<AppSettings.Fragment> { Writer = store, Watcher = store }),
             ]),
             onChangeDebounce: TimeSpan.Zero,
             writeConflictResolution: WriteConflictResolution.LastWriteWins
@@ -544,7 +544,7 @@ public sealed class EditSessionSnapshotTests
         var store = new SignalingStore<AppSettings.Fragment>(WithPlugins(["base"]));
         await using var options = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
             new StateSourceSet<AppSettings.Fragment>([
-                new("user", store, writer: store, watcher: store),
+                new StateSource<AppSettings.Fragment>("user", store, new StateSourceOptions<AppSettings.Fragment> { Writer = store, Watcher = store }),
             ]),
             onChangeDebounce: TimeSpan.Zero
         );
@@ -567,7 +567,7 @@ public sealed class EditSessionSnapshotTests
         var store = new SignalingStore<SetUnionSettings.Fragment>(WithTags(["base"]));
         await using var options = new ConfiglueRuntime<SetUnionSettings, SetUnionSettings.Fragment>(
             new StateSourceSet<SetUnionSettings.Fragment>([
-                new("user", store, writer: store, watcher: store),
+                new StateSource<SetUnionSettings.Fragment>("user", store, new StateSourceOptions<SetUnionSettings.Fragment> { Writer = store, Watcher = store }),
             ]),
             onChangeDebounce: TimeSpan.Zero
         );
@@ -585,7 +585,7 @@ public sealed class EditSessionSnapshotTests
     {
         var store = new SignalingStore<AppSettings.Fragment>(Fragment("start", retryCount: 3));
         await using var options = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
-            new StateSourceSet<AppSettings.Fragment>([new("user", store, writer: store)]),
+            new StateSourceSet<AppSettings.Fragment>([new StateSource<AppSettings.Fragment>("user", store, new StateSourceOptions<AppSettings.Fragment> { Writer = store })]),
             onChangeDebounce: TimeSpan.Zero
         );
         using var session = await options.OpenEditSessionAsync();
@@ -612,7 +612,7 @@ public sealed class EditSessionSnapshotTests
         var store = new SignalingStore<AppSettings.Fragment>(Fragment("start", retryCount: 3));
         await using var options = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
             new StateSourceSet<AppSettings.Fragment>([
-                new("user", store, writer: store, watcher: store),
+                new StateSource<AppSettings.Fragment>("user", store, new StateSourceOptions<AppSettings.Fragment> { Writer = store, Watcher = store }),
             ]),
             onChangeDebounce: TimeSpan.Zero
         );
@@ -637,7 +637,7 @@ public sealed class EditSessionSnapshotTests
         var store = new SignalingStore<AppSettings.Fragment>(Fragment("start", retryCount: 3));
         await using var options = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
             new StateSourceSet<AppSettings.Fragment>([
-                new("user", store, writer: store, watcher: store),
+                new StateSource<AppSettings.Fragment>("user", store, new StateSourceOptions<AppSettings.Fragment> { Writer = store, Watcher = store }),
             ]),
             onChangeDebounce: TimeSpan.Zero
         );
@@ -701,7 +701,7 @@ public sealed class EditSessionSnapshotTests
     {
         var store = new InMemoryStateSource<AppSettings.Fragment>(RebasedFragment(0, false));
         await using var options = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
-            new StateSourceSet<AppSettings.Fragment>([new("user", store, writer: store)])
+            new StateSourceSet<AppSettings.Fragment>([new StateSource<AppSettings.Fragment>("user", store, new StateSourceOptions<AppSettings.Fragment> { Writer = store })])
         );
         using var session = await options.OpenEditSessionAsync();
 
@@ -727,7 +727,7 @@ public sealed class EditSessionSnapshotTests
     {
         var store = new InMemoryStateSource<AppSettings.Fragment>(RebasedFragment(0, false));
         await using var options = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
-            new StateSourceSet<AppSettings.Fragment>([new("user", store, writer: store)])
+            new StateSourceSet<AppSettings.Fragment>([new StateSource<AppSettings.Fragment>("user", store, new StateSourceOptions<AppSettings.Fragment> { Writer = store })])
         );
         using var session = await options.OpenEditSessionAsync();
 
@@ -749,7 +749,7 @@ public sealed class EditSessionSnapshotTests
     {
         var store = new InMemoryStateSource<AppSettings.Fragment>(RebasedFragment(0, false));
         await using var options = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
-            new StateSourceSet<AppSettings.Fragment>([new("user", store, writer: store)])
+            new StateSourceSet<AppSettings.Fragment>([new StateSource<AppSettings.Fragment>("user", store, new StateSourceOptions<AppSettings.Fragment> { Writer = store })])
         );
         using var session = await options.OpenEditSessionAsync();
 
@@ -779,7 +779,7 @@ public sealed class EditSessionSnapshotTests
             new AppSettings.Fragment { RetryCount = Optional<int>.Present(0) }
         );
         await using var options = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
-            new StateSourceSet<AppSettings.Fragment>([new("user", store, writer: store)])
+            new StateSourceSet<AppSettings.Fragment>([new StateSource<AppSettings.Fragment>("user", store, new StateSourceOptions<AppSettings.Fragment> { Writer = store })])
         );
         using var session = await options.OpenEditSessionAsync();
 
@@ -805,8 +805,8 @@ public sealed class EditSessionSnapshotTests
         );
         await using var options = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
             new StateSourceSet<AppSettings.Fragment>([
-                new("user", user, priority: 100, writer: user),
-                new("other", other, priority: 0, watcher: other),
+                new StateSource<AppSettings.Fragment>("user", user, new StateSourceOptions<AppSettings.Fragment> { Priority = 100, Writer = user }),
+                new StateSource<AppSettings.Fragment>("other", other, new StateSourceOptions<AppSettings.Fragment> { Priority = 0, Watcher = other }),
             ]),
             onChangeDebounce: TimeSpan.Zero
         );
@@ -845,8 +845,8 @@ public sealed class EditSessionSnapshotTests
         );
         await using var options = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
             new StateSourceSet<AppSettings.Fragment>([
-                new("user", user, priority: 100, writer: user),
-                new("other", other, priority: 0, watcher: other),
+                new StateSource<AppSettings.Fragment>("user", user, new StateSourceOptions<AppSettings.Fragment> { Priority = 100, Writer = user }),
+                new StateSource<AppSettings.Fragment>("other", other, new StateSourceOptions<AppSettings.Fragment> { Priority = 0, Watcher = other }),
             ]),
             onChangeDebounce: TimeSpan.Zero
         );

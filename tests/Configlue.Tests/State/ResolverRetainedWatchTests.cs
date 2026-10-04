@@ -13,12 +13,7 @@ public sealed class ResolverRetainedWatchTests
         var store = new InMemoryStateSource<AppSettings.Fragment>(
             new AppSettings.Fragment { RetryCount = Optional<int>.Present(3) }
         );
-        var source = new StateSource<AppSettings.Fragment>(
-            "single",
-            store,
-            writer: store,
-            watcher: store
-        );
+        var source = new StateSource<AppSettings.Fragment>("single", store, new StateSourceOptions<AppSettings.Fragment> { Writer = store, Watcher = store });
         var resolver = new StateSourceResolver<AppSettings.Fragment>(
             new StateSourceSet<AppSettings.Fragment>([source])
         );
@@ -115,12 +110,7 @@ public sealed class ResolverRetainedWatchTests
         var store = new InMemoryStateSource<AppSettings.Fragment>(
             new AppSettings.Fragment { RetryCount = Optional<int>.Present(3) }
         );
-        var source = new StateSource<AppSettings.Fragment>(
-            "subject-source",
-            store,
-            writer: store,
-            watcher: store
-        );
+        var source = new StateSource<AppSettings.Fragment>("subject-source", store, new StateSourceOptions<AppSettings.Fragment> { Writer = store, Watcher = store });
         var resolver = new StateSourceResolver<AppSettings.Fragment>(
             new StateSourceSet<AppSettings.Fragment>([source])
         );

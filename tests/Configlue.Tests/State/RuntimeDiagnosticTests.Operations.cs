@@ -11,7 +11,7 @@ public sealed partial class RuntimeDiagnosticTests
         var store = new InMemoryStateSource<AppSettings.Fragment>(
             new AppSettings.Fragment { RetryCount = 3 }
         );
-        await using var runtime = CreateRuntime([new("store", store, writer: store)], capacity: 64);
+        await using var runtime = CreateRuntime([new StateSource<AppSettings.Fragment>("store", store, new StateSourceOptions<AppSettings.Fragment> { Writer = store })], capacity: 64);
         await runtime.SaveAsync(
             new AppSettings.Patch { RetryCount = FragmentOperation<int>.Set(7) }
         );
@@ -42,7 +42,7 @@ public sealed partial class RuntimeDiagnosticTests
             ? new StateConflictException("secret-conflict")
             : new IOException("secret-failure");
         await using var runtime = CreateRuntime(
-            [new("store", store, writer: new DiagnosticFailingWriter(exception))],
+            [new StateSource<AppSettings.Fragment>("store", store, new StateSourceOptions<AppSettings.Fragment> { Writer = new DiagnosticFailingWriter(exception) })],
             capacity: 64
         );
         Exception? observed = null;
@@ -74,15 +74,27 @@ public sealed partial class RuntimeDiagnosticTests
     {
         var resource = new InMemoryResource();
         var codec = new JsonStateCodec<AppSettings.Fragment>();
-        var first = SerializedStateSource.FromResource<AppSettings.Fragment>(
+        IResourceReader firstSection = new JsonSectionResource(resource, "First");
+        var first = new StateSource<AppSettings.Fragment>(
             "first",
-            new JsonSectionResource(resource, "First"),
-            codec
+            new SerializedSource<AppSettings.Fragment>(
+                firstSection,
+                codec,
+                writer: firstSection as IResourceWriter,
+                watcher: firstSection as ISourceWatcher
+            ),
+            new StateSourceOptions<AppSettings.Fragment>()
         );
-        var second = SerializedStateSource.FromResource<AppSettings.Fragment>(
+        IResourceReader secondSection = new JsonSectionResource(resource, "Second");
+        var second = new StateSource<AppSettings.Fragment>(
             "second",
-            new JsonSectionResource(resource, "Second"),
-            codec
+            new SerializedSource<AppSettings.Fragment>(
+                secondSection,
+                codec,
+                writer: secondSection as IResourceWriter,
+                watcher: secondSection as ISourceWatcher
+            ),
+            new StateSourceOptions<AppSettings.Fragment>()
         );
         await using var runtime = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
             new StateSourceSet<AppSettings.Fragment>([first, second]),
@@ -90,11 +102,8 @@ public sealed partial class RuntimeDiagnosticTests
             diagnostics: new ConfiglueRuntimeDiagnosticOptions { EventHistoryCapacity = 64 }
         );
         await runtime.ApplyPatchesAsync([
-            new(SourceId.From("first"), new AppSettings.Patch { RetryCount = FragmentOperation<int>.Set(7) }),
-            new(
-                SourceId.From("second"),
-                new AppSettings.Patch { Label = FragmentOperation<string?>.Set("section-secret") }
-            ),
+            new StateSourcePatch(SourceId.From("first"), new AppSettings.Patch { RetryCount = FragmentOperation<int>.Set(7) }),
+            new StateSourcePatch(SourceId.From("second"), new AppSettings.Patch { Label = FragmentOperation<string?>.Set("section-secret") }),
         ]);
         resource.WriteCount.ShouldBe(1);
         runtime
@@ -117,7 +126,7 @@ public sealed partial class RuntimeDiagnosticTests
             new AppSettings.Fragment { RetryCount = 3 }
         );
         await using var runtime = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
-            new StateSourceSet<AppSettings.Fragment>([new("store", store, watcher: store)]),
+            new StateSourceSet<AppSettings.Fragment>([new StateSource<AppSettings.Fragment>("store", store, new StateSourceOptions<AppSettings.Fragment> { Watcher = store })]),
             onChangeDebounce: TimeSpan.Zero,
             diagnostics: new ConfiglueRuntimeDiagnosticOptions { EventHistoryCapacity = 64 }
         );
@@ -160,7 +169,7 @@ public sealed partial class RuntimeDiagnosticTests
             new AppSettings.Fragment { RetryCount = 3 }
         );
         await using var runtime = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
-            new StateSourceSet<AppSettings.Fragment>([new("store", store, watcher: store)]),
+            new StateSourceSet<AppSettings.Fragment>([new StateSource<AppSettings.Fragment>("store", store, new StateSourceOptions<AppSettings.Fragment> { Watcher = store })]),
             onChangeDebounce: TimeSpan.Zero,
             diagnostics: new ConfiglueRuntimeDiagnosticOptions { EventHistoryCapacity = 64 }
         );
@@ -192,7 +201,7 @@ public sealed partial class RuntimeDiagnosticTests
             new AppSettings.Fragment { RetryCount = 3 }
         );
         await using var runtime = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
-            new StateSourceSet<AppSettings.Fragment>([new("store", store, watcher: store)])
+            new StateSourceSet<AppSettings.Fragment>([new StateSource<AppSettings.Fragment>("store", store, new StateSourceOptions<AppSettings.Fragment> { Watcher = store })])
         );
         var started = 0;
         var bothStarted = new TaskCompletionSource<bool>(
@@ -235,7 +244,7 @@ public sealed partial class RuntimeDiagnosticTests
             source.Set(new AppSettings.Fragment { RetryCount = 7 });
         var target = new InMemoryStateSource<AppSettings.Fragment>();
         await using var runtime = CreateRuntime(
-            [new("source", source), new("target", target, writer: target)],
+            [new StateSource<AppSettings.Fragment>("source", source, new StateSourceOptions<AppSettings.Fragment>()), new StateSource<AppSettings.Fragment>("target", target, new StateSourceOptions<AppSettings.Fragment> { Writer = target })],
             capacity: 64
         );
         if (succeeds)

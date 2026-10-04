@@ -120,12 +120,7 @@ public sealed class StateSourceResolverCacheTests
         var store = new InMemoryStateSource<AppSettings.Fragment>(
             new AppSettings.Fragment { RetryCount = Optional<int>.Present(3) }
         );
-        return new StateSource<AppSettings.Fragment>(
-            "cache-source",
-            store,
-            writer: store,
-            watcher: store
-        );
+        return new StateSource<AppSettings.Fragment>("cache-source", store, new StateSourceOptions<AppSettings.Fragment> { Writer = store, Watcher = store });
     }
 
     private static ConfiglueResourceContext Context(

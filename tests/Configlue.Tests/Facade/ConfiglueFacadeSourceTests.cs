@@ -89,11 +89,7 @@ public sealed partial class ConfiglueFacadeSourceTests
     {
         using var directory = new TemporaryDirectory();
         var resource = new FileResource(Path.Combine(directory.FullPath, "caller.json"));
-        var source = SerializedStateSource.FromResource<AppSettings.Fragment>(
-            "caller-json",
-            resource,
-            new JsonStateCodec<AppSettings.Fragment>()
-        );
+        var source = new StateSource<AppSettings.Fragment>("caller-json", new SerializedSource<AppSettings.Fragment>(resource, new JsonStateCodec<AppSettings.Fragment>(), writer: (IResourceReader)resource as IResourceWriter, watcher: (IResourceReader)resource as ISourceWatcher), new StateSourceOptions<AppSettings.Fragment>());
         var context = ConfiglueApp.CreateContext(builder =>
         {
             builder.Add<AppSettings>(model => model.Sources(sources => sources.Add(source)));
@@ -159,12 +155,7 @@ public sealed partial class ConfiglueFacadeSourceTests
     {
         using var directory = new TemporaryDirectory();
         var catalogStore = new InMemoryStateSource<ConfiglueProfileCatalog>();
-        var catalog = new StateSource<ConfiglueProfileCatalog>(
-            "catalog",
-            catalogStore,
-            writer: catalogStore,
-            watcher: catalogStore
-        );
+        var catalog = new StateSource<ConfiglueProfileCatalog>("catalog", catalogStore, new StateSourceOptions<ConfiglueProfileCatalog> { Writer = catalogStore, Watcher = catalogStore });
         var context = ConfiglueApp.CreateContext(builder =>
         {
             builder.Add<AppSettings>(model =>
@@ -238,12 +229,7 @@ public sealed partial class ConfiglueFacadeSourceTests
                     {
                         var store = new InMemoryStateSource<AppSettings.Fragment>();
                         registration.Sources.Add<AppSettings.Fragment>(
-                            _ => new StateSource<AppSettings.Fragment>(
-                                "ordinary",
-                                store,
-                                writer: store,
-                                watcher: store
-                            )
+                            _ => new StateSource<AppSettings.Fragment>("ordinary", store, new StateSourceOptions<AppSettings.Fragment> { Writer = store, Watcher = store })
                         );
                         return;
                     }
@@ -367,7 +353,7 @@ public sealed partial class ConfiglueFacadeSourceTests
         {
             ownResource(resource);
             var store = new InMemoryStateSource<TFragment>();
-            return new StateSource<TFragment>("owned-probe", store, writer: store, watcher: store);
+            return new StateSource<TFragment>("owned-probe", store, new StateSourceOptions<TFragment> { Writer = store, Watcher = store });
         }
     }
 }

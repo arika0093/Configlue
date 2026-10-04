@@ -16,26 +16,18 @@ public sealed class DetailsSnapshotTests
                 model.Sources(sources =>
                 {
                     sources.Add(
-                        new StateSource<AppSettings.Fragment>(
-                            "base",
-                            new InMemoryStateSource<AppSettings.Fragment>(
+                        new StateSource<AppSettings.Fragment>("base", new InMemoryStateSource<AppSettings.Fragment>(
                                 new AppSettings.Fragment
                                 {
                                     RetryCount = Optional<int>.Present(4),
                                     Label = Optional<string?>.Present("base"),
                                 }
-                            )
-                        )
+                            ), new StateSourceOptions<AppSettings.Fragment>())
                     );
                     sources.Add(
-                        new StateSource<AppSettings.Fragment>(
-                            "override",
-                            new InMemoryStateSource<AppSettings.Fragment>(
+                        new StateSource<AppSettings.Fragment>("override", new InMemoryStateSource<AppSettings.Fragment>(
                                 new AppSettings.Fragment { RetryCount = Optional<int>.Present(8) }
-                            ),
-                            writer: new InMemoryStateSource<AppSettings.Fragment>(),
-                            priority: 100
-                        )
+                            ), new StateSourceOptions<AppSettings.Fragment> { Writer = new InMemoryStateSource<AppSettings.Fragment>(), Priority = 100 })
                     );
                 })
             );
@@ -79,7 +71,7 @@ public sealed class DetailsSnapshotTests
     {
         var missing = new InMemoryStateSource<AppSettings.Fragment>();
         await using var options = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
-            new StateSourceSet<AppSettings.Fragment>([new("local", missing, writer: missing)])
+            new StateSourceSet<AppSettings.Fragment>([new StateSource<AppSettings.Fragment>("local", missing, new StateSourceOptions<AppSettings.Fragment> { Writer = missing })])
         );
 
         var details = await options.GetDetailsAsync();
@@ -102,13 +94,9 @@ public sealed class DetailsSnapshotTests
     {
         await using var options = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
             new StateSourceSet<AppSettings.Fragment>([
-                new(
-                    "local",
-                    new InMemoryStateSource<AppSettings.Fragment>(
+                new StateSource<AppSettings.Fragment>("local", new InMemoryStateSource<AppSettings.Fragment>(
                         new AppSettings.Fragment { Label = Optional<string?>.Present("local") }
-                    ),
-                    physicalOrigin: "custom:placement"
-                ),
+                    ), new StateSourceOptions<AppSettings.Fragment> { PhysicalOrigin = "custom:placement" }),
             ])
         );
 
@@ -130,7 +118,7 @@ public sealed class DetailsSnapshotTests
             ClrDefaultSettings.Fragment
         >(
             new StateSourceSet<ClrDefaultSettings.Fragment>([
-                new("empty", new InMemoryStateSource<ClrDefaultSettings.Fragment>()),
+                new StateSource<ClrDefaultSettings.Fragment>("empty", new InMemoryStateSource<ClrDefaultSettings.Fragment>(), new StateSourceOptions<ClrDefaultSettings.Fragment>()),
             ])
         );
 
@@ -148,22 +136,12 @@ public sealed class DetailsSnapshotTests
     {
         var options = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
             new StateSourceSet<AppSettings.Fragment>([
-                new(
-                    "remote-internal-id",
-                    new FixedReader<AppSettings.Fragment>(
+                new StateSource<AppSettings.Fragment>("remote-internal-id", new FixedReader<AppSettings.Fragment>(
                         StateReadResult<AppSettings.Fragment>.Unavailable("remote")
-                    ),
-                    priority: 100,
-                    fallbackCondition: StateFallbackCondition.Unavailable,
-                    physicalOrigin: "https://example.invalid/settings"
-                ),
-                new(
-                    "base-internal-id",
-                    new InMemoryStateSource<AppSettings.Fragment>(
+                    ), new StateSourceOptions<AppSettings.Fragment> { Priority = 100, FallbackCondition = StateFallbackCondition.Unavailable, PhysicalOrigin = "https://example.invalid/settings" }),
+                new StateSource<AppSettings.Fragment>("base-internal-id", new InMemoryStateSource<AppSettings.Fragment>(
                         new AppSettings.Fragment { Label = Optional<string?>.Present("local") }
-                    ),
-                    priority: 0
-                ),
+                    ), new StateSourceOptions<AppSettings.Fragment> { Priority = 0 }),
             ])
         );
         await using (options)
@@ -198,7 +176,7 @@ public sealed class DetailsSnapshotTests
             )
         );
         await using var options = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
-            new StateSourceSet<AppSettings.Fragment>([new("counted", reader)])
+            new StateSourceSet<AppSettings.Fragment>([new StateSource<AppSettings.Fragment>("counted", reader, new StateSourceOptions<AppSettings.Fragment>())])
         );
 
         var details = await options.GetDetailsAsync();
@@ -224,11 +202,7 @@ public sealed class DetailsSnapshotTests
                 model.Sources(sources =>
                 {
                     sources.Add(
-                        new StateSource<AppSettings.Fragment>(
-                            "file",
-                            new InMemoryStateSource<AppSettings.Fragment>(),
-                            writer: new InMemoryStateSource<AppSettings.Fragment>()
-                        )
+                        new StateSource<AppSettings.Fragment>("file", new InMemoryStateSource<AppSettings.Fragment>(), new StateSourceOptions<AppSettings.Fragment> { Writer = new InMemoryStateSource<AppSettings.Fragment>() })
                     );
                     sources.Add(
                         EnvironmentStateSource.FromEnvironment<AppSettings, AppSettings.Fragment>(
@@ -259,8 +233,8 @@ public sealed class DetailsSnapshotTests
         var user = new InMemoryStateSource<AppSettings.Fragment>();
         await using var options = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
             new StateSourceSet<AppSettings.Fragment>([
-                new("policy", policy, priority: 100),
-                new("user", user, priority: 100, writer: user),
+                new StateSource<AppSettings.Fragment>("policy", policy, new StateSourceOptions<AppSettings.Fragment> { Priority = 100 }),
+                new StateSource<AppSettings.Fragment>("user", user, new StateSourceOptions<AppSettings.Fragment> { Priority = 100, Writer = user }),
             ]),
             StateWritePlan.DefaultTo(SourceId.From("user"))
         );
@@ -280,7 +254,7 @@ public sealed class DetailsSnapshotTests
         );
         await using (
             var options = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
-                new StateSourceSet<AppSettings.Fragment>([new("policy", readOnly)]),
+                new StateSourceSet<AppSettings.Fragment>([new StateSource<AppSettings.Fragment>("policy", readOnly, new StateSourceOptions<AppSettings.Fragment>())]),
                 StateWritePlan.DefaultTo(SourceId.From("policy"))
             )
         )
@@ -291,7 +265,7 @@ public sealed class DetailsSnapshotTests
 
         await using (
             var options = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
-                new StateSourceSet<AppSettings.Fragment>([new("policy", readOnly)])
+                new StateSourceSet<AppSettings.Fragment>([new StateSource<AppSettings.Fragment>("policy", readOnly, new StateSourceOptions<AppSettings.Fragment>())])
             )
         )
         {
@@ -308,9 +282,7 @@ public sealed class DetailsSnapshotTests
             builder.Add<AppSettings>(model =>
                 model.Sources(sources =>
                     sources.Add(
-                        new StateSource<AppSettings.Fragment>(
-                            "base",
-                            new InMemoryStateSource<AppSettings.Fragment>(
+                        new StateSource<AppSettings.Fragment>("base", new InMemoryStateSource<AppSettings.Fragment>(
                                 new AppSettings.Fragment
                                 {
                                     Database = Optional<DatabaseSettings.Fragment?>.Present(
@@ -324,8 +296,7 @@ public sealed class DetailsSnapshotTests
                                         "metrics",
                                     ]),
                                 }
-                            )
-                        )
+                            ), new StateSourceOptions<AppSettings.Fragment>())
                     )
                 )
             );
@@ -352,9 +323,7 @@ public sealed class DetailsSnapshotTests
             builder.Add<OwnershipSettings>(model =>
                 model.Sources(sources =>
                     sources.Add(
-                        new StateSource<OwnershipSettings.Fragment>(
-                            "base",
-                            new InMemoryStateSource<OwnershipSettings.Fragment>(
+                        new StateSource<OwnershipSettings.Fragment>("base", new InMemoryStateSource<OwnershipSettings.Fragment>(
                                 new OwnershipSettings.Fragment
                                 {
                                     ArrayValues = Optional<string[]>.Present(["a", "b"]),
@@ -365,8 +334,7 @@ public sealed class DetailsSnapshotTests
                                         new OwnershipChild { Name = "first" },
                                     ]),
                                 }
-                            )
-                        )
+                            ), new StateSourceOptions<OwnershipSettings.Fragment>())
                     )
                 )
             );
@@ -387,26 +355,18 @@ public sealed class DetailsSnapshotTests
     {
         var appendOptions = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
             new StateSourceSet<AppSettings.Fragment>([
-                new(
-                    "high-internal-id",
-                    new InMemoryStateSource<AppSettings.Fragment>(
+                new StateSource<AppSettings.Fragment>("high-internal-id", new InMemoryStateSource<AppSettings.Fragment>(
                         new AppSettings.Fragment
                         {
                             Plugins = Optional<IReadOnlyList<string>>.Present(["high"]),
                         }
-                    ),
-                    priority: 100
-                ),
-                new(
-                    "low-internal-id",
-                    new InMemoryStateSource<AppSettings.Fragment>(
+                    ), new StateSourceOptions<AppSettings.Fragment> { Priority = 100 }),
+                new StateSource<AppSettings.Fragment>("low-internal-id", new InMemoryStateSource<AppSettings.Fragment>(
                         new AppSettings.Fragment
                         {
                             Plugins = Optional<IReadOnlyList<string>>.Present(["low"]),
                         }
-                    ),
-                    priority: 0
-                ),
+                    ), new StateSourceOptions<AppSettings.Fragment> { Priority = 0 }),
             ])
         );
         await using (appendOptions)
@@ -424,26 +384,18 @@ public sealed class DetailsSnapshotTests
             ReplaceCollectionSettings.Fragment
         >(
             new StateSourceSet<ReplaceCollectionSettings.Fragment>([
-                new(
-                    "preferred",
-                    new InMemoryStateSource<ReplaceCollectionSettings.Fragment>(
+                new StateSource<ReplaceCollectionSettings.Fragment>("preferred", new InMemoryStateSource<ReplaceCollectionSettings.Fragment>(
                         new ReplaceCollectionSettings.Fragment
                         {
                             Values = Optional<IReadOnlyList<string>>.Present(["preferred"]),
                         }
-                    ),
-                    priority: 100
-                ),
-                new(
-                    "fallback",
-                    new InMemoryStateSource<ReplaceCollectionSettings.Fragment>(
+                    ), new StateSourceOptions<ReplaceCollectionSettings.Fragment> { Priority = 100 }),
+                new StateSource<ReplaceCollectionSettings.Fragment>("fallback", new InMemoryStateSource<ReplaceCollectionSettings.Fragment>(
                         new ReplaceCollectionSettings.Fragment
                         {
                             Values = Optional<IReadOnlyList<string>>.Present(["fallback"]),
                         }
-                    ),
-                    priority: 0
-                ),
+                    ), new StateSourceOptions<ReplaceCollectionSettings.Fragment> { Priority = 0 }),
             ])
         );
         await using (replaceOptions)

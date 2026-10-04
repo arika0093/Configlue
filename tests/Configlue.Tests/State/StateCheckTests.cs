@@ -340,14 +340,10 @@ public sealed class StateCheckTests
                 model.PerSubject<CheckAccessor>();
                 model.Sources(sources =>
                     sources.Add(
-                        new StateSource<AppSettings.Fragment>(
-                            "users",
-                            reader,
-                            resourceKeySelector: current =>
+                        new StateSource<AppSettings.Fragment>("users", reader, new StateSourceOptions<AppSettings.Fragment> { ResourceKeySelector = current =>
                                 current is CheckSubject typed
                                     ? ResourceKey.From(typed.Key)
-                                    : ResourceKey.Default
-                        )
+                                    : ResourceKey.Default })
                     )
                 );
             })
@@ -380,7 +376,7 @@ public sealed class StateCheckTests
         ISourceReader<AppSettings.Fragment> reader,
         int priority = 0,
         StateFallbackCondition fallbackCondition = StateFallbackCondition.NotFound
-    ) => new(id, reader, priority, fallbackCondition);
+    ) => new StateSource<AppSettings.Fragment>(id, reader, new StateSourceOptions<AppSettings.Fragment> { Priority = priority, FallbackCondition = fallbackCondition });
 
     private static AppSettings.Fragment Fragment(string? label) =>
         new() { Label = Optional<string?>.Present(label) };

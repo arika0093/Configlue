@@ -518,16 +518,11 @@ public sealed partial class FileResourceTests
         );
         File.Delete(path);
 
-        var primarySource = SerializedStateSource.FromResource<AppSettings.Fragment>(
-            "primary-file",
-            resource,
-            codec,
-            priority: 100
-        );
+        var primarySource = new StateSource<AppSettings.Fragment>("primary-file", new SerializedSource<AppSettings.Fragment>(resource, codec, writer: (IResourceReader)resource as IResourceWriter, watcher: (IResourceReader)resource as ISourceWatcher), new StateSourceOptions<AppSettings.Fragment> { Priority = 100 });
         var fallbackStore = new InMemoryStateSource<AppSettings.Fragment>(
             new AppSettings.Fragment { RetryCount = Optional<int>.Present(99) }
         );
-        var fallbackSource = new StateSource<AppSettings.Fragment>("fallback", fallbackStore);
+        var fallbackSource = new StateSource<AppSettings.Fragment>("fallback", fallbackStore, new StateSourceOptions<AppSettings.Fragment>());
         await using var options = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
             new StateSourceSet<AppSettings.Fragment>([primarySource, fallbackSource])
         );

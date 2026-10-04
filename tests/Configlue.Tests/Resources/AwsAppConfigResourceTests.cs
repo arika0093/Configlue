@@ -359,11 +359,7 @@ public sealed class AwsAppConfigResourceTests
         client.EnqueueData("t1", SettingsV1, TimeSpan.FromMilliseconds(10), "v1");
         client.EnqueueData("t2", SettingsV1, TimeSpan.FromMilliseconds(10), "v1");
         using var resource = CreateDirectResource(client);
-        var source = SerializedStateSource.FromResource<AppSettings.Fragment>(
-            "appconfig",
-            resource,
-            new JsonStateCodec<AppSettings.Fragment>()
-        );
+        var source = new StateSource<AppSettings.Fragment>("appconfig", new SerializedSource<AppSettings.Fragment>(resource, new JsonStateCodec<AppSettings.Fragment>(), writer: (IResourceReader)resource as IResourceWriter, watcher: (IResourceReader)resource as ISourceWatcher), new StateSourceOptions<AppSettings.Fragment>());
 
         source.Watcher.ShouldNotBeNull();
         var result = await source.Reader.ReadAsync();
@@ -384,11 +380,7 @@ public sealed class AwsAppConfigResourceTests
         client.EnqueueData("t1", "null", TimeSpan.FromMilliseconds(10), "v1");
         client.EnqueueData("t2", "{oops", TimeSpan.FromMilliseconds(10), "v2");
         using var resource = CreateDirectResource(client);
-        var source = SerializedStateSource.FromResource<AppSettings.Fragment>(
-            "appconfig",
-            resource,
-            new JsonStateCodec<AppSettings.Fragment>()
-        );
+        var source = new StateSource<AppSettings.Fragment>("appconfig", new SerializedSource<AppSettings.Fragment>(resource, new JsonStateCodec<AppSettings.Fragment>(), writer: (IResourceReader)resource as IResourceWriter, watcher: (IResourceReader)resource as ISourceWatcher), new StateSourceOptions<AppSettings.Fragment>());
 
         var result = await source.Reader.ReadAsync();
 
@@ -440,19 +432,10 @@ public sealed class AwsAppConfigResourceTests
         client.EnqueueData("t1", json: null, TimeSpan.FromMilliseconds(10));
         client.EnqueueData("t2", SettingsV2, TimeSpan.FromMilliseconds(10), "v2");
         using var resource = CreateDirectResource(client);
-        var appConfigSource = SerializedStateSource.FromResource<AppSettings.Fragment>(
-            "appconfig",
-            resource,
-            new JsonStateCodec<AppSettings.Fragment>(),
-            priority: 100,
-            fallbackCondition: StateFallbackCondition.NotFoundOrUnavailable
-        );
-        var defaults = new StateSource<AppSettings.Fragment>(
-            "defaults",
-            new InMemoryStateSource<AppSettings.Fragment>(
+        var appConfigSource = new StateSource<AppSettings.Fragment>("appconfig", new SerializedSource<AppSettings.Fragment>(resource, new JsonStateCodec<AppSettings.Fragment>(), writer: (IResourceReader)resource as IResourceWriter, watcher: (IResourceReader)resource as ISourceWatcher), new StateSourceOptions<AppSettings.Fragment> { Priority = 100, FallbackCondition = StateFallbackCondition.NotFoundOrUnavailable });
+        var defaults = new StateSource<AppSettings.Fragment>("defaults", new InMemoryStateSource<AppSettings.Fragment>(
                 new AppSettings.Fragment { Label = Optional<string?>.Present("default") }
-            )
-        );
+            ), new StateSourceOptions<AppSettings.Fragment>());
         await using var runtime = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
             new StateSourceSet<AppSettings.Fragment>([appConfigSource, defaults])
         );
@@ -486,11 +469,7 @@ public sealed class AwsAppConfigResourceTests
             .RequestUris[0]
             .AbsolutePath.ShouldBe("/applications/my-app/environments/production/configurations/settings");
 
-        var source = SerializedStateSource.FromResource<AppSettings.Fragment>(
-            "agent",
-            resource,
-            new JsonStateCodec<AppSettings.Fragment>()
-        );
+        var source = new StateSource<AppSettings.Fragment>("agent", new SerializedSource<AppSettings.Fragment>(resource, new JsonStateCodec<AppSettings.Fragment>(), writer: (IResourceReader)resource as IResourceWriter, watcher: (IResourceReader)resource as ISourceWatcher), new StateSourceOptions<AppSettings.Fragment>());
         var typed = await source.Reader.ReadAsync();
         typed.Status.ShouldBe(StateReadStatus.Success);
         typed.Value!.RetryCount.Value.ShouldBe(7);
@@ -626,11 +605,7 @@ public sealed class AwsAppConfigResourceTests
     public void Resource_IsReadOnly()
     {
         using var resource = CreateDirectResource(new FakeAppConfigDataClient());
-        var source = SerializedStateSource.FromResource<AppSettings.Fragment>(
-            "appconfig",
-            resource,
-            new JsonStateCodec<AppSettings.Fragment>()
-        );
+        var source = new StateSource<AppSettings.Fragment>("appconfig", new SerializedSource<AppSettings.Fragment>(resource, new JsonStateCodec<AppSettings.Fragment>(), writer: (IResourceReader)resource as IResourceWriter, watcher: (IResourceReader)resource as ISourceWatcher), new StateSourceOptions<AppSettings.Fragment>());
 
         source.Writer.ShouldBeNull();
         source.Watcher.ShouldNotBeNull();

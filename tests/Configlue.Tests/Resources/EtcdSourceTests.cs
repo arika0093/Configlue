@@ -443,8 +443,8 @@ public sealed class EtcdSourceTests
         var runtime = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
             new StateSourceSet<AppSettings.Fragment>(
                 [
-                    new StateSource<AppSettings.Fragment>("etcd", etcd, priority: 100),
-                    new StateSource<AppSettings.Fragment>("defaults", defaults, priority: 0),
+                    new StateSource<AppSettings.Fragment>("etcd", etcd, new StateSourceOptions<AppSettings.Fragment> { Priority = 100 }),
+                    new StateSource<AppSettings.Fragment>("defaults", defaults, new StateSourceOptions<AppSettings.Fragment> { Priority = 0 }),
                 ]
             )
         );

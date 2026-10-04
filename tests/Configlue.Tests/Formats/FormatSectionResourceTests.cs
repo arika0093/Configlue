@@ -82,18 +82,20 @@ public sealed class FormatSectionResourceTests
                 path,
                 new FileResourceOptions { AutomaticBackupRecovery = true }
             );
-            var primarySource = SerializedStateSource.FromResource<AppSettings.Fragment>(
+            IResourceReader primarySection = new JsonSectionResource(resource, "App:Settings");
+            var primarySource = new StateSource<AppSettings.Fragment>(
                 "primary-file",
-                new JsonSectionResource(resource, "App:Settings"),
-                codec,
-                priority: 100
+                new SerializedSource<AppSettings.Fragment>(
+                    primarySection,
+                    codec,
+                    writer: primarySection as IResourceWriter,
+                    watcher: primarySection as ISourceWatcher
+                ),
+                new StateSourceOptions<AppSettings.Fragment> { Priority = 100 }
             );
-            var fallbackSource = new StateSource<AppSettings.Fragment>(
-                "fallback",
-                new InMemoryStateSource<AppSettings.Fragment>(
+            var fallbackSource = new StateSource<AppSettings.Fragment>("fallback", new InMemoryStateSource<AppSettings.Fragment>(
                     new AppSettings.Fragment { RetryCount = Optional<int>.Present(99) }
-                )
-            );
+                ), new StateSourceOptions<AppSettings.Fragment>());
             await using var options = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
                 new StateSourceSet<AppSettings.Fragment>([primarySource, fallbackSource])
             );
@@ -275,11 +277,7 @@ public sealed class FormatSectionResourceTests
             )
         );
         var section = new XmlSectionResource(resource, "App__Settings");
-        var source = SerializedStateSource.FromResource<AppSettings.Fragment>(
-            "settings",
-            section,
-            codec
-        );
+        var source = new StateSource<AppSettings.Fragment>("settings", new SerializedSource<AppSettings.Fragment>(section, codec, writer: (IResourceReader)section as IResourceWriter, watcher: (IResourceReader)section as ISourceWatcher), new StateSourceOptions<AppSettings.Fragment>());
         var options = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
             new StateSourceSet<AppSettings.Fragment>([source])
         );
@@ -308,11 +306,7 @@ public sealed class FormatSectionResourceTests
     {
         var resource = new InMemoryResource();
         var section = new XmlSectionResource(resource, "App__Settings");
-        var source = SerializedStateSource.FromResource<AppSettings.Fragment>(
-            "settings",
-            section,
-            new XmlStateCodec<AppSettings.Fragment>()
-        );
+        var source = new StateSource<AppSettings.Fragment>("settings", new SerializedSource<AppSettings.Fragment>(section, new XmlStateCodec<AppSettings.Fragment>(), writer: (IResourceReader)section as IResourceWriter, watcher: (IResourceReader)section as ISourceWatcher), new StateSourceOptions<AppSettings.Fragment>());
         await using var options = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
             new StateSourceSet<AppSettings.Fragment>([source])
         );
@@ -367,11 +361,7 @@ public sealed class FormatSectionResourceTests
             "App:Settings",
             textEncoding: textEncoding
         );
-        var source = SerializedStateSource.FromResource<AppSettings.Fragment>(
-            "settings",
-            section,
-            codec
-        );
+        var source = new StateSource<AppSettings.Fragment>("settings", new SerializedSource<AppSettings.Fragment>(section, codec, writer: (IResourceReader)section as IResourceWriter, watcher: (IResourceReader)section as ISourceWatcher), new StateSourceOptions<AppSettings.Fragment>());
         var options = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
             new StateSourceSet<AppSettings.Fragment>([source])
         );
@@ -403,11 +393,7 @@ public sealed class FormatSectionResourceTests
     {
         var resource = new InMemoryResource();
         var section = new YamlSectionResource(resource, "App:Settings");
-        var source = SerializedStateSource.FromResource<AppSettings.Fragment>(
-            "settings",
-            section,
-            new YamlStateCodec<AppSettings.Fragment>(modelSchema: AppSettings.FragmentSchema)
-        );
+        var source = new StateSource<AppSettings.Fragment>("settings", new SerializedSource<AppSettings.Fragment>(section, new YamlStateCodec<AppSettings.Fragment>(modelSchema: AppSettings.FragmentSchema), writer: (IResourceReader)section as IResourceWriter, watcher: (IResourceReader)section as ISourceWatcher), new StateSourceOptions<AppSettings.Fragment>());
         await using var options = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
             new StateSourceSet<AppSettings.Fragment>([source])
         );
@@ -429,11 +415,7 @@ public sealed class FormatSectionResourceTests
         var resource = new InMemoryResource();
         await resource.WriteAsync(new ResourceWriteRequest(Encoding.UTF8.GetBytes(malformed)));
         var section = new YamlSectionResource(resource, "App:Settings");
-        var source = SerializedStateSource.FromResource<AppSettings.Fragment>(
-            "settings",
-            section,
-            new YamlStateCodec<AppSettings.Fragment>(modelSchema: AppSettings.FragmentSchema)
-        );
+        var source = new StateSource<AppSettings.Fragment>("settings", new SerializedSource<AppSettings.Fragment>(section, new YamlStateCodec<AppSettings.Fragment>(modelSchema: AppSettings.FragmentSchema), writer: (IResourceReader)section as IResourceWriter, watcher: (IResourceReader)section as ISourceWatcher), new StateSourceOptions<AppSettings.Fragment>());
         await using var options = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
             new StateSourceSet<AppSettings.Fragment>([source])
         );

@@ -130,11 +130,7 @@ public sealed class YamlTextEncodingTests
                 modelSchema: AppSettings.FragmentSchema,
                 textEncoding: encoding
             );
-            var source = SerializedStateSource.FromResource<AppSettings.Fragment>(
-                "settings",
-                section,
-                codec
-            );
+            var source = new StateSource<AppSettings.Fragment>("settings", new SerializedSource<AppSettings.Fragment>(section, codec, writer: (IResourceReader)section as IResourceWriter, watcher: (IResourceReader)section as ISourceWatcher), new StateSourceOptions<AppSettings.Fragment>());
             await using var options = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
                 new StateSourceSet<AppSettings.Fragment>([source])
             );

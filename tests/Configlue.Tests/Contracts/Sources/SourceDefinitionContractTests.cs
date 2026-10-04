@@ -53,7 +53,7 @@ public sealed class SourceDefinitionContractTests
                         AppSettings.Fragment
                     >(
                         SourceKey<AppSettings>.Named("extensibility-port"),
-                        new StateSource<AppSettings.Fragment>("extensibility-port", store)
+                        new StateSource<AppSettings.Fragment>("extensibility-port", store, new StateSourceOptions<AppSettings.Fragment>())
                     )
                 )
             )
@@ -97,7 +97,7 @@ public sealed class SourceDefinitionContractTests
         {
             context.Own(resource);
             var store = new InMemoryStateSource<TFragment>();
-            return context.Complete(new StateSource<TFragment>("async-owned", store));
+            return context.Complete(new StateSource<TFragment>("async-owned", store, new StateSourceOptions<TFragment>()));
         }
     }
 
@@ -125,7 +125,7 @@ public sealed class SourceDefinitionContractTests
             _ = resource;
             var store = new InMemoryStateSource<TFragment>();
             return new ConfiglueSourceCreation<TFragment>(
-                new StateSource<TFragment>("borrowed", store)
+                new StateSource<TFragment>("borrowed", store, new StateSourceOptions<TFragment>())
             );
         }
     }
@@ -179,7 +179,7 @@ public sealed class SourceDefinitionContractTests
             CreatedModelSchemaId = modelSchema.Id;
             ownResource(resource);
             var store = new InMemoryStateSource<TFragment>();
-            return new StateSource<TFragment>("source-definition", store, writer: store);
+            return new StateSource<TFragment>("source-definition", store, new StateSourceOptions<TFragment> { Writer = store });
         }
     }
 

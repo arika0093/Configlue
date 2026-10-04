@@ -37,8 +37,8 @@ public sealed partial class StateRuntimeTests
             }
         );
         var sources = new StateSourceSet<AppSettings.Fragment>([
-            new("user", user, priority: 100, writer: user),
-            new("defaults", defaults, priority: 0),
+            new StateSource<AppSettings.Fragment>("user", user, new StateSourceOptions<AppSettings.Fragment> { Priority = 100, Writer = user }),
+            new StateSource<AppSettings.Fragment>("defaults", defaults, new StateSourceOptions<AppSettings.Fragment> { Priority = 0 }),
         ]);
         var services = new ServiceCollection();
         services.AddConfiglueMicrosoftOptions<AppSettings>();
@@ -94,7 +94,7 @@ public sealed partial class StateRuntimeTests
         var services = new ServiceCollection();
         services.AddConfiglueMicrosoftOptions<AppSettings>();
         services.AddConfiglueState<AppSettings, AppSettings.Fragment>(
-            new StateSourceSet<AppSettings.Fragment>([new("default", store, writer: store)])
+            new StateSourceSet<AppSettings.Fragment>([new StateSource<AppSettings.Fragment>("default", store, new StateSourceOptions<AppSettings.Fragment> { Writer = store })])
         );
         await using var serviceProvider = services.BuildServiceProvider();
 
@@ -124,13 +124,13 @@ public sealed partial class StateRuntimeTests
         services.AddConfiglueMicrosoftOptions<AppSettings>();
         services.AddConfiglueState<AppSettings, AppSettings.Fragment>(
             new StateSourceSet<AppSettings.Fragment>([
-                new("default", defaultStore, writer: defaultStore),
+                new StateSource<AppSettings.Fragment>("default", defaultStore, new StateSourceOptions<AppSettings.Fragment> { Writer = defaultStore }),
             ])
         );
         services.AddConfiglueState<AppSettings, AppSettings.Fragment>(
             "custom",
             new StateSourceSet<AppSettings.Fragment>([
-                new("custom", namedStore, writer: namedStore),
+                new StateSource<AppSettings.Fragment>("custom", namedStore, new StateSourceOptions<AppSettings.Fragment> { Writer = namedStore }),
             ])
         );
         await using var serviceProvider = services.BuildServiceProvider();
@@ -172,13 +172,13 @@ public sealed partial class StateRuntimeTests
         var services = new ServiceCollection();
         services.AddConfiglueMicrosoftOptions<AppSettings>();
         services.AddConfiglueState<AppSettings, AppSettings.Fragment>(
-            new StateSourceSet<AppSettings.Fragment>([new("default", defaults, writer: defaults)]),
+            new StateSourceSet<AppSettings.Fragment>([new StateSource<AppSettings.Fragment>("default", defaults, new StateSourceOptions<AppSettings.Fragment> { Writer = defaults })]),
             onChangeDebounce: TimeSpan.Zero
         );
         services.AddConfiglueState<AppSettings, AppSettings.Fragment>(
             "custom",
             new StateSourceSet<AppSettings.Fragment>([
-                new("custom", custom, writer: custom, watcher: custom),
+                new StateSource<AppSettings.Fragment>("custom", custom, new StateSourceOptions<AppSettings.Fragment> { Writer = custom, Watcher = custom }),
             ]),
             onChangeDebounce: TimeSpan.Zero
         );
@@ -225,7 +225,7 @@ public sealed partial class StateRuntimeTests
                 );
                 stores.Add(profileName, store);
                 return new StateSourceSet<AppSettings.Fragment>([
-                    new(profileName, store, writer: store, watcher: store),
+                    new StateSource<AppSettings.Fragment>(profileName, store, new StateSourceOptions<AppSettings.Fragment> { Writer = store, Watcher = store }),
                 ]);
             },
             onChangeDebounce: TimeSpan.Zero
@@ -268,7 +268,7 @@ public sealed partial class StateRuntimeTests
                 );
                 stores[profileName] = store;
                 return new StateSourceSet<AppSettings.Fragment>([
-                    new(profileName, store, writer: store, watcher: store),
+                    new StateSource<AppSettings.Fragment>(profileName, store, new StateSourceOptions<AppSettings.Fragment> { Writer = store, Watcher = store }),
                 ]);
             },
             onChangeDebounce: TimeSpan.Zero

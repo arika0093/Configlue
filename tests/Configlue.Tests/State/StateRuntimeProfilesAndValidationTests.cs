@@ -21,7 +21,7 @@ public sealed partial class StateRuntimeTests
                 oldSchema
             )
         );
-        var sourceSet = new StateSourceSet<AppSettings.Fragment>([new("legacy", reader)]);
+        var sourceSet = new StateSourceSet<AppSettings.Fragment>([new StateSource<AppSettings.Fragment>("legacy", reader, new StateSourceOptions<AppSettings.Fragment>())]);
         var options = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
             sourceSet,
             migrations: [new AppSettingsV1ToV2Migration()]
@@ -42,7 +42,7 @@ public sealed partial class StateRuntimeTests
             new AppSettings.Fragment { RetryCount = Optional<int>.Present(3) }
         );
         var sourceSet = new StateSourceSet<AppSettings.Fragment>([
-            new("user", store, writer: store),
+            new StateSource<AppSettings.Fragment>("user", store, new StateSourceOptions<AppSettings.Fragment> { Writer = store }),
         ]);
         var services = new ServiceCollection();
         services.AddConfiglueMicrosoftOptions<AppSettings>();
@@ -115,13 +115,13 @@ public sealed partial class StateRuntimeTests
         services.AddConfiglueValidator(new ProfileScopedRetryCountValidator());
         services.AddConfiglueState<AppSettings, AppSettings.Fragment>(
             new StateSourceSet<AppSettings.Fragment>([
-                new("default", defaultStore, writer: defaultStore),
+                new StateSource<AppSettings.Fragment>("default", defaultStore, new StateSourceOptions<AppSettings.Fragment> { Writer = defaultStore }),
             ])
         );
         services.AddConfiglueState<AppSettings, AppSettings.Fragment>(
             "custom",
             new StateSourceSet<AppSettings.Fragment>([
-                new("custom", keyedStore, writer: keyedStore),
+                new StateSource<AppSettings.Fragment>("custom", keyedStore, new StateSourceOptions<AppSettings.Fragment> { Writer = keyedStore }),
             ])
         );
         services.AddConfiglueStateRegistry<AppSettings, AppSettings.Fragment>(
@@ -132,7 +132,7 @@ public sealed partial class StateRuntimeTests
                 );
                 runtimeStores.Add(profileName, store);
                 return new StateSourceSet<AppSettings.Fragment>([
-                    new(profileName, store, writer: store),
+                    new StateSource<AppSettings.Fragment>(profileName, store, new StateSourceOptions<AppSettings.Fragment> { Writer = store }),
                 ]);
             }
         );
@@ -186,8 +186,8 @@ public sealed partial class StateRuntimeTests
             }
         );
         var sourceSet = new StateSourceSet<AppSettings.Fragment>([
-            new("user", user, priority: 100, writer: user),
-            new("defaults", defaults, priority: 0),
+            new StateSource<AppSettings.Fragment>("user", user, new StateSourceOptions<AppSettings.Fragment> { Priority = 100, Writer = user }),
+            new StateSource<AppSettings.Fragment>("defaults", defaults, new StateSourceOptions<AppSettings.Fragment> { Priority = 0 }),
         ]);
         var options = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(sourceSet);
         var patch = new AppSettings.Patch
@@ -216,7 +216,7 @@ public sealed partial class StateRuntimeTests
             new AppSettings.Fragment { RetryCount = Optional<int>.Present(12) }
         );
         await using var options = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
-            new StateSourceSet<AppSettings.Fragment>([new("user", store, writer: store)])
+            new StateSourceSet<AppSettings.Fragment>([new StateSource<AppSettings.Fragment>("user", store, new StateSourceOptions<AppSettings.Fragment> { Writer = store })])
         );
 
         await options.SaveAsync(
@@ -239,10 +239,10 @@ public sealed partial class StateRuntimeTests
             new AppSettings.Fragment { RetryCount = Optional<int>.Present(8) }
         );
         var primarySources = new StateSourceSet<AppSettings.Fragment>([
-            new("profile", primaryStore),
+            new StateSource<AppSettings.Fragment>("profile", primaryStore, new StateSourceOptions<AppSettings.Fragment>()),
         ]);
         var secondarySources = new StateSourceSet<AppSettings.Fragment>([
-            new("profile", secondaryStore),
+            new StateSource<AppSettings.Fragment>("profile", secondaryStore, new StateSourceOptions<AppSettings.Fragment>()),
         ]);
         var services = new ServiceCollection();
         services.AddConfiglueMicrosoftOptions<AppSettings>();
@@ -282,7 +282,7 @@ public sealed partial class StateRuntimeTests
                         RetryCount = Optional<int>.Present(profileName == "primary" ? 5 : 8),
                     }
                 );
-                return new StateSourceSet<AppSettings.Fragment>([new("profile", store)]);
+                return new StateSourceSet<AppSettings.Fragment>([new StateSource<AppSettings.Fragment>("profile", store, new StateSourceOptions<AppSettings.Fragment>())]);
             }
         );
         await using var serviceProvider = services.BuildServiceProvider();
@@ -328,7 +328,7 @@ public sealed partial class StateRuntimeTests
             {
                 var store = new InMemoryStateSource<AppSettings.Fragment>();
                 return new StateSourceSet<AppSettings.Fragment>([
-                    new(name, store, writer: store, watcher: store),
+                    new StateSource<AppSettings.Fragment>(name, store, new StateSourceOptions<AppSettings.Fragment> { Writer = store, Watcher = store }),
                 ]);
             }
         );
@@ -457,7 +457,7 @@ public sealed partial class StateRuntimeTests
             {
                 var store = new InMemoryStateSource<AppSettings.Fragment>();
                 return new StateSourceSet<AppSettings.Fragment>([
-                    new(name, store, writer: store, watcher: store),
+                    new StateSource<AppSettings.Fragment>(name, store, new StateSourceOptions<AppSettings.Fragment> { Writer = store, Watcher = store }),
                 ]);
             }
         );

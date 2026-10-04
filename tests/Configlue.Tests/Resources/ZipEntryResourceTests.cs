@@ -39,18 +39,8 @@ public sealed class ZipEntryResourceTests
         var settings = new ZipEntryResource(archive, "settings.json");
         var user = new ZipEntryResource(archive, "user.json");
         var sources = new StateSourceSet<AppSettings.Fragment>([
-            SerializedStateSource.FromResource<AppSettings.Fragment>(
-                "user",
-                user,
-                codec,
-                priority: 100
-            ),
-            SerializedStateSource.FromResource<AppSettings.Fragment>(
-                "settings",
-                settings,
-                codec,
-                priority: 50
-            ),
+            new StateSource<AppSettings.Fragment>("user", new SerializedSource<AppSettings.Fragment>(user, codec, writer: (IResourceReader)user as IResourceWriter, watcher: (IResourceReader)user as ISourceWatcher), new StateSourceOptions<AppSettings.Fragment> { Priority = 100 }),
+            new StateSource<AppSettings.Fragment>("settings", new SerializedSource<AppSettings.Fragment>(settings, codec, writer: (IResourceReader)settings as IResourceWriter, watcher: (IResourceReader)settings as ISourceWatcher), new StateSourceOptions<AppSettings.Fragment> { Priority = 50 }),
         ]);
         var options = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
             sources,

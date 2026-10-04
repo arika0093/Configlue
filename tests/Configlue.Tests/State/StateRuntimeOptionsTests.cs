@@ -15,7 +15,7 @@ public sealed partial class StateRuntimeTests
     {
         var missing = new InMemoryStateSource<AppSettings.Fragment>();
         var sourceSet = new StateSourceSet<AppSettings.Fragment>([
-            new("optional", missing, writer: missing),
+            new StateSource<AppSettings.Fragment>("optional", missing, new StateSourceOptions<AppSettings.Fragment> { Writer = missing }),
         ]);
         var options = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(sourceSet);
 
@@ -38,8 +38,8 @@ public sealed partial class StateRuntimeTests
             new AppSettings.Fragment { RetryCount = Optional<int>.Present(3) }
         );
         var sourceSet = new StateSourceSet<AppSettings.Fragment>([
-            new("user", user, priority: 100, watcher: user),
-            new("defaults", defaults, priority: 0, watcher: defaults),
+            new StateSource<AppSettings.Fragment>("user", user, new StateSourceOptions<AppSettings.Fragment> { Priority = 100, Watcher = user }),
+            new StateSource<AppSettings.Fragment>("defaults", defaults, new StateSourceOptions<AppSettings.Fragment> { Priority = 0, Watcher = defaults }),
         ]);
         await using var options = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
             sourceSet
@@ -81,8 +81,8 @@ public sealed partial class StateRuntimeTests
             new AppSettings.Fragment { RetryCount = Optional<int>.Present(3) }
         );
         var sourceSet = new StateSourceSet<AppSettings.Fragment>([
-            new("user", user, priority: 100, watcher: user),
-            new("defaults", defaults, priority: 0, watcher: defaults),
+            new StateSource<AppSettings.Fragment>("user", user, new StateSourceOptions<AppSettings.Fragment> { Priority = 100, Watcher = user }),
+            new StateSource<AppSettings.Fragment>("defaults", defaults, new StateSourceOptions<AppSettings.Fragment> { Priority = 0, Watcher = defaults }),
         ]);
         await using var options = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
             sourceSet
@@ -120,8 +120,8 @@ public sealed partial class StateRuntimeTests
             new AppSettings.Fragment { RetryCount = Optional<int>.Present(3) }
         );
         var sourceSet = new StateSourceSet<AppSettings.Fragment>([
-            new("user", user, priority: 100, watcher: user),
-            new("defaults", defaults, priority: 0, watcher: defaults),
+            new StateSource<AppSettings.Fragment>("user", user, new StateSourceOptions<AppSettings.Fragment> { Priority = 100, Watcher = user }),
+            new StateSource<AppSettings.Fragment>("defaults", defaults, new StateSourceOptions<AppSettings.Fragment> { Priority = 0, Watcher = defaults }),
         ]);
         await using var options = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
             sourceSet
@@ -158,46 +158,20 @@ public sealed partial class StateRuntimeTests
         );
         var primaryReader = new StateSourceResolver<AppSettings.Fragment>(
             new StateSourceSet<AppSettings.Fragment>([
-                new(
-                    "database",
-                    primary,
-                    writer: new NoOpSourceWriter<AppSettings.Fragment>(),
-                    watcher: primary,
-                    physicalOrigin: "primary://settings"
-                ),
+                new StateSource<AppSettings.Fragment>("database", primary, new StateSourceOptions<AppSettings.Fragment> { Writer = new NoOpSourceWriter<AppSettings.Fragment>(), Watcher = primary, PhysicalOrigin = "primary://settings" }),
             ])
         );
         var primaryWatcher = new StateSourceWatcher<AppSettings.Fragment>(primaryReader);
         var outerSources = new StateSourceSet<AppSettings.Fragment>([
-            new(
-                "remote",
-                primaryReader,
-                priority: 100,
-                fallbackCondition: StateFallbackCondition.Unavailable,
-                watcher: primaryWatcher,
-                physicalOrigin: "logical://remote"
-            ),
-            new(
-                "local",
-                fallback,
-                priority: 0,
-                writer: new NoOpSourceWriter<AppSettings.Fragment>(),
-                watcher: fallback,
-                physicalOrigin: "fallback://settings"
-            ),
+            new StateSource<AppSettings.Fragment>("remote", primaryReader, new StateSourceOptions<AppSettings.Fragment> { Priority = 100, FallbackCondition = StateFallbackCondition.Unavailable, Watcher = primaryWatcher, PhysicalOrigin = "logical://remote" }),
+            new StateSource<AppSettings.Fragment>("local", fallback, new StateSourceOptions<AppSettings.Fragment> { Priority = 0, Writer = new NoOpSourceWriter<AppSettings.Fragment>(), Watcher = fallback, PhysicalOrigin = "fallback://settings" }),
         ]);
         var outerReader = new StateSourceResolver<AppSettings.Fragment>(outerSources);
         var outerWriter = new StateSourceWriter<AppSettings.Fragment>(outerSources);
         var outerWatcher = new StateSourceWatcher<AppSettings.Fragment>(outerReader);
         await using var options = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
             new StateSourceSet<AppSettings.Fragment>([
-                new(
-                    "composite",
-                    outerReader,
-                    writer: outerWriter,
-                    watcher: outerWatcher,
-                    physicalOrigin: "logical://settings"
-                ),
+                new StateSource<AppSettings.Fragment>("composite", outerReader, new StateSourceOptions<AppSettings.Fragment> { Writer = outerWriter, Watcher = outerWatcher, PhysicalOrigin = "logical://settings" }),
             ]),
             onChangeDebounce: TimeSpan.Zero
         );
@@ -278,7 +252,7 @@ public sealed partial class StateRuntimeTests
             new AppSettings.Fragment { RetryCount = Optional<int>.Present(3) }
         );
         var sourceSet = new StateSourceSet<AppSettings.Fragment>([
-            new("user", store, writer: store),
+            new StateSource<AppSettings.Fragment>("user", store, new StateSourceOptions<AppSettings.Fragment> { Writer = store }),
         ]);
         var options = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(sourceSet);
         using var session = await options.OpenEditSessionAsync();
@@ -315,7 +289,7 @@ public sealed partial class StateRuntimeTests
             new AppSettings.Fragment { RetryCount = Optional<int>.Present(3) }
         );
         var options = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
-            new StateSourceSet<AppSettings.Fragment>([new("user", store, writer: store)])
+            new StateSourceSet<AppSettings.Fragment>([new StateSource<AppSettings.Fragment>("user", store, new StateSourceOptions<AppSettings.Fragment> { Writer = store })])
         );
         using var session = await options.OpenEditSessionAsync();
         session.Value.RetryCount = 6;
@@ -350,7 +324,7 @@ public sealed partial class StateRuntimeTests
             }
         );
         var options = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
-            new StateSourceSet<AppSettings.Fragment>([new("user", store, writer: store)])
+            new StateSourceSet<AppSettings.Fragment>([new StateSource<AppSettings.Fragment>("user", store, new StateSourceOptions<AppSettings.Fragment> { Writer = store })])
         );
         using var session = await options.OpenEditSessionAsync();
         session.Value.Database!.Host = "session-host";
@@ -384,7 +358,7 @@ public sealed partial class StateRuntimeTests
                 Plugins = Optional<IReadOnlyList<string>>.Present(["existing"]),
             }
         );
-        var sources = new StateSourceSet<AppSettings.Fragment>([new("user", store, writer: store)]);
+        var sources = new StateSourceSet<AppSettings.Fragment>([new StateSource<AppSettings.Fragment>("user", store, new StateSourceOptions<AppSettings.Fragment> { Writer = store })]);
         var options = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(sources);
 
         using (var edit = await options.OpenEditSessionAsync())
@@ -414,7 +388,7 @@ public sealed partial class StateRuntimeTests
     public async Task SaveAsync_DoesNotRetainCallerOwnedCollectionReferences()
     {
         var store = new InMemoryStateSource<AppSettings.Fragment>();
-        var sources = new StateSourceSet<AppSettings.Fragment>([new("user", store, writer: store)]);
+        var sources = new StateSourceSet<AppSettings.Fragment>([new StateSource<AppSettings.Fragment>("user", store, new StateSourceOptions<AppSettings.Fragment> { Writer = store })]);
         await using var options = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(sources);
         var plugins = new List<string> { "before-save" };
 
@@ -435,8 +409,8 @@ public sealed partial class StateRuntimeTests
             new AppSettings.Fragment { RetryCount = Optional<int>.Present(3) }
         );
         var sources = new StateSourceSet<AppSettings.Fragment>([
-            new("user", user, priority: 100, writer: user),
-            new("defaults", defaults, priority: 0),
+            new StateSource<AppSettings.Fragment>("user", user, new StateSourceOptions<AppSettings.Fragment> { Priority = 100, Writer = user }),
+            new StateSource<AppSettings.Fragment>("defaults", defaults, new StateSourceOptions<AppSettings.Fragment> { Priority = 0 }),
         ]);
         var options = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(sources);
         using var session = await options.OpenEditSessionAsync();
@@ -479,8 +453,8 @@ public sealed partial class StateRuntimeTests
             }
         );
         var sources = new StateSourceSet<AppSettings.Fragment>([
-            new("user", user, priority: 100, writer: user),
-            new("defaults", defaults),
+            new StateSource<AppSettings.Fragment>("user", user, new StateSourceOptions<AppSettings.Fragment> { Priority = 100, Writer = user }),
+            new StateSource<AppSettings.Fragment>("defaults", defaults, new StateSourceOptions<AppSettings.Fragment>()),
         ]);
         var options = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(sources);
 
@@ -527,9 +501,9 @@ public sealed partial class StateRuntimeTests
         );
         var options = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
             new StateSourceSet<AppSettings.Fragment>([
-                new("user", user, priority: 100, writer: user),
-                new("database", database, priority: 50, writer: database),
-                new("defaults", defaults),
+                new StateSource<AppSettings.Fragment>("user", user, new StateSourceOptions<AppSettings.Fragment> { Priority = 100, Writer = user }),
+                new StateSource<AppSettings.Fragment>("database", database, new StateSourceOptions<AppSettings.Fragment> { Priority = 50, Writer = database }),
+                new StateSource<AppSettings.Fragment>("defaults", defaults, new StateSourceOptions<AppSettings.Fragment>()),
             ]),
             StateWritePlan.DefaultTo(SourceId.From("user"))
         );
@@ -576,8 +550,8 @@ public sealed partial class StateRuntimeTests
         var user = new InMemoryStateSource<AppSettings.Fragment>(new AppSettings.Fragment());
         var options = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
             new StateSourceSet<AppSettings.Fragment>([
-                new("policy", policy, priority: 100),
-                new("user", user, priority: 0, writer: user),
+                new StateSource<AppSettings.Fragment>("policy", policy, new StateSourceOptions<AppSettings.Fragment> { Priority = 100 }),
+                new StateSource<AppSettings.Fragment>("user", user, new StateSourceOptions<AppSettings.Fragment> { Priority = 0, Writer = user }),
             ])
         );
         var userBefore = await user.ReadAsync();
@@ -616,7 +590,7 @@ public sealed partial class StateRuntimeTests
             new AppSettings.Fragment { RetryCount = Optional<int>.Present(3) }
         );
         var options = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
-            new StateSourceSet<AppSettings.Fragment>([new("user", store, writer: store)])
+            new StateSourceSet<AppSettings.Fragment>([new StateSource<AppSettings.Fragment>("user", store, new StateSourceOptions<AppSettings.Fragment> { Writer = store })])
         );
 
         using var session = await options.OpenEditSessionAsync();
@@ -640,8 +614,8 @@ public sealed partial class StateRuntimeTests
         );
         var options = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
             new StateSourceSet<AppSettings.Fragment>([
-                new("user", user, priority: 100, writer: user),
-                new("defaults", defaults),
+                new StateSource<AppSettings.Fragment>("user", user, new StateSourceOptions<AppSettings.Fragment> { Priority = 100, Writer = user }),
+                new StateSource<AppSettings.Fragment>("defaults", defaults, new StateSourceOptions<AppSettings.Fragment>()),
             ])
         );
 
@@ -670,8 +644,8 @@ public sealed partial class StateRuntimeTests
         );
         var options = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
             new StateSourceSet<AppSettings.Fragment>([
-                new("user", user, priority: 100, writer: user),
-                new("defaults", defaults),
+                new StateSource<AppSettings.Fragment>("user", user, new StateSourceOptions<AppSettings.Fragment> { Priority = 100, Writer = user }),
+                new StateSource<AppSettings.Fragment>("defaults", defaults, new StateSourceOptions<AppSettings.Fragment>()),
             ])
         );
         using var session = await options.OpenEditSessionAsync();
@@ -710,8 +684,8 @@ public sealed partial class StateRuntimeTests
         );
         var options = new ConfiglueRuntime<SetUnionSettings, SetUnionSettings.Fragment>(
             new StateSourceSet<SetUnionSettings.Fragment>([
-                new("user", user, priority: 100, writer: user),
-                new("defaults", defaults),
+                new StateSource<SetUnionSettings.Fragment>("user", user, new StateSourceOptions<SetUnionSettings.Fragment> { Priority = 100, Writer = user }),
+                new StateSource<SetUnionSettings.Fragment>("defaults", defaults, new StateSourceOptions<SetUnionSettings.Fragment>()),
             ])
         );
 
@@ -763,8 +737,8 @@ public sealed partial class StateRuntimeTests
         );
         var options = new ConfiglueRuntime<SetUnionSettings, SetUnionSettings.Fragment>(
             new StateSourceSet<SetUnionSettings.Fragment>([
-                new("user", user, priority: 100, writer: user),
-                new("defaults", defaults),
+                new StateSource<SetUnionSettings.Fragment>("user", user, new StateSourceOptions<SetUnionSettings.Fragment> { Priority = 100, Writer = user }),
+                new StateSource<SetUnionSettings.Fragment>("defaults", defaults, new StateSourceOptions<SetUnionSettings.Fragment>()),
             ])
         );
         using var session = await options.OpenEditSessionAsync();
@@ -795,8 +769,8 @@ public sealed partial class StateRuntimeTests
         var user = new InMemoryStateSource<AppSettings.Fragment>();
         var options = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
             new StateSourceSet<AppSettings.Fragment>([
-                new("policy", policy, priority: 100),
-                new("user", user, priority: 0, writer: user),
+                new StateSource<AppSettings.Fragment>("policy", policy, new StateSourceOptions<AppSettings.Fragment> { Priority = 100 }),
+                new StateSource<AppSettings.Fragment>("user", user, new StateSourceOptions<AppSettings.Fragment> { Priority = 0, Writer = user }),
             ])
         );
 

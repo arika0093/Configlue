@@ -163,14 +163,10 @@ public sealed class SubjectDetailsSnapshotTests
                 model.PerSubject<TAccessor>();
                 model.Sources(sources =>
                     sources.Add(
-                        new StateSource<AppSettings.Fragment>(
-                            "users",
-                            users,
-                            resourceKeySelector: current =>
+                        new StateSource<AppSettings.Fragment>("users", users, new StateSourceOptions<AppSettings.Fragment> { ResourceKeySelector = current =>
                                 current is SettingsSubject typed
                                     ? ResourceKey.From(typed.Key)
-                                    : ResourceKey.Default
-                        )
+                                    : ResourceKey.Default })
                     )
                 );
             })

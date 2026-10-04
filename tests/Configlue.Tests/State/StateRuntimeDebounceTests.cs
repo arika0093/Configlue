@@ -17,7 +17,7 @@ public sealed partial class StateRuntimeTests
         var watcher = new ManualWatcher();
         var timeProvider = new ObservableTimeProvider();
         await using var options = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
-            new StateSourceSet<AppSettings.Fragment>([new("user", store, watcher: watcher)]),
+            new StateSourceSet<AppSettings.Fragment>([new StateSource<AppSettings.Fragment>("user", store, new StateSourceOptions<AppSettings.Fragment> { Watcher = watcher })]),
             onChangeDebounce: TimeSpan.FromMilliseconds(150),
             diagnostics: new ConfiglueRuntimeDiagnosticOptions { EventHistoryCapacity = 64 },
             timeProvider: timeProvider
@@ -61,7 +61,7 @@ public sealed partial class StateRuntimeTests
         var watcher = new ManualWatcher();
         var timeProvider = new ObservableTimeProvider();
         await using var options = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
-            new StateSourceSet<AppSettings.Fragment>([new("user", store, watcher: watcher)]),
+            new StateSourceSet<AppSettings.Fragment>([new StateSource<AppSettings.Fragment>("user", store, new StateSourceOptions<AppSettings.Fragment> { Watcher = watcher })]),
             onChangeDebounce: TimeSpan.FromMilliseconds(150),
             diagnostics: new ConfiglueRuntimeDiagnosticOptions { EventHistoryCapacity = 64 },
             timeProvider: timeProvider
@@ -104,7 +104,7 @@ public sealed partial class StateRuntimeTests
         var watcher = new ManualWatcher();
         var timeProvider = new ObservableTimeProvider();
         await using var options = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
-            new StateSourceSet<AppSettings.Fragment>([new("user", store, watcher: watcher)]),
+            new StateSourceSet<AppSettings.Fragment>([new StateSource<AppSettings.Fragment>("user", store, new StateSourceOptions<AppSettings.Fragment> { Watcher = watcher })]),
             onChangeDebounce: TimeSpan.FromMilliseconds(150),
             diagnostics: new ConfiglueRuntimeDiagnosticOptions { EventHistoryCapacity = 64 },
             timeProvider: timeProvider
@@ -159,7 +159,7 @@ public sealed partial class StateRuntimeTests
         var watcher = new ManualWatcher();
         var timeProvider = new ObservableTimeProvider();
         var options = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
-            new StateSourceSet<AppSettings.Fragment>([new("user", store, watcher: watcher)]),
+            new StateSourceSet<AppSettings.Fragment>([new StateSource<AppSettings.Fragment>("user", store, new StateSourceOptions<AppSettings.Fragment> { Watcher = watcher })]),
             onChangeDebounce: TimeSpan.FromMilliseconds(150),
             diagnostics: new ConfiglueRuntimeDiagnosticOptions { EventHistoryCapacity = 64 },
             timeProvider: timeProvider
@@ -194,8 +194,8 @@ public sealed partial class StateRuntimeTests
         var timeProvider = new ObservableTimeProvider();
         await using var options = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
             new StateSourceSet<AppSettings.Fragment>([
-                new("legacy", legacy, priority: 100, watcher: legacyWatcher),
-                new("current", current, priority: 0, writer: current, watcher: currentWatcher),
+                new StateSource<AppSettings.Fragment>("legacy", legacy, new StateSourceOptions<AppSettings.Fragment> { Priority = 100, Watcher = legacyWatcher }),
+                new StateSource<AppSettings.Fragment>("current", current, new StateSourceOptions<AppSettings.Fragment> { Priority = 0, Writer = current, Watcher = currentWatcher }),
             ]),
             onChangeDebounce: TimeSpan.FromMilliseconds(150),
             diagnostics: new ConfiglueRuntimeDiagnosticOptions { EventHistoryCapacity = 64 },

@@ -14,10 +14,7 @@ public sealed class StateCapabilityTests
             builder.Add<AppSettings>(model =>
                 model.Sources(sources =>
                     sources.Add(
-                        new StateSource<AppSettings.Fragment>(
-                            "default",
-                            new InMemoryStateSource<AppSettings.Fragment>()
-                        )
+                        new StateSource<AppSettings.Fragment>("default", new InMemoryStateSource<AppSettings.Fragment>(), new StateSourceOptions<AppSettings.Fragment>())
                     )
                 )
             );
@@ -26,10 +23,7 @@ public sealed class StateCapabilityTests
                 model.StateName = "named";
                 model.Sources(sources =>
                     sources.Add(
-                        new StateSource<AppSettings.Fragment>(
-                            "named",
-                            new InMemoryStateSource<AppSettings.Fragment>()
-                        )
+                        new StateSource<AppSettings.Fragment>("named", new InMemoryStateSource<AppSettings.Fragment>(), new StateSourceOptions<AppSettings.Fragment>())
                     )
                 );
             });

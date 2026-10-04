@@ -29,7 +29,7 @@ public sealed class AsyncProfileSubscriptionTests
         });
         await using var manager = new ConfiglueProfiledState<AppSettings, AppSettings.Fragment>(
             registry,
-            new StateSource<ConfiglueProfileCatalog>("catalog", reader, writer: store)
+            new StateSource<ConfiglueProfileCatalog>("catalog", reader, new StateSourceOptions<ConfiglueProfileCatalog> { Writer = store })
         );
         using var subscription = manager.OnChange(_ =>
             throw new InvalidOperationException("No value expected.")
@@ -187,7 +187,7 @@ public sealed class AsyncProfileSubscriptionTests
         var store = new InMemoryStateSource<ConfiglueProfileCatalog>(Catalog());
         return new(
             registry,
-            new StateSource<ConfiglueProfileCatalog>("catalog", store, writer: store)
+            new StateSource<ConfiglueProfileCatalog>("catalog", store, new StateSourceOptions<ConfiglueProfileCatalog> { Writer = store })
         );
     }
 

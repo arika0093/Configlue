@@ -31,12 +31,7 @@ public sealed class NestedWriteRouting220Tests
         );
         var composite = new CompositeStateSource<AppSettings.Fragment>(
             new StateSourceSet<AppSettings.Fragment>([
-                new StateSource<AppSettings.Fragment>(
-                    "child",
-                    childStore,
-                    writer: childStore,
-                    watcher: childStore
-                ),
+                new StateSource<AppSettings.Fragment>("child", childStore, new StateSourceOptions<AppSettings.Fragment> { Writer = childStore, Watcher = childStore }),
             ]),
             writePlan: new StateWritePlan(
                 null,
@@ -76,18 +71,8 @@ public sealed class NestedWriteRouting220Tests
         var portStore = new InMemoryStateSource<AppSettings.Fragment>();
         var composite = new CompositeStateSource<AppSettings.Fragment>(
             new StateSourceSet<AppSettings.Fragment>([
-                new StateSource<AppSettings.Fragment>(
-                    "database",
-                    databaseStore,
-                    writer: databaseStore,
-                    watcher: databaseStore
-                ),
-                new StateSource<AppSettings.Fragment>(
-                    "port",
-                    portStore,
-                    writer: portStore,
-                    watcher: portStore
-                ),
+                new StateSource<AppSettings.Fragment>("database", databaseStore, new StateSourceOptions<AppSettings.Fragment> { Writer = databaseStore, Watcher = databaseStore }),
+                new StateSource<AppSettings.Fragment>("port", portStore, new StateSourceOptions<AppSettings.Fragment> { Writer = portStore, Watcher = portStore }),
             ]),
             writePlan: new StateWritePlan(
                 null,
@@ -141,9 +126,9 @@ public sealed class NestedWriteRouting220Tests
             {
                 model.Sources(sources =>
                 {
-                    sources.Add(new StateSource<AppSettings.Fragment>("root", root, writer: root));
+                    sources.Add(new StateSource<AppSettings.Fragment>("root", root, new StateSourceOptions<AppSettings.Fragment> { Writer = root }));
                     sources.Add(
-                        new StateSource<AppSettings.Fragment>("nested", nested, writer: nested)
+                        new StateSource<AppSettings.Fragment>("nested", nested, new StateSourceOptions<AppSettings.Fragment> { Writer = nested })
                     );
                 });
                 model.Writes(write =>

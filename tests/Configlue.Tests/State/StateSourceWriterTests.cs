@@ -9,8 +9,8 @@ public sealed class StateSourceWriterTests
     {
         var first = new RecordingStore();
         var second = new RecordingStore();
-        var firstSource = new StateSource<string>("first", first, writer: first);
-        var secondSource = new StateSource<string>("second", second, writer: second);
+        var firstSource = new StateSource<string>("first", first, new StateSourceOptions<string> { Writer = first });
+        var secondSource = new StateSource<string>("second", second, new StateSourceOptions<string> { Writer = second });
         var writer = new StateSourceWriter<string>(
             new StateSourceSet<string>([firstSource, secondSource]),
             SourceId.From("second")
@@ -32,16 +32,11 @@ public sealed class StateSourceWriterTests
     {
         var policy = new ReaderOnlyStore();
         var user = new RecordingStore();
-        var userSource = new StateSource<string>(
-            "user",
-            user,
-            priority: 0,
-            writer: user
-        );
+        var userSource = new StateSource<string>("user", user, new StateSourceOptions<string> { Priority = 0, Writer = user });
         var writer = new StateSourceWriter<string>(
             new StateSourceSet<string>(
             [
-                new StateSource<string>("policy", policy, priority: 100),
+                new StateSource<string>("policy", policy, new StateSourceOptions<string> { Priority = 100 }),
                 userSource,
             ])
         );
@@ -57,17 +52,12 @@ public sealed class StateSourceWriterTests
     {
         var ordinary = new RecordingStore();
         var explicitOnly = new RecordingStore();
-        var ordinarySource = new StateSource<string>("ordinary", ordinary, writer: ordinary);
+        var ordinarySource = new StateSource<string>("ordinary", ordinary, new StateSourceOptions<string> { Writer = ordinary });
         var writer = new StateSourceWriter<string>(
             new StateSourceSet<string>(
             [
                 ordinarySource,
-                new StateSource<string>(
-                    "explicit",
-                    explicitOnly,
-                    writer: explicitOnly,
-                    explicitOnly: true
-                ),
+                new StateSource<string>("explicit", explicitOnly, new StateSourceOptions<string> { Writer = explicitOnly, ExplicitOnly = true }),
             ])
         );
 
@@ -82,7 +72,7 @@ public sealed class StateSourceWriterTests
     public void OwnedSubtreeSource_IsExcludedFromInference()
     {
         var store = new RecordingStore();
-        var mounted = new StateSource<string>("mounted", store, writer: store).WithWriteOwnership(
+        var mounted = new StateSource<string>("mounted", store, new StateSourceOptions<string> { Writer = store }).WithWriteOwnership(
             "Database"
         );
 
@@ -98,7 +88,7 @@ public sealed class StateSourceWriterTests
     public async Task NonDefaultContext_ForwardsSourceSpecificContext()
     {
         var store = new RecordingStore();
-        var source = new StateSource<string>("writer", store, writer: store);
+        var source = new StateSource<string>("writer", store, new StateSourceOptions<string> { Writer = store });
         var writer = new StateSourceWriter<string>(new StateSourceSet<string>([source]));
         var subject = new WriterTestSubject("subject");
 
@@ -117,7 +107,7 @@ public sealed class StateSourceWriterTests
         var store = new RecordingStore();
         var exception = Should.Throw<InvalidOperationException>(() =>
             new StateSourceWriter<string>(
-                new StateSourceSet<string>([new StateSource<string>("only", store, writer: store)]),
+                new StateSourceSet<string>([new StateSource<string>("only", store, new StateSourceOptions<string> { Writer = store })]),
                 SourceId.From("missing")
             )
         );
@@ -135,8 +125,8 @@ public sealed class StateSourceWriterTests
             new StateSourceWriter<string>(
                 new StateSourceSet<string>(
                 [
-                    new StateSource<string>("readonly", readOnly),
-                    new StateSource<string>("writable", writable, writer: writable),
+                    new StateSource<string>("readonly", readOnly, new StateSourceOptions<string>()),
+                    new StateSource<string>("writable", writable, new StateSourceOptions<string> { Writer = writable }),
                 ]),
                 SourceId.From("readonly")
             )
@@ -152,7 +142,7 @@ public sealed class StateSourceWriterTests
         var store = new RecordingStore();
         Should.Throw<ArgumentException>(() =>
             new StateSourceWriter<string>(
-                new StateSourceSet<string>([new StateSource<string>("only", store, writer: store)]),
+                new StateSourceSet<string>([new StateSource<string>("only", store, new StateSourceOptions<string> { Writer = store })]),
                 default(SourceId)
             )
         );
@@ -164,7 +154,7 @@ public sealed class StateSourceWriterTests
         var readOnly = new ReaderOnlyStore();
         var exception = Should.Throw<InvalidOperationException>(() =>
             new StateSourceWriter<string>(
-                new StateSourceSet<string>([new StateSource<string>("readonly", readOnly)])
+                new StateSourceSet<string>([new StateSource<string>("readonly", readOnly, new StateSourceOptions<string>())])
             )
         );
 
@@ -180,8 +170,8 @@ public sealed class StateSourceWriterTests
             new StateSourceWriter<string>(
                 new StateSourceSet<string>(
                 [
-                    new StateSource<string>("first", first, writer: first),
-                    new StateSource<string>("second", second, writer: second),
+                    new StateSource<string>("first", first, new StateSourceOptions<string> { Writer = first }),
+                    new StateSource<string>("second", second, new StateSourceOptions<string> { Writer = second }),
                 ])
             )
         );

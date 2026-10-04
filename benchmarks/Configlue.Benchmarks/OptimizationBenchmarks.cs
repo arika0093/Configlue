@@ -726,12 +726,7 @@ public class FileBackupBenchmarks
                 LockDirectory = "/",
             }
         );
-        var source = SerializedStateSource.FromResource<OptimizationBenchmarkSettings.Fragment>(
-            "backup",
-            _resource,
-            new JsonStateCodec<OptimizationBenchmarkSettings.Fragment>(),
-            physicalOrigin: path
-        );
+        var source = new StateSource<OptimizationBenchmarkSettings.Fragment>("backup", new SerializedSource<OptimizationBenchmarkSettings.Fragment>(_resource, new JsonStateCodec<OptimizationBenchmarkSettings.Fragment>(), writer: (IResourceReader)_resource as IResourceWriter, watcher: (IResourceReader)_resource as ISourceWatcher), new StateSourceOptions<OptimizationBenchmarkSettings.Fragment> { PhysicalOrigin = path });
         _context = BenchmarkContextFactory.Create<
             OptimizationBenchmarkSettings,
             OptimizationBenchmarkSettings.Fragment

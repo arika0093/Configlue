@@ -30,11 +30,14 @@ public sealed partial class RuntimeDiagnosticTests
         );
         await using var runtime = CreateRuntime(
             [
-                new(
+                new StateSource<AppSettings.Fragment>(
                     "store",
                     store,
-                    physicalOrigin: "private-path",
-                    fixedResourceId: new ResourceId("private-resource")
+                    new StateSourceOptions<AppSettings.Fragment>
+                    {
+                        PhysicalOrigin = "private-path",
+                        FixedResourceId = new ResourceId("private-resource"),
+                    }
                 ),
             ],
             capacity: 8
@@ -90,7 +93,7 @@ public sealed partial class RuntimeDiagnosticTests
             new AppSettings.Fragment { RetryCount = 3 }
         );
         await using var runtime = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
-            new StateSourceSet<AppSettings.Fragment>([new("unbounded-source-id", store)]),
+            new StateSourceSet<AppSettings.Fragment>([new StateSource<AppSettings.Fragment>("unbounded-source-id", store, new StateSourceOptions<AppSettings.Fragment>())]),
             diagnostics: ConfiglueRuntimeDiagnosticOptions.Disabled
         );
         await runtime.GetValueAsync();
@@ -123,12 +126,7 @@ public sealed partial class RuntimeDiagnosticTests
         var reader = new ThrowingReader(exception);
         await using var runtime = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
             new StateSourceSet<AppSettings.Fragment>([
-                new(
-                    "remote",
-                    reader,
-                    physicalOrigin: "private-path",
-                    fixedResourceId: new ResourceId("private-resource")
-                ),
+                new StateSource<AppSettings.Fragment>("remote", reader, new StateSourceOptions<AppSettings.Fragment> { PhysicalOrigin = "private-path", FixedResourceId = new ResourceId("private-resource") }),
             ]),
             logger: logger,
             diagnostics: ConfiglueRuntimeDiagnosticOptions.Disabled

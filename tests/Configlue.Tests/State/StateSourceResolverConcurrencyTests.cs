@@ -374,12 +374,7 @@ public sealed class StateSourceResolverConcurrencyTests
         var store = new InMemoryStateSource<AppSettings.Fragment>(Fragment(retryCount));
         return (
             store,
-            new StateSource<AppSettings.Fragment>(
-                "cache-source",
-                store,
-                writer: store,
-                watcher: store
-            )
+            new StateSource<AppSettings.Fragment>("cache-source", store, new StateSourceOptions<AppSettings.Fragment> { Writer = store, Watcher = store })
         );
     }
 

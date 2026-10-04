@@ -1,11 +1,11 @@
-using System.Text;
+﻿using System.Text;
 using Configlue.Provider.Json;
 using Configlue.Sources;
 using Configlue.Testing;
 
 namespace Configlue.Tests;
 
-public sealed class SerializedStateSourceCompositionTests
+public sealed class SerializedSourceCompositionTests
 {
     [Test]
     public async Task ReaderOnlyAndWriterOnlyMiddlewarePreserveIndependentCapabilities()
@@ -14,23 +14,24 @@ public sealed class SerializedStateSourceCompositionTests
         await readOnlyResource.WriteAsync(
             new ResourceWriteRequest(System.Text.Encoding.UTF8.GetBytes("\"value\""))
         );
-        var readOnly = SerializedStateSource.FromResource<string>(
+        IResourceReader readerOnlySection = new ReaderOnlyResource(readOnlyResource);
+        var readOnly = new StateSource<string>(
             "reader-only",
-            new ReaderOnlyResource(readOnlyResource),
-            new JsonStateCodec<string>(),
-            middlewares: [new ReaderSuffixMiddleware("-read")]
+            new SerializedSource<string>(
+                readerOnlySection,
+                new JsonStateCodec<string>(),
+                writer: readerOnlySection as IResourceWriter,
+                watcher: readerOnlySection as ISourceWatcher,
+                middlewares: [new ReaderSuffixMiddleware("-read")]
+            ),
+            new StateSourceOptions<string>()
         );
 
         readOnly.Writer.ShouldBeNull();
         (await readOnly.ReadAsync()).Value.ShouldBe("value-read");
 
         var writableResource = new InMemoryResource();
-        var writeOnly = SerializedStateSource.FromResource<string>(
-            "writer-only",
-            writableResource,
-            new JsonStateCodec<string>(),
-            middlewares: [new WriterSuffixMiddleware("-write")]
-        );
+        var writeOnly = new StateSource<string>("writer-only", new SerializedSource<string>(writableResource, new JsonStateCodec<string>(), writer: (IResourceReader)writableResource as IResourceWriter, watcher: (IResourceReader)writableResource as ISourceWatcher, middlewares: [new WriterSuffixMiddleware("-write")]), new StateSourceOptions<string>());
 
         writeOnly.Writer.ShouldNotBeNull();
         await writeOnly.WriteAsync(new StateWriteRequest<string>("value"));
@@ -40,11 +41,17 @@ public sealed class SerializedStateSourceCompositionTests
     [Test]
     public async Task ReaderMiddlewarePreservesCancellationAndExceptions()
     {
-        var source = SerializedStateSource.FromResource<string>(
+        IResourceReader errorResource = new InMemoryResource();
+        var source = new StateSource<string>(
             "reader-errors",
-            new InMemoryResource(),
-            new JsonStateCodec<string>(),
-            middlewares: [new FailingReaderMiddleware()]
+            new SerializedSource<string>(
+                errorResource,
+                new JsonStateCodec<string>(),
+                writer: errorResource as IResourceWriter,
+                watcher: errorResource as ISourceWatcher,
+                middlewares: [new FailingReaderMiddleware()]
+            ),
+            new StateSourceOptions<string>()
         );
 
         await Should.ThrowAsync<OperationCanceledException>(async () =>
@@ -59,13 +66,7 @@ public sealed class SerializedStateSourceCompositionTests
     public async Task FromResource_ComposesOrderedTransformsAndStateMiddleware()
     {
         var resource = new InMemoryResource();
-        var source = SerializedStateSource.FromResource<string>(
-            "composed",
-            resource,
-            new JsonStateCodec<string>(),
-            transformers: [new PrefixTransformer("outer:"), new PrefixTransformer("inner:")],
-            middlewares: [new SuffixMiddleware("-first"), new SuffixMiddleware("-second")]
-        );
+        var source = new StateSource<string>("composed", new SerializedSource<string>(resource, new JsonStateCodec<string>(), transformers: [new PrefixTransformer("outer:"), new PrefixTransformer("inner:")], writer: (IResourceReader)resource as IResourceWriter, watcher: (IResourceReader)resource as ISourceWatcher, middlewares: [new SuffixMiddleware("-first"), new SuffixMiddleware("-second")]), new StateSourceOptions<string>());
 
         var write = await source.Writer!.WriteAsync(new StateWriteRequest<string>("value"));
         var rawContent = await resource.ReadAsync();
@@ -84,15 +85,10 @@ public sealed class SerializedStateSourceCompositionTests
     {
         var resource = new InMemoryResource();
         var order = new List<string>();
-        var source = SerializedStateSource.FromResource<string>(
-            "async-composed",
-            resource,
-            new JsonStateCodec<string>(),
-            transformers: [
+        var source = new StateSource<string>("async-composed", new SerializedSource<string>(resource, new JsonStateCodec<string>(), transformers: [
                 new AsyncPrefixTransformer("outer:", "outer", order),
                 new AsyncPrefixTransformer("inner:", "inner", order),
-            ]
-        );
+            ], writer: (IResourceReader)resource as IResourceWriter, watcher: (IResourceReader)resource as ISourceWatcher), new StateSourceOptions<string>());
 
         await source.Writer!.WriteAsync(new StateWriteRequest<string>("async"));
         var raw = await resource.ReadAsync();
@@ -128,12 +124,7 @@ public sealed class SerializedStateSourceCompositionTests
         var resource = new InMemoryResource();
         using var cancellation = new CancellationTokenSource();
         var transformer = new BlockingAsyncTransformer();
-        var source = SerializedStateSource.FromResource<string>(
-            "async-cancel",
-            resource,
-            new JsonStateCodec<string>(),
-            transformers: [transformer]
-        );
+        var source = new StateSource<string>("async-cancel", new SerializedSource<string>(resource, new JsonStateCodec<string>(), transformers: [transformer], writer: (IResourceReader)resource as IResourceWriter, watcher: (IResourceReader)resource as ISourceWatcher), new StateSourceOptions<string>());
 
         var write = source.Writer!.WriteAsync(
             ConfiglueResourceContext.Default,
@@ -157,12 +148,7 @@ public sealed class SerializedStateSourceCompositionTests
                 path,
                 new FileResourceOptions { AutomaticBackupRecovery = true }
             );
-            var source = SerializedStateSource.FromResource<string>(
-                "async-recovery",
-                resource,
-                new JsonStateCodec<string>(),
-                transformers: [new RecoverableAsyncPrefixTransformer("async:")]
-            );
+            var source = new StateSource<string>("async-recovery", new SerializedSource<string>(resource, new JsonStateCodec<string>(), transformers: [new RecoverableAsyncPrefixTransformer("async:")], writer: (IResourceReader)resource as IResourceWriter, watcher: (IResourceReader)resource as ISourceWatcher), new StateSourceOptions<string>());
             await source.Writer!.WriteAsync(new StateWriteRequest<string>("backup"));
             await source.Writer!.WriteAsync(new StateWriteRequest<string>("current"));
             await File.WriteAllTextAsync(path, "bad-transform-payload");

@@ -87,7 +87,7 @@ public sealed class SubjectStateTests
         var store = new InMemoryStateSource<AppSettings.Fragment>(Fragment("server"));
         var services = new ServiceCollection();
         services.AddConfiglueState<AppSettings, AppSettings.Fragment>(
-            new StateSourceSet<AppSettings.Fragment>([new("server", store)])
+            new StateSourceSet<AppSettings.Fragment>([new StateSource<AppSettings.Fragment>("server", store, new StateSourceOptions<AppSettings.Fragment>())])
         );
         using var provider = services.BuildServiceProvider();
         var subjectOptions = provider.GetRequiredService<ISubjectState<AppSettings>>();

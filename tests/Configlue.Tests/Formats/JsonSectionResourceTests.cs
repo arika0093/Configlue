@@ -38,7 +38,7 @@ public sealed class JsonSectionResourceTests
         var reader = new SerializedStateReader<AppSettings.Fragment>(section, codec);
         var writer = new SerializedStateWriter<AppSettings.Fragment>(section, codec);
         var sources = new StateSourceSet<AppSettings.Fragment>([
-            new("app-settings", reader, writer: writer, watcher: section),
+            new StateSource<AppSettings.Fragment>("app-settings", reader, new StateSourceOptions<AppSettings.Fragment> { Writer = writer, Watcher = section }),
         ]);
         var options = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(sources);
 

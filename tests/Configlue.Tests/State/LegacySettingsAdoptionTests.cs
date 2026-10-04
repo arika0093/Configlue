@@ -324,11 +324,7 @@ public sealed class LegacySettingsAdoptionTests
             documentLayout: new DocumentLayoutOptions { ModelId = "app-settings" },
             textEncoding: encoding
         );
-        var source = SerializedStateSource.FromResource<AppSettings.Fragment>(
-            "legacy-yaml",
-            section,
-            codec
-        );
+        var source = new StateSource<AppSettings.Fragment>("legacy-yaml", new SerializedSource<AppSettings.Fragment>(section, codec, writer: (IResourceReader)section as IResourceWriter, watcher: (IResourceReader)section as ISourceWatcher), new StateSourceOptions<AppSettings.Fragment>());
 
         var result = await source.Reader.ReadAsync();
         (result.Status).ShouldBe(StateReadStatus.Success);
@@ -400,26 +396,13 @@ public sealed class LegacySettingsAdoptionTests
         var currentCodec = new JsonStateCodec<HistoricalSettings.Fragment>(
             documentLayout: new DocumentLayoutOptions { ModelId = legacyModelId }
         );
-        var source = SerializedStateSource.FromResource<HistoricalSettings.Fragment>(
-            "legacy-profile",
-            section,
-            currentCodec,
-            schemaDispatcher: dispatcher
-        );
+        var source = new StateSource<HistoricalSettings.Fragment>("legacy-profile", new SerializedSource<HistoricalSettings.Fragment>(section, currentCodec, schemaDispatcher: dispatcher, writer: (IResourceReader)section as IResourceWriter, watcher: (IResourceReader)section as ISourceWatcher), new StateSourceOptions<HistoricalSettings.Fragment>());
         var targetStore = new InMemoryStateSource<HistoricalSettings.Fragment>();
-        var target = new StateSource<HistoricalSettings.Fragment>(
-            "current-settings",
-            targetStore,
-            writer: targetStore
-        );
+        var target = new StateSource<HistoricalSettings.Fragment>("current-settings", targetStore, new StateSourceOptions<HistoricalSettings.Fragment> { Writer = targetStore });
         var higherPriorityStore = new InMemoryStateSource<HistoricalSettings.Fragment>(
             new HistoricalSettings.Fragment { RetryCount = Optional<int>.Present(99) }
         );
-        var higherPrioritySource = new StateSource<HistoricalSettings.Fragment>(
-            "runtime-override",
-            higherPriorityStore,
-            priority: 500
-        );
+        var higherPrioritySource = new StateSource<HistoricalSettings.Fragment>("runtime-override", higherPriorityStore, new StateSourceOptions<HistoricalSettings.Fragment> { Priority = 500 });
         var options = new ConfiglueRuntime<HistoricalSettings, HistoricalSettings.Fragment>(
             new StateSourceSet<HistoricalSettings.Fragment>([higherPrioritySource, source, target]),
             StateWritePlan.DefaultTo(SourceId.From("current-settings"))

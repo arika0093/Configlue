@@ -44,18 +44,8 @@ public sealed class CompositeMultiComponentWrite252Tests
         var rightStore = new InMemoryStateSource<AppSettings.Fragment>(rightSeed);
         var composite = new CompositeStateSource<AppSettings.Fragment>(
             new StateSourceSet<AppSettings.Fragment>([
-                new StateSource<AppSettings.Fragment>(
-                    "left",
-                    leftStore,
-                    writer: leftStore,
-                    watcher: leftStore
-                ),
-                new StateSource<AppSettings.Fragment>(
-                    "right",
-                    rightStore,
-                    writer: rightStore,
-                    watcher: rightStore
-                ),
+                new StateSource<AppSettings.Fragment>("left", leftStore, new StateSourceOptions<AppSettings.Fragment> { Writer = leftStore, Watcher = leftStore }),
+                new StateSource<AppSettings.Fragment>("right", rightStore, new StateSourceOptions<AppSettings.Fragment> { Writer = rightStore, Watcher = rightStore }),
             ]),
             writePlan: new StateWritePlan(
                 null,
@@ -138,18 +128,8 @@ public sealed class CompositeMultiComponentWrite252Tests
         );
         var composite = new CompositeStateSource<AppSettings.Fragment>(
             new StateSourceSet<AppSettings.Fragment>([
-                new StateSource<AppSettings.Fragment>(
-                    "database",
-                    databaseStore,
-                    writer: databaseStore,
-                    watcher: databaseStore
-                ),
-                new StateSource<AppSettings.Fragment>(
-                    "port",
-                    portStore,
-                    writer: portStore,
-                    watcher: portStore
-                ),
+                new StateSource<AppSettings.Fragment>("database", databaseStore, new StateSourceOptions<AppSettings.Fragment> { Writer = databaseStore, Watcher = databaseStore }),
+                new StateSource<AppSettings.Fragment>("port", portStore, new StateSourceOptions<AppSettings.Fragment> { Writer = portStore, Watcher = portStore }),
             ]),
             writePlan: new StateWritePlan(
                 null,
@@ -282,18 +262,8 @@ public sealed class CompositeMultiComponentWrite252Tests
         );
         var composite = new CompositeStateSource<AppSettings.Fragment>(
             new StateSourceSet<AppSettings.Fragment>([
-                new StateSource<AppSettings.Fragment>(
-                    "default",
-                    defaultStore,
-                    writer: defaultStore,
-                    watcher: defaultStore
-                ),
-                new StateSource<AppSettings.Fragment>(
-                    "routed",
-                    routedStore,
-                    writer: routedStore,
-                    watcher: routedStore
-                ),
+                new StateSource<AppSettings.Fragment>("default", defaultStore, new StateSourceOptions<AppSettings.Fragment> { Writer = defaultStore, Watcher = defaultStore }),
+                new StateSource<AppSettings.Fragment>("routed", routedStore, new StateSourceOptions<AppSettings.Fragment> { Writer = routedStore, Watcher = routedStore }),
             ]),
             writePlan: new StateWritePlan(
                 SourceId.From("default"),
@@ -397,18 +367,8 @@ public sealed class CompositeMultiComponentWrite252Tests
         );
         var composite = new CompositeStateSource<AppSettings.Fragment>(
             new StateSourceSet<AppSettings.Fragment>([
-                new StateSource<AppSettings.Fragment>(
-                    "nested",
-                    nestedStore,
-                    writer: nestedStore,
-                    watcher: nestedStore
-                ),
-                new StateSource<AppSettings.Fragment>(
-                    "right",
-                    rightStore,
-                    writer: rightStore,
-                    watcher: rightStore
-                ),
+                new StateSource<AppSettings.Fragment>("nested", nestedStore, new StateSourceOptions<AppSettings.Fragment> { Writer = nestedStore, Watcher = nestedStore }),
+                new StateSource<AppSettings.Fragment>("right", rightStore, new StateSourceOptions<AppSettings.Fragment> { Writer = rightStore, Watcher = rightStore }),
             ]),
             writePlan: new StateWritePlan(
                 null,
@@ -449,18 +409,8 @@ public sealed class CompositeMultiComponentWrite252Tests
         );
         var composite = new CompositeStateSource<AppSettings.Fragment>(
             new StateSourceSet<AppSettings.Fragment>([
-                new StateSource<AppSettings.Fragment>(
-                    "nested",
-                    nestedStore,
-                    writer: nestedStore,
-                    watcher: nestedStore
-                ),
-                new StateSource<AppSettings.Fragment>(
-                    "right",
-                    rightStore,
-                    writer: rightStore,
-                    watcher: rightStore
-                ),
+                new StateSource<AppSettings.Fragment>("nested", nestedStore, new StateSourceOptions<AppSettings.Fragment> { Writer = nestedStore, Watcher = nestedStore }),
+                new StateSource<AppSettings.Fragment>("right", rightStore, new StateSourceOptions<AppSettings.Fragment> { Writer = rightStore, Watcher = rightStore }),
             ]),
             writePlan: new StateWritePlan(
                 null,
@@ -530,17 +480,27 @@ public sealed class CompositeMultiComponentWrite252Tests
     {
         var resource = new InMemoryResource();
         var codec = new JsonStateCodec<AppSettings.Fragment>();
-        var firstSource = SerializedStateSource.FromResource<AppSettings.Fragment>(
+        IResourceReader firstSection = new JsonSectionResource(resource, "App:First");
+        var firstSource = new StateSource<AppSettings.Fragment>(
             "first",
-            new JsonSectionResource(resource, "App:First"),
-            codec,
-            priority: 10
+            new SerializedSource<AppSettings.Fragment>(
+                firstSection,
+                codec,
+                writer: firstSection as IResourceWriter,
+                watcher: firstSection as ISourceWatcher
+            ),
+            new StateSourceOptions<AppSettings.Fragment> { Priority = 10 }
         );
-        var secondSource = SerializedStateSource.FromResource<AppSettings.Fragment>(
+        IResourceReader secondSection = new JsonSectionResource(resource, "App:Second");
+        var secondSource = new StateSource<AppSettings.Fragment>(
             "second",
-            new JsonSectionResource(resource, "App:Second"),
-            codec,
-            priority: 0
+            new SerializedSource<AppSettings.Fragment>(
+                secondSection,
+                codec,
+                writer: secondSection as IResourceWriter,
+                watcher: secondSection as ISourceWatcher
+            ),
+            new StateSourceOptions<AppSettings.Fragment> { Priority = 0 }
         );
         var composite = new CompositeStateSource<AppSettings.Fragment>(
             new StateSourceSet<AppSettings.Fragment>([firstSource, secondSource]),
@@ -581,18 +541,8 @@ public sealed class CompositeMultiComponentWrite252Tests
     ) =>
         new(
             new StateSourceSet<AppSettings.Fragment>([
-                new StateSource<AppSettings.Fragment>(
-                    "left",
-                    leftStore,
-                    writer: leftStore,
-                    watcher: leftStore
-                ),
-                new StateSource<AppSettings.Fragment>(
-                    "right",
-                    rightStore,
-                    writer: rightStore,
-                    watcher: rightStore
-                ),
+                new StateSource<AppSettings.Fragment>("left", leftStore, new StateSourceOptions<AppSettings.Fragment> { Writer = leftStore, Watcher = leftStore }),
+                new StateSource<AppSettings.Fragment>("right", rightStore, new StateSourceOptions<AppSettings.Fragment> { Writer = rightStore, Watcher = rightStore }),
             ]),
             writePlan: new StateWritePlan(
                 null,

@@ -643,13 +643,7 @@ public sealed class AzureBlobResourceTests
         var client = new FakeAzureBlobClient();
         var resource = new AzureBlobResource(client, "container", "settings.json");
         var codec = new JsonStateCodec<AppSettings.Fragment>();
-        var source = SerializedStateSource.FromResource<AppSettings.Fragment>(
-            "blob",
-            resource,
-            codec,
-            writer: resource,
-            transformers: [new XorTransformer(0x5A)]
-        );
+        var source = new StateSource<AppSettings.Fragment>("blob", new SerializedSource<AppSettings.Fragment>(resource, codec, transformers: [new XorTransformer(0x5A)], writer: resource, watcher: (IResourceReader)resource as ISourceWatcher), new StateSourceOptions<AppSettings.Fragment>());
         var fragment = new AppSettings.Fragment
         {
             RetryCount = Optional<int>.Present(7),

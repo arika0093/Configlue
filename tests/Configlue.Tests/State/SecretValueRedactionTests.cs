@@ -173,16 +173,13 @@ public sealed class SecretValueRedactionTests
             SecretBasicSettings.Fragment
         >(
             new StateSourceSet<SecretBasicSettings.Fragment>([
-                new(
-                    "local",
-                    new InMemoryStateSource<SecretBasicSettings.Fragment>(
+                new StateSource<SecretBasicSettings.Fragment>("local", new InMemoryStateSource<SecretBasicSettings.Fragment>(
                         new SecretBasicSettings.Fragment
                         {
                             Host = Optional<string>.Present("db.local"),
                             Password = Optional<string>.Present("s3cr3t-value"),
                         }
-                    )
-                ),
+                    ), new StateSourceOptions<SecretBasicSettings.Fragment>()),
             ])
         );
 
@@ -207,15 +204,12 @@ public sealed class SecretValueRedactionTests
             SecretBasicSettings.Fragment
         >(
             new StateSourceSet<SecretBasicSettings.Fragment>([
-                new(
-                    "local",
-                    new InMemoryStateSource<SecretBasicSettings.Fragment>(
+                new StateSource<SecretBasicSettings.Fragment>("local", new InMemoryStateSource<SecretBasicSettings.Fragment>(
                         new SecretBasicSettings.Fragment
                         {
                             Password = Optional<string>.Present("s3cr3t-value"),
                         }
-                    )
-                ),
+                    ), new StateSourceOptions<SecretBasicSettings.Fragment>()),
             ])
         );
 
@@ -237,15 +231,12 @@ public sealed class SecretValueRedactionTests
             SecretNestedSettings.Fragment
         >(
             new StateSourceSet<SecretNestedSettings.Fragment>([
-                new(
-                    "local",
-                    new InMemoryStateSource<SecretNestedSettings.Fragment>(
+                new StateSource<SecretNestedSettings.Fragment>("local", new InMemoryStateSource<SecretNestedSettings.Fragment>(
                         new SecretNestedSettings.Fragment
                         {
                             Name = Optional<string>.Present("primary"),
                         }
-                    )
-                ),
+                    ), new StateSourceOptions<SecretNestedSettings.Fragment>()),
             ])
         );
 
@@ -268,16 +259,13 @@ public sealed class SecretValueRedactionTests
             SecretCollectionSettings.Fragment
         >(
             new StateSourceSet<SecretCollectionSettings.Fragment>([
-                new(
-                    "local",
-                    new InMemoryStateSource<SecretCollectionSettings.Fragment>(
+                new StateSource<SecretCollectionSettings.Fragment>("local", new InMemoryStateSource<SecretCollectionSettings.Fragment>(
                         new SecretCollectionSettings.Fragment
                         {
                             Tokens = Optional<IReadOnlyList<string>>.Present(["token-a"]),
                             Tags = Optional<IReadOnlyList<string>>.Present(["tag-a"]),
                         }
-                    )
-                ),
+                    ), new StateSourceOptions<SecretCollectionSettings.Fragment>()),
             ])
         );
 
@@ -347,15 +335,12 @@ public sealed class SecretValueRedactionTests
             SecretValidationSettings.Fragment
         >(
             new StateSourceSet<SecretValidationSettings.Fragment>([
-                new(
-                    "local",
-                    new InMemoryStateSource<SecretValidationSettings.Fragment>(
+                new StateSource<SecretValidationSettings.Fragment>("local", new InMemoryStateSource<SecretValidationSettings.Fragment>(
                         new SecretValidationSettings.Fragment
                         {
                             Password = Optional<string>.Present("s3cr3t-value"),
                         }
-                    )
-                ),
+                    ), new StateSourceOptions<SecretValidationSettings.Fragment>()),
             ])
         );
 
@@ -375,15 +360,12 @@ public sealed class SecretValueRedactionTests
             SecretBasicSettings.Fragment
         >(
             new StateSourceSet<SecretBasicSettings.Fragment>([
-                new(
-                    "local",
-                    new InMemoryStateSource<SecretBasicSettings.Fragment>(
+                new StateSource<SecretBasicSettings.Fragment>("local", new InMemoryStateSource<SecretBasicSettings.Fragment>(
                         new SecretBasicSettings.Fragment
                         {
                             Password = Optional<string>.Present("s3cr3t-value"),
                         }
-                    )
-                ),
+                    ), new StateSourceOptions<SecretBasicSettings.Fragment>()),
             ])
         );
 

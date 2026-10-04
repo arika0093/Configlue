@@ -410,17 +410,27 @@ public sealed class SectionSchemaMetadataContractTests
                 "yaml" => new YamlSectionResource(resource, path) { ContainerSchema = schema },
                 _ => new XmlSectionResource(resource, path) { ContainerSchema = schema },
             };
-        var first = SerializedStateSource.FromResource<AppSettings.Fragment>(
+        IResourceReader firstSection = Section("App:First", firstSchema);
+        var first = new StateSource<AppSettings.Fragment>(
             "first",
-            Section("App:First", firstSchema),
-            codec,
-            priority: 10
+            new SerializedSource<AppSettings.Fragment>(
+                firstSection,
+                codec,
+                writer: firstSection as IResourceWriter,
+                watcher: firstSection as ISourceWatcher
+            ),
+            new StateSourceOptions<AppSettings.Fragment> { Priority = 10 }
         );
-        var second = SerializedStateSource.FromResource<AppSettings.Fragment>(
+        IResourceReader secondSection = Section("App:Second", secondSchema);
+        var second = new StateSource<AppSettings.Fragment>(
             "second",
-            Section("App:Second", secondSchema),
-            codec,
-            priority: 0
+            new SerializedSource<AppSettings.Fragment>(
+                secondSection,
+                codec,
+                writer: secondSection as IResourceWriter,
+                watcher: secondSection as ISourceWatcher
+            ),
+            new StateSourceOptions<AppSettings.Fragment> { Priority = 0 }
         );
         return new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
             new StateSourceSet<AppSettings.Fragment>([first, second]),

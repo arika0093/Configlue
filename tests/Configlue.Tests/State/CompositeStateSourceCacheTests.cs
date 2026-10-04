@@ -9,11 +9,7 @@ public sealed class CompositeStateSourceCacheTests
     public async Task WatchTargetsRemainBoundedAndActiveLeasesSurviveEvictionRaces()
     {
         var component = new TrackingComponent();
-        var source = new StateSource<AppSettings.Fragment>(
-            "component",
-            component,
-            watcher: component
-        );
+        var source = new StateSource<AppSettings.Fragment>("component", component, new StateSourceOptions<AppSettings.Fragment> { Watcher = component });
         var composite = new CompositeStateSource<AppSettings.Fragment>(
             new StateSourceSet<AppSettings.Fragment>([source]),
             defaultWriteSourceId: null,

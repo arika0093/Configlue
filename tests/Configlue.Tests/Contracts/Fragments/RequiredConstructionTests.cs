@@ -39,10 +39,7 @@ public sealed class RequiredConstructionTests
             builder.Add<RequiredConstructionSettings>(model =>
                 model.ConfigureSources(registration =>
                     registration.Sources.Add(
-                        _ => new StateSource<RequiredConstructionSettings.Fragment>(
-                            "missing",
-                            new InMemoryStateSource<RequiredConstructionSettings.Fragment>()
-                        )
+                        _ => new StateSource<RequiredConstructionSettings.Fragment>("missing", new InMemoryStateSource<RequiredConstructionSettings.Fragment>(), new StateSourceOptions<RequiredConstructionSettings.Fragment>())
                     )
                 )
             )

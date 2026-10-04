@@ -58,6 +58,6 @@ public sealed class ConfiglueAppLifecycleTests
         var store = new InMemoryStateSource<AppSettings.Fragment>(
             new AppSettings.Fragment { Label = Optional<string?>.Present(label) }
         );
-        return new StateSource<AppSettings.Fragment>(id, store, writer: store, watcher: store);
+        return new StateSource<AppSettings.Fragment>(id, store, new StateSourceOptions<AppSettings.Fragment> { Writer = store, Watcher = store });
     }
 }

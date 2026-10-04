@@ -17,11 +17,7 @@ public sealed class ResourceIdentityTests
         var json = new JsonSectionResource(resource, "App:Json");
         var xml = new XmlSectionResource(resource, "App:Xml");
         var yaml = new YamlSectionResource(resource, "App:Yaml");
-        var source = SerializedStateSource.FromResource<AppSettings.Fragment>(
-            "json",
-            json,
-            new global::Configlue.Provider.Json.JsonStateCodec<AppSettings.Fragment>()
-        );
+        var source = new StateSource<AppSettings.Fragment>("json", new SerializedSource<AppSettings.Fragment>(json, new global::Configlue.Provider.Json.JsonStateCodec<AppSettings.Fragment>(), writer: (IResourceReader)json as IResourceWriter, watcher: (IResourceReader)json as ISourceWatcher), new StateSourceOptions<AppSettings.Fragment>());
         var projected = StateSourceProjection.Project(
             source,
             static fragment => fragment,
@@ -64,11 +60,7 @@ public sealed class ResourceIdentityTests
             resource,
             new global::Configlue.Provider.Json.JsonStateCodec<AppSettings.Fragment>()
         );
-        var serialized = SerializedStateSource.FromResource<AppSettings.Fragment>(
-            "json",
-            resource,
-            new global::Configlue.Provider.Json.JsonStateCodec<AppSettings.Fragment>()
-        );
+        var serialized = new StateSource<AppSettings.Fragment>("json", new SerializedSource<AppSettings.Fragment>(resource, new global::Configlue.Provider.Json.JsonStateCodec<AppSettings.Fragment>(), writer: (IResourceReader)resource as IResourceWriter, watcher: (IResourceReader)resource as ISourceWatcher), new StateSourceOptions<AppSettings.Fragment>());
 
         section.TryGetResourceId(context, out _).ShouldBeFalse();
         transforming.TryGetResourceId(context, out _).ShouldBeFalse();

@@ -298,12 +298,9 @@ public sealed class StructuralDiscoveryTests
                     var patch = Patch();
                     patch.Database.Connection.Host = FragmentOperation<string>.Set("detail.host");
                     sources.Add(
-                        new StateSource<StructuralRoot.Fragment>(
-                            "base",
-                            new InMemoryStateSource<StructuralRoot.Fragment>(
+                        new StateSource<StructuralRoot.Fragment>("base", new InMemoryStateSource<StructuralRoot.Fragment>(
                                 StructuralRoot.Fragment.Empty.Apply(patch)
-                            )
-                        )
+                            ), new StateSourceOptions<StructuralRoot.Fragment>())
                     );
                 })
             );

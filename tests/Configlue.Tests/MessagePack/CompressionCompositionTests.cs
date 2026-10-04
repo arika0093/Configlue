@@ -35,12 +35,7 @@ public sealed class CompressionCompositionTests
             : new MessagePackStateCodec<MessagePackSampleSettings.Fragment>(
                 TestMessagePack.Options
             );
-        var source = SerializedStateSource.FromResource<MessagePackSampleSettings.Fragment>(
-            "composed",
-            resource,
-            codec,
-            transformers: [aes, compression]
-        );
+        var source = new StateSource<MessagePackSampleSettings.Fragment>("composed", new SerializedSource<MessagePackSampleSettings.Fragment>(resource, codec, transformers: [aes, compression], writer: (IResourceReader)resource as IResourceWriter, watcher: (IResourceReader)resource as ISourceWatcher), new StateSourceOptions<MessagePackSampleSettings.Fragment>());
 
         await source.Writer!.WriteAsync(
             ConfiglueResourceContext.Default,

@@ -14,14 +14,8 @@ public sealed partial class WatcherLifecycleTests
         var currentWatcher = new ManualWatcher();
         var runtime = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
             new StateSourceSet<AppSettings.Fragment>([
-                new("legacy", legacyStore, priority: 100, watcher: legacyWatcher),
-                new(
-                    "current",
-                    currentStore,
-                    priority: 0,
-                    writer: currentStore,
-                    watcher: currentWatcher
-                ),
+                new StateSource<AppSettings.Fragment>("legacy", legacyStore, new StateSourceOptions<AppSettings.Fragment> { Priority = 100, Watcher = legacyWatcher }),
+                new StateSource<AppSettings.Fragment>("current", currentStore, new StateSourceOptions<AppSettings.Fragment> { Priority = 0, Writer = currentStore, Watcher = currentWatcher }),
             ]),
             onChangeDebounce: TimeSpan.Zero
         );
@@ -62,7 +56,7 @@ public sealed partial class WatcherLifecycleTests
         var store = new InMemoryStateSource<AppSettings.Fragment>(Fragment("initial"));
         var watcher = new ManualWatcher();
         var runtime = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
-            new StateSourceSet<AppSettings.Fragment>([new("store", store, watcher: watcher)]),
+            new StateSourceSet<AppSettings.Fragment>([new StateSource<AppSettings.Fragment>("store", store, new StateSourceOptions<AppSettings.Fragment> { Watcher = watcher })]),
             onChangeDebounce: TimeSpan.Zero
         );
         ISubjectState<AppSettings> subjectState = runtime;
@@ -165,7 +159,7 @@ public sealed partial class WatcherLifecycleTests
         var store = new InMemoryStateSource<AppSettings.Fragment>(Fragment("zero"));
         var watcher = new ManualWatcher();
         var runtime = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
-            new StateSourceSet<AppSettings.Fragment>([new("store", store, watcher: watcher)]),
+            new StateSourceSet<AppSettings.Fragment>([new StateSource<AppSettings.Fragment>("store", store, new StateSourceOptions<AppSettings.Fragment> { Watcher = watcher })]),
             onChangeDebounce: TimeSpan.Zero
         );
         ISubjectState<AppSettings> subjectState = runtime;

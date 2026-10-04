@@ -75,109 +75,6 @@ public sealed class StateSource<T>
         RouteSelector = options.RouteSelector ?? (static _ => RouteKey.Default);
     }
 
-    // Kept internal for in-assembly construction paths while callers move to StateSourceOptions<T>.
-    internal StateSource(
-        ISourceReader<T> reader,
-        int priority = 0,
-        StateFallbackCondition fallbackCondition = StateFallbackCondition.NotFound,
-        ISourceWriter<T>? writer = null,
-        ISourceWatcher? watcher = null,
-        string? physicalOrigin = null,
-        ResourceId? fixedResourceId = null,
-        string? logicalDescriptor = null,
-        bool explicitOnly = false,
-        Func<IConfiglueSubject, ResourceKey>? resourceKeySelector = null,
-        RuntimeLifetimeRequirement runtimeLifetime = RuntimeLifetimeRequirement.Shared,
-        string? modelId = null,
-        Func<IConfiglueSubject, RouteKey>? routeSelector = null
-    )
-        : this(
-            reader,
-            new StateSourceOptions<T>
-            {
-                Priority = priority,
-                FallbackCondition = fallbackCondition,
-                Writer = writer,
-                Watcher = watcher,
-                PhysicalOrigin = physicalOrigin,
-                FixedResourceId = fixedResourceId,
-                LogicalDescriptor = logicalDescriptor,
-                ExplicitOnly = explicitOnly,
-                ResourceKeySelector = resourceKeySelector,
-                RuntimeLifetime = runtimeLifetime,
-                ModelId = modelId,
-                RouteSelector = routeSelector,
-            }
-        ) { }
-
-    internal StateSource(
-        string id,
-        ISourceReader<T> reader,
-        int priority = 0,
-        StateFallbackCondition fallbackCondition = StateFallbackCondition.NotFound,
-        ISourceWriter<T>? writer = null,
-        ISourceWatcher? watcher = null,
-        string? physicalOrigin = null,
-        ResourceId? fixedResourceId = null,
-        bool explicitOnly = false,
-        Func<IConfiglueSubject, ResourceKey>? resourceKeySelector = null,
-        RuntimeLifetimeRequirement runtimeLifetime = RuntimeLifetimeRequirement.Shared,
-        string? modelId = null,
-        Func<IConfiglueSubject, RouteKey>? routeSelector = null
-    )
-        : this(
-            SourceId.From(id),
-            reader,
-            new StateSourceOptions<T>
-            {
-                Priority = priority,
-                FallbackCondition = fallbackCondition,
-                Writer = writer,
-                Watcher = watcher,
-                PhysicalOrigin = physicalOrigin,
-                FixedResourceId = fixedResourceId,
-                ExplicitOnly = explicitOnly,
-                ResourceKeySelector = resourceKeySelector,
-                RuntimeLifetime = runtimeLifetime,
-                ModelId = modelId,
-                RouteSelector = routeSelector,
-            }
-        ) { }
-
-    internal StateSource(
-        SourceId id,
-        ISourceReader<T> reader,
-        int priority = 0,
-        StateFallbackCondition fallbackCondition = StateFallbackCondition.NotFound,
-        ISourceWriter<T>? writer = null,
-        ISourceWatcher? watcher = null,
-        string? physicalOrigin = null,
-        ResourceId? fixedResourceId = null,
-        bool explicitOnly = false,
-        Func<IConfiglueSubject, ResourceKey>? resourceKeySelector = null,
-        RuntimeLifetimeRequirement runtimeLifetime = RuntimeLifetimeRequirement.Shared,
-        string? modelId = null,
-        Func<IConfiglueSubject, RouteKey>? routeSelector = null
-    )
-        : this(
-            id,
-            reader,
-            new StateSourceOptions<T>
-            {
-                Priority = priority,
-                FallbackCondition = fallbackCondition,
-                Writer = writer,
-                Watcher = watcher,
-                PhysicalOrigin = physicalOrigin,
-                FixedResourceId = fixedResourceId,
-                ExplicitOnly = explicitOnly,
-                ResourceKeySelector = resourceKeySelector,
-                RuntimeLifetime = runtimeLifetime,
-                ModelId = modelId,
-                RouteSelector = routeSelector,
-            }
-        ) { }
-
     /// <summary>The identifier of this logical source registration, independent of physical resource identity.</summary>
     public SourceId Id { get; }
 
@@ -363,11 +260,12 @@ public sealed class StateSource<T>
             _ownedPropertyPaths.Length == 0
                 ? [propertyPath]
                 : _ownedPropertyPaths.Select(path => $"{propertyPath}.{path}").ToArray();
-        var clone = new StateSource<T>(Id, Reader, CreateOptions())
-        {
-            _ownedPropertyPaths = ownedPaths,
-        };
-        return clone;
+        return StateSourceReconfiguration.Reconfigure<T, T>(
+            this,
+            Reader,
+            Writer,
+            ownedPropertyPaths: ownedPaths
+        );
     }
 
     internal StateSource<T> WithModelId(string? modelId)
@@ -377,10 +275,13 @@ public sealed class StateSource<T>
             return this;
         }
 
-        return new StateSource<T>(Id, Reader, CreateOptions(modelId: modelId, replaceModelId: true))
-        {
-            _ownedPropertyPaths = [.. _ownedPropertyPaths],
-        };
+        return StateSourceReconfiguration.Reconfigure<T, T>(
+            this,
+            Reader,
+            Writer,
+            modelId: modelId,
+            replaceModelId: true
+        );
     }
 
     internal StateSource<T> WithResourceKeySelector(
@@ -388,44 +289,17 @@ public sealed class StateSource<T>
     )
     {
         ArgumentNullException.ThrowIfNull(resourceKeySelector);
-        return new StateSource<T>(
-            Id,
+        return StateSourceReconfiguration.Reconfigure<T, T>(
+            this,
             Reader,
-            CreateOptions(resourceKeySelector: resourceKeySelector)
+            Writer,
+            resourceKeySelector: resourceKeySelector
         );
     }
 
-    private StateSourceOptions<T> CreateOptions(
-        string? modelId = null,
-        Func<IConfiglueSubject, ResourceKey>? resourceKeySelector = null,
-        bool replaceModelId = false
-    ) =>
-        new()
-        {
-            Priority = Priority,
-            FallbackCondition = FallbackCondition,
-            Writer = Writer,
-            DisableWriteCapability = Writer is null,
-            Watcher = Watcher,
-            PhysicalOrigin = PhysicalOrigin,
-            FixedResourceId = _fixedResourceId,
-            ExplicitOnly = ExplicitOnly,
-            ResourceKeySelector = resourceKeySelector ?? _resourceKeySelector,
-            RuntimeLifetime = RuntimeLifetime,
-            ModelId = replaceModelId ? modelId : ModelId,
-            RouteSelector = RouteSelector,
-        };
-
-    internal void CopyRoutingMetadataTo<TTarget>(
-        StateSource<TTarget> target,
-        bool? explicitOnly = null
-    )
+    internal void SetOwnedPropertyPaths(string[] paths)
     {
-        ArgumentNullException.ThrowIfNull(target);
-        target.ExplicitOnly = explicitOnly ?? ExplicitOnly;
-        target.RuntimeLifetime = RuntimeLifetime;
-        target.ModelId = ModelId;
-        target.RouteSelector = RouteSelector;
-        target._ownedPropertyPaths = [.. _ownedPropertyPaths];
+        ArgumentNullException.ThrowIfNull(paths);
+        _ownedPropertyPaths = paths;
     }
 }

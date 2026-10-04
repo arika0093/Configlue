@@ -303,7 +303,7 @@ public sealed class ScopedRuntimeCreationFailureTests
             context.Own(resource);
             var store = new InMemoryStateSource<TFragment>();
             return context.Complete(
-                new StateSource<TFragment>("owned", store, writer: store)
+                new StateSource<TFragment>("owned", store, new StateSourceOptions<TFragment> { Writer = store })
             );
         }
     }
@@ -323,7 +323,7 @@ public sealed class ScopedRuntimeCreationFailureTests
 
             var store = new InMemoryStateSource<TFragment>();
             return context.Complete(
-                new StateSource<TFragment>("owned", store, writer: store)
+                new StateSource<TFragment>("owned", store, new StateSourceOptions<TFragment> { Writer = store })
             );
         }
     }
@@ -352,7 +352,7 @@ public sealed class ScopedRuntimeCreationFailureTests
             _ = borrowed;
             var store = new InMemoryStateSource<TFragment>();
             return new ConfiglueSourceCreation<TFragment>(
-                new StateSource<TFragment>("borrowed", store, writer: store)
+                new StateSource<TFragment>("borrowed", store, new StateSourceOptions<TFragment> { Writer = store })
             );
         }
     }
@@ -369,7 +369,7 @@ public sealed class ScopedRuntimeCreationFailureTests
             context.Own(resource);
             var store = new InMemoryStateSource<TFragment>();
             return context.Complete(
-                new StateSource<TFragment>("owned", store, writer: store)
+                new StateSource<TFragment>("owned", store, new StateSourceOptions<TFragment> { Writer = store })
             );
         }
     }

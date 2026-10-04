@@ -57,7 +57,7 @@ public sealed class StateOutcomeContractTests
             .SetMethod.ShouldBeNull();
 
         var store = new InMemoryStateSource<string>();
-        var source = new StateSource<string>("writer", store, writer: store);
+        var source = new StateSource<string>("writer", store, new StateSourceOptions<string> { Writer = store });
         await Should.ThrowAsync<ArgumentNullException>(async () =>
             await source.WriteAsync(ConfiglueResourceContext.Default, null!)
         );
@@ -235,11 +235,7 @@ public sealed class StateOutcomeContractTests
     {
         var resource = new InMemoryResource();
         await resource.WriteAsync(new ResourceWriteRequest("null"u8.ToArray()));
-        var source = SerializedStateSource.FromResource<string>(
-            "null-json",
-            resource,
-            new JsonStateCodec<string>()
-        );
+        var source = new StateSource<string>("null-json", new SerializedSource<string>(resource, new JsonStateCodec<string>(), writer: (IResourceReader)resource as IResourceWriter, watcher: (IResourceReader)resource as ISourceWatcher), new StateSourceOptions<string>());
         var result = await source.Reader.ReadAsync();
         result.Status.ShouldBe(StateReadStatus.InvalidPayload);
         result.Value.ShouldBeNull();
@@ -251,7 +247,7 @@ public sealed class StateOutcomeContractTests
     {
         var store = new InMemoryStateSource<AppSettings.Fragment>();
         await using var options = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
-            new StateSourceSet<AppSettings.Fragment>([new("user", store, writer: store)])
+            new StateSourceSet<AppSettings.Fragment>([new StateSource<AppSettings.Fragment>("user", store, new StateSourceOptions<AppSettings.Fragment> { Writer = store })])
         );
         IWritableState<AppSettings> writable = options;
         var written = await writable.SaveAsync(new AppSettings.Patch { RetryCount = 8 });

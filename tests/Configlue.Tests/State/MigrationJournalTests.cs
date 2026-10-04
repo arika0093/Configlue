@@ -13,8 +13,8 @@ public sealed class MigrationJournalTests
         var target = new InMemoryStateSource<AppSettings.Fragment>();
         await using var options = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
             new StateSourceSet<AppSettings.Fragment>([
-                new("source", source, priority: 100),
-                new("target", target, priority: 0, writer: target),
+                new StateSource<AppSettings.Fragment>("source", source, new StateSourceOptions<AppSettings.Fragment> { Priority = 100 }),
+                new StateSource<AppSettings.Fragment>("target", target, new StateSourceOptions<AppSettings.Fragment> { Priority = 0, Writer = target }),
             ])
         );
         var migration = new StateStorageMigrationDefinition<AppSettings.Fragment>(
@@ -40,8 +40,8 @@ public sealed class MigrationJournalTests
         var target = new InMemoryStateSource<AppSettings.Fragment>();
         await using var runtime = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
             new StateSourceSet<AppSettings.Fragment>([
-                new("source", source, priority: 100),
-                new("target", target, priority: 0, writer: target),
+                new StateSource<AppSettings.Fragment>("source", source, new StateSourceOptions<AppSettings.Fragment> { Priority = 100 }),
+                new StateSource<AppSettings.Fragment>("target", target, new StateSourceOptions<AppSettings.Fragment> { Priority = 0, Writer = target }),
             ])
         );
         var migration = new StateStorageMigrationDefinition<AppSettings.Fragment>(
@@ -196,8 +196,8 @@ public sealed class MigrationJournalTests
         var target = new InMemoryStateSource<AppSettings.Fragment>();
         await using var runtime = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
             new StateSourceSet<AppSettings.Fragment>([
-                new("source", source, priority: 100),
-                new("target", target, priority: 0, writer: target),
+                new StateSource<AppSettings.Fragment>("source", source, new StateSourceOptions<AppSettings.Fragment> { Priority = 100 }),
+                new StateSource<AppSettings.Fragment>("target", target, new StateSourceOptions<AppSettings.Fragment> { Priority = 0, Writer = target }),
             ]),
             defaultWritePlan: StateWritePlan.DefaultTo(SourceId.From("target"))
         );
@@ -246,8 +246,8 @@ public sealed class MigrationJournalTests
 
         await using (var firstState = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
             new StateSourceSet<AppSettings.Fragment>([
-                new("source", source, priority: 100),
-                new("target", target, priority: 0, writer: target),
+                new StateSource<AppSettings.Fragment>("source", source, new StateSourceOptions<AppSettings.Fragment> { Priority = 100 }),
+                new StateSource<AppSettings.Fragment>("target", target, new StateSourceOptions<AppSettings.Fragment> { Priority = 0, Writer = target }),
             ]),
             defaultWritePlan: StateWritePlan.DefaultTo(SourceId.From("target"))
         ))
@@ -259,8 +259,8 @@ public sealed class MigrationJournalTests
 
         await using var secondState = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
             new StateSourceSet<AppSettings.Fragment>([
-                new("source", source, priority: 100),
-                new("target", target, priority: 0, writer: target),
+                new StateSource<AppSettings.Fragment>("source", source, new StateSourceOptions<AppSettings.Fragment> { Priority = 100 }),
+                new StateSource<AppSettings.Fragment>("target", target, new StateSourceOptions<AppSettings.Fragment> { Priority = 0, Writer = target }),
             ]),
             defaultWritePlan: StateWritePlan.DefaultTo(SourceId.From("target"))
         );
@@ -286,8 +286,8 @@ public sealed class MigrationJournalTests
         var target = new InMemoryStateSource<AppSettings.Fragment>();
         await using var runtime = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
             new StateSourceSet<AppSettings.Fragment>([
-                new("source", source, priority: 100),
-                new("target", target, priority: 0, writer: target),
+                new StateSource<AppSettings.Fragment>("source", source, new StateSourceOptions<AppSettings.Fragment> { Priority = 100 }),
+                new StateSource<AppSettings.Fragment>("target", target, new StateSourceOptions<AppSettings.Fragment> { Priority = 0, Writer = target }),
             ])
         );
         var completed = new StateStorageMigrationDefinition<AppSettings.Fragment>(

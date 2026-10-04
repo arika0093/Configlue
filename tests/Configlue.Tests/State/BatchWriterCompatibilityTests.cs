@@ -151,21 +151,12 @@ public sealed class BatchWriterCompatibilityTests
         var codec = new JsonStateCodec<AppSettings.Fragment>();
         var firstSection = new JsonSectionResource(resource, "App:First");
         var secondSection = new JsonSectionResource(resource, "App:Second");
-        var syncSource = SerializedStateSource.FromResource<AppSettings.Fragment>(
-            "sync",
-            firstSection,
-            codec,
-            priority: 10
-        );
-        var asyncBase = new StateSource<AppSettings.Fragment>(
-            "async-base",
-            new SerializedStateReader<AppSettings.Fragment>(secondSection, codec),
-            writer: new SerializedStateWriter<AppSettings.Fragment>(
+        var syncSource = new StateSource<AppSettings.Fragment>("sync", new SerializedSource<AppSettings.Fragment>(firstSection, codec, writer: (IResourceReader)firstSection as IResourceWriter, watcher: (IResourceReader)firstSection as ISourceWatcher), new StateSourceOptions<AppSettings.Fragment> { Priority = 10 });
+        var asyncBase = new StateSource<AppSettings.Fragment>("async-base", new SerializedStateReader<AppSettings.Fragment>(secondSection, codec), new StateSourceOptions<AppSettings.Fragment> { Writer = new SerializedStateWriter<AppSettings.Fragment>(
                 secondSection,
                 codec,
                 transformers: [asyncTransformer]
-            )
-        );
+            ) });
         var asyncSource = StateSourceProjection.ProjectWithUpdate<
             AppSettings.Fragment,
             AppSettings.Fragment
@@ -357,21 +348,8 @@ public sealed class BatchWriterCompatibilityTests
             .DefaultTo(SourceKey<AppSettings>.Named("second"))
             .Route(static settings => settings.Label, SourceKey<AppSettings>.Named("first"))
             .Build();
-        var firstSource = new StateSource<AppSettings.Fragment>(
-            "first",
-            new SerializedStateReader<AppSettings.Fragment>(firstSection, codec),
-            priority: 10,
-            writer: new SerializedStateWriter<AppSettings.Fragment>(firstSection, codec),
-            resourceKeySelector: firstResourceKey,
-            routeSelector: firstRoute
-        );
-        var secondSource = new StateSource<AppSettings.Fragment>(
-            "second",
-            new SerializedStateReader<AppSettings.Fragment>(secondSection, codec),
-            writer: new SerializedStateWriter<AppSettings.Fragment>(secondSection, codec),
-            resourceKeySelector: secondResourceKey,
-            routeSelector: secondRoute
-        );
+        var firstSource = new StateSource<AppSettings.Fragment>("first", new SerializedStateReader<AppSettings.Fragment>(firstSection, codec), new StateSourceOptions<AppSettings.Fragment> { Priority = 10, Writer = new SerializedStateWriter<AppSettings.Fragment>(firstSection, codec), ResourceKeySelector = firstResourceKey, RouteSelector = firstRoute });
+        var secondSource = new StateSource<AppSettings.Fragment>("second", new SerializedStateReader<AppSettings.Fragment>(secondSection, codec), new StateSourceOptions<AppSettings.Fragment> { Writer = new SerializedStateWriter<AppSettings.Fragment>(secondSection, codec), ResourceKeySelector = secondResourceKey, RouteSelector = secondRoute });
         return new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
             new StateSourceSet<AppSettings.Fragment>([firstSource, secondSource]),
             writePlan
@@ -387,18 +365,29 @@ public sealed class BatchWriterCompatibilityTests
     )
     {
         var codec = new JsonStateCodec<AppSettings.Fragment>();
+        IResourceReader firstSectionResource = new JsonSectionResource(firstResource, firstSection);
+        IResourceReader secondSectionResource = new JsonSectionResource(secondResource, secondSection);
         return new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
             new StateSourceSet<AppSettings.Fragment>([
-                SerializedStateSource.FromResource<AppSettings.Fragment>(
+                new StateSource<AppSettings.Fragment>(
                     "first",
-                    new JsonSectionResource(firstResource, firstSection),
-                    codec,
-                    priority: 10
+                    new SerializedSource<AppSettings.Fragment>(
+                        firstSectionResource,
+                        codec,
+                        writer: firstSectionResource as IResourceWriter,
+                        watcher: firstSectionResource as ISourceWatcher
+                    ),
+                    new StateSourceOptions<AppSettings.Fragment> { Priority = 10 }
                 ),
-                SerializedStateSource.FromResource<AppSettings.Fragment>(
+                new StateSource<AppSettings.Fragment>(
                     "second",
-                    new JsonSectionResource(secondResource, secondSection),
-                    codec
+                    new SerializedSource<AppSettings.Fragment>(
+                        secondSectionResource,
+                        codec,
+                        writer: secondSectionResource as IResourceWriter,
+                        watcher: secondSectionResource as ISourceWatcher
+                    ),
+                    new StateSourceOptions<AppSettings.Fragment>()
                 ),
             ]),
             StateWritePlan.DefaultTo(SourceId.From(defaultSource))
@@ -414,17 +403,8 @@ public sealed class BatchWriterCompatibilityTests
         var codec = new JsonStateCodec<AppSettings.Fragment>();
         return new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
             new StateSourceSet<AppSettings.Fragment>([
-                SerializedStateSource.FromResource<AppSettings.Fragment>(
-                    "first",
-                    firstSection,
-                    codec,
-                    priority: 10
-                ),
-                SerializedStateSource.FromResource<AppSettings.Fragment>(
-                    "second",
-                    secondSection,
-                    codec
-                ),
+                new StateSource<AppSettings.Fragment>("first", new SerializedSource<AppSettings.Fragment>(firstSection, codec, writer: (IResourceReader)firstSection as IResourceWriter, watcher: (IResourceReader)firstSection as ISourceWatcher), new StateSourceOptions<AppSettings.Fragment> { Priority = 10 }),
+                new StateSource<AppSettings.Fragment>("second", new SerializedSource<AppSettings.Fragment>(secondSection, codec, writer: (IResourceReader)secondSection as IResourceWriter, watcher: (IResourceReader)secondSection as ISourceWatcher), new StateSourceOptions<AppSettings.Fragment>()),
             ]),
             StateWritePlan.DefaultTo(SourceId.From(defaultSource))
         );

@@ -566,11 +566,7 @@ public sealed class SecretsManagerResourceTests
                 new SecretsManagerSecretValue("\"typed-value\"", null, "version-5", ["AWSCURRENT"], null, null)
             );
         var resource = new SecretsManagerResource(client, "app");
-        var source = SerializedStateSource.FromResource<string>(
-            "typed",
-            resource,
-            new JsonStateCodec<string>()
-        );
+        var source = new StateSource<string>("typed", new SerializedSource<string>(resource, new JsonStateCodec<string>(), writer: (IResourceReader)resource as IResourceWriter, watcher: (IResourceReader)resource as ISourceWatcher), new StateSourceOptions<string>());
 
         var read = await source.Reader.ReadAsync();
 
@@ -588,11 +584,7 @@ public sealed class SecretsManagerResourceTests
                 new SecretsManagerSecretValue(SentinelValue, null, "version-6", ["AWSCURRENT"], null, null)
             );
         var resource = new SecretsManagerResource(client, "app");
-        var source = SerializedStateSource.FromResource<string>(
-            "malformed",
-            resource,
-            new JsonStateCodec<string>()
-        );
+        var source = new StateSource<string>("malformed", new SerializedSource<string>(resource, new JsonStateCodec<string>(), writer: (IResourceReader)resource as IResourceWriter, watcher: (IResourceReader)resource as ISourceWatcher), new StateSourceOptions<string>());
 
         var failure = await Should.ThrowAsync<Exception>(async () => await source.Reader.ReadAsync());
 

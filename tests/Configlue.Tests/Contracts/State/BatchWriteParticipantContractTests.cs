@@ -11,11 +11,7 @@ public sealed class BatchWriteParticipantContractTests
     public async Task ProjectedWriter_PreparesBatchForBatchCapableSources()
     {
         var resource = new InMemoryResource();
-        var source = SerializedStateSource.FromResource<DatabaseSettings.Fragment>(
-            "database",
-            resource,
-            new JsonStateCodec<DatabaseSettings.Fragment>()
-        );
+        var source = new StateSource<DatabaseSettings.Fragment>("database", new SerializedSource<DatabaseSettings.Fragment>(resource, new JsonStateCodec<DatabaseSettings.Fragment>(), writer: (IResourceReader)resource as IResourceWriter, watcher: (IResourceReader)resource as ISourceWatcher), new StateSourceOptions<DatabaseSettings.Fragment>());
         var projected = Project(source);
         var value = new AppSettings.Fragment
         {
@@ -113,7 +109,7 @@ public sealed class BatchWriteParticipantContractTests
     public async Task ProjectedWriter_ReportsUnsupportedBatchPreparation()
     {
         var store = new InMemoryStateSource<DatabaseSettings.Fragment>();
-        var source = new StateSource<DatabaseSettings.Fragment>("database", store, writer: store);
+        var source = new StateSource<DatabaseSettings.Fragment>("database", store, new StateSourceOptions<DatabaseSettings.Fragment> { Writer = store });
         var projected = Project(source);
         var request = new StateWriteRequest<AppSettings.Fragment>(new AppSettings.Fragment());
         var asyncParticipant =

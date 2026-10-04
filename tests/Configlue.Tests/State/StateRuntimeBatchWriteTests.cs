@@ -17,18 +17,8 @@ public sealed partial class StateRuntimeTests
         var codec = new JsonStateCodec<AppSettings.Fragment>();
         var firstSection = new JsonSectionResource(resource, "App:First");
         var secondSection = new JsonSectionResource(resource, "App:Second");
-        var firstSource = SerializedStateSource.FromResource<AppSettings.Fragment>(
-            "first",
-            firstSection,
-            codec,
-            priority: 10
-        );
-        var secondSource = SerializedStateSource.FromResource<AppSettings.Fragment>(
-            "second",
-            secondSection,
-            codec,
-            priority: 0
-        );
+        var firstSource = new StateSource<AppSettings.Fragment>("first", new SerializedSource<AppSettings.Fragment>(firstSection, codec, writer: (IResourceReader)firstSection as IResourceWriter, watcher: (IResourceReader)firstSection as ISourceWatcher), new StateSourceOptions<AppSettings.Fragment> { Priority = 10 });
+        var secondSource = new StateSource<AppSettings.Fragment>("second", new SerializedSource<AppSettings.Fragment>(secondSection, codec, writer: (IResourceReader)secondSection as IResourceWriter, watcher: (IResourceReader)secondSection as ISourceWatcher), new StateSourceOptions<AppSettings.Fragment> { Priority = 0 });
         var options = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
             new StateSourceSet<AppSettings.Fragment>([firstSource, secondSource]),
             StateWritePlan.DefaultTo(SourceId.From("first"))
@@ -64,15 +54,27 @@ public sealed partial class StateRuntimeTests
         Directory.CreateDirectory(directory);
         var resource = new FileResource(Path.Combine(directory, "settings.json"));
         var codec = new JsonStateCodec<AppSettings.Fragment>();
-        var first = SerializedStateSource.FromResource<AppSettings.Fragment>(
+        IResourceReader firstSection = new JsonSectionResource(resource, "App:First");
+        var first = new StateSource<AppSettings.Fragment>(
             "first",
-            new JsonSectionResource(resource, "App:First"),
-            codec
+            new SerializedSource<AppSettings.Fragment>(
+                firstSection,
+                codec,
+                writer: firstSection as IResourceWriter,
+                watcher: firstSection as ISourceWatcher
+            ),
+            new StateSourceOptions<AppSettings.Fragment>()
         );
-        var second = SerializedStateSource.FromResource<AppSettings.Fragment>(
+        IResourceReader secondSection = new JsonSectionResource(resource, "App:Second");
+        var second = new StateSource<AppSettings.Fragment>(
             "second",
-            new JsonSectionResource(resource, "App:Second"),
-            codec
+            new SerializedSource<AppSettings.Fragment>(
+                secondSection,
+                codec,
+                writer: secondSection as IResourceWriter,
+                watcher: secondSection as ISourceWatcher
+            ),
+            new StateSourceOptions<AppSettings.Fragment>()
         );
         var options = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
             new StateSourceSet<AppSettings.Fragment>([first, second]),
@@ -115,18 +117,8 @@ public sealed partial class StateRuntimeTests
         var child = new JsonSectionResource(resource, "App:Child");
         var options = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
             new StateSourceSet<AppSettings.Fragment>([
-                SerializedStateSource.FromResource<AppSettings.Fragment>(
-                    "parent",
-                    parent,
-                    codec,
-                    priority: 10
-                ),
-                SerializedStateSource.FromResource<AppSettings.Fragment>(
-                    "child",
-                    child,
-                    codec,
-                    priority: 0
-                ),
+                new StateSource<AppSettings.Fragment>("parent", new SerializedSource<AppSettings.Fragment>(parent, codec, writer: (IResourceReader)parent as IResourceWriter, watcher: (IResourceReader)parent as ISourceWatcher), new StateSourceOptions<AppSettings.Fragment> { Priority = 10 }),
+                new StateSource<AppSettings.Fragment>("child", new SerializedSource<AppSettings.Fragment>(child, codec, writer: (IResourceReader)child as IResourceWriter, watcher: (IResourceReader)child as ISourceWatcher), new StateSourceOptions<AppSettings.Fragment> { Priority = 0 }),
             ]),
             StateWritePlan.DefaultTo(SourceId.From("parent"))
         );
@@ -156,12 +148,8 @@ public sealed partial class StateRuntimeTests
         var xml = new XmlSectionResource(resource, "App:Xml");
         var differentDomains = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
             new StateSourceSet<AppSettings.Fragment>([
-                SerializedStateSource.FromResource<AppSettings.Fragment>("json", json, codec),
-                SerializedStateSource.FromResource<AppSettings.Fragment>(
-                    "xml",
-                    xml,
-                    new XmlStateCodec<AppSettings.Fragment>()
-                ),
+                new StateSource<AppSettings.Fragment>("json", new SerializedSource<AppSettings.Fragment>(json, codec, writer: (IResourceReader)json as IResourceWriter, watcher: (IResourceReader)json as ISourceWatcher), new StateSourceOptions<AppSettings.Fragment>()),
+                new StateSource<AppSettings.Fragment>("xml", new SerializedSource<AppSettings.Fragment>(xml, new XmlStateCodec<AppSettings.Fragment>(), writer: (IResourceReader)xml as IResourceWriter, watcher: (IResourceReader)xml as ISourceWatcher), new StateSourceOptions<AppSettings.Fragment>()),
             ]),
             StateWritePlan.DefaultTo(SourceId.From("json"))
         );
@@ -193,15 +181,27 @@ public sealed partial class StateRuntimeTests
     {
         var xmlResource = new InMemoryResource();
         var xmlCodec = new XmlStateCodec<AppSettings.Fragment>();
-        var xmlFirst = SerializedStateSource.FromResource<AppSettings.Fragment>(
+        IResourceReader xmlFirstSection = new XmlSectionResource(xmlResource, "App:First");
+        var xmlFirst = new StateSource<AppSettings.Fragment>(
             "xml-first",
-            new XmlSectionResource(xmlResource, "App:First"),
-            xmlCodec
+            new SerializedSource<AppSettings.Fragment>(
+                xmlFirstSection,
+                xmlCodec,
+                writer: xmlFirstSection as IResourceWriter,
+                watcher: xmlFirstSection as ISourceWatcher
+            ),
+            new StateSourceOptions<AppSettings.Fragment>()
         );
-        var xmlSecond = SerializedStateSource.FromResource<AppSettings.Fragment>(
+        IResourceReader xmlSecondSection = new XmlSectionResource(xmlResource, "App:Second");
+        var xmlSecond = new StateSource<AppSettings.Fragment>(
             "xml-second",
-            new XmlSectionResource(xmlResource, "App:Second"),
-            xmlCodec
+            new SerializedSource<AppSettings.Fragment>(
+                xmlSecondSection,
+                xmlCodec,
+                writer: xmlSecondSection as IResourceWriter,
+                watcher: xmlSecondSection as ISourceWatcher
+            ),
+            new StateSourceOptions<AppSettings.Fragment>()
         );
         var xmlOptions = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
             new StateSourceSet<AppSettings.Fragment>([xmlFirst, xmlSecond]),
@@ -222,15 +222,27 @@ public sealed partial class StateRuntimeTests
         var yamlCodec = new YamlStateCodec<AppSettings.Fragment>(
             modelSchema: AppSettings.FragmentSchema
         );
-        var yamlFirst = SerializedStateSource.FromResource<AppSettings.Fragment>(
+        IResourceReader yamlFirstSection = new YamlSectionResource(yamlResource, "App:First");
+        var yamlFirst = new StateSource<AppSettings.Fragment>(
             "yaml-first",
-            new YamlSectionResource(yamlResource, "App:First"),
-            yamlCodec
+            new SerializedSource<AppSettings.Fragment>(
+                yamlFirstSection,
+                yamlCodec,
+                writer: yamlFirstSection as IResourceWriter,
+                watcher: yamlFirstSection as ISourceWatcher
+            ),
+            new StateSourceOptions<AppSettings.Fragment>()
         );
-        var yamlSecond = SerializedStateSource.FromResource<AppSettings.Fragment>(
+        IResourceReader yamlSecondSection = new YamlSectionResource(yamlResource, "App:Second");
+        var yamlSecond = new StateSource<AppSettings.Fragment>(
             "yaml-second",
-            new YamlSectionResource(yamlResource, "App:Second"),
-            yamlCodec
+            new SerializedSource<AppSettings.Fragment>(
+                yamlSecondSection,
+                yamlCodec,
+                writer: yamlSecondSection as IResourceWriter,
+                watcher: yamlSecondSection as ISourceWatcher
+            ),
+            new StateSourceOptions<AppSettings.Fragment>()
         );
         var yamlOptions = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
             new StateSourceSet<AppSettings.Fragment>([yamlFirst, yamlSecond]),

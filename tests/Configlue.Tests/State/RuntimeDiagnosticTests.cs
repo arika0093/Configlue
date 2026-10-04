@@ -42,7 +42,7 @@ public sealed partial class RuntimeDiagnosticTests
         var store = new InMemoryStateSource<AppSettings.Fragment>(
             new AppSettings.Fragment { RetryCount = 3 }
         );
-        await using var runtime = CreateRuntime([new("store", store)], capacity: 17);
+        await using var runtime = CreateRuntime([new StateSource<AppSettings.Fragment>("store", store, new StateSourceOptions<AppSettings.Fragment>())], capacity: 17);
         await Task.WhenAll(
             Enumerable.Range(0, 32).Select(_ => Task.Run(async () => await runtime.GetValueAsync()))
         );
@@ -69,7 +69,7 @@ public sealed partial class RuntimeDiagnosticTests
                     EventHistoryCapacity = 8,
                 };
                 model.ConfigureSources(registration =>
-                    registration.Sources.Add(new StateSource<AppSettings.Fragment>("store", store))
+                    registration.Sources.Add(new StateSource<AppSettings.Fragment>("store", store, new StateSourceOptions<AppSettings.Fragment>()))
                 );
             })
         );
@@ -92,13 +92,8 @@ public sealed partial class RuntimeDiagnosticTests
         );
         await using var runtime = CreateRuntime(
             [
-                new("missing", empty, priority: 100),
-                new(
-                    "loaded",
-                    loaded,
-                    physicalOrigin: "secret-path",
-                    fixedResourceId: new ResourceId("secret-resource")
-                ),
+                new StateSource<AppSettings.Fragment>("missing", empty, new StateSourceOptions<AppSettings.Fragment> { Priority = 100 }),
+                new StateSource<AppSettings.Fragment>("loaded", loaded, new StateSourceOptions<AppSettings.Fragment> { PhysicalOrigin = "secret-path", FixedResourceId = new ResourceId("secret-resource") }),
             ],
             capacity: 32
         );
@@ -142,7 +137,7 @@ public sealed partial class RuntimeDiagnosticTests
     public async Task Snapshot_IsIoFree_AndAvailableWhileAReadIsBlocked()
     {
         var reader = new ProbeReader();
-        await using var runtime = CreateRuntime([new("remote", reader)]);
+        await using var runtime = CreateRuntime([new StateSource<AppSettings.Fragment>("remote", reader, new StateSourceOptions<AppSettings.Fragment>())]);
         runtime.GetRuntimeSnapshot().LastResolution.ShouldBeNull();
         runtime.GetRecentEvents().ShouldBeEmpty();
         reader.ReadCount.ShouldBe(0);
@@ -180,7 +175,7 @@ public sealed partial class RuntimeDiagnosticTests
         var store = new InMemoryStateSource<AppSettings.Fragment>(
             new AppSettings.Fragment { RetryCount = 3 }
         );
-        await using var runtime = CreateRuntime([new("store", store)], capacity: 3);
+        await using var runtime = CreateRuntime([new StateSource<AppSettings.Fragment>("store", store, new StateSourceOptions<AppSettings.Fragment>())], capacity: 3);
         await runtime.GetValueAsync();
         var first = runtime.GetRecentEvents();
         first.Count.ShouldBe(3);
@@ -192,7 +187,7 @@ public sealed partial class RuntimeDiagnosticTests
         latest[^1].Sequence.ShouldBe(84);
         latest.Select(static item => item.Sequence).ShouldBe(new long[] { 82, 83, 84 });
 
-        await using var noHistory = CreateRuntime([new("store", store)]);
+        await using var noHistory = CreateRuntime([new StateSource<AppSettings.Fragment>("store", store, new StateSourceOptions<AppSettings.Fragment>())]);
         await noHistory.GetValueAsync();
         noHistory.GetRecentEvents().ShouldBeEmpty();
         noHistory.GetRuntimeSnapshot().LastResolution.ShouldNotBeNull();
@@ -205,7 +200,7 @@ public sealed partial class RuntimeDiagnosticTests
             new AppSettings.Fragment { RetryCount = 3 }
         );
         await using var runtime = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
-            new StateSourceSet<AppSettings.Fragment>([new("store", store)]),
+            new StateSourceSet<AppSettings.Fragment>([new StateSource<AppSettings.Fragment>("store", store, new StateSourceOptions<AppSettings.Fragment>())]),
             diagnostics: ConfiglueRuntimeDiagnosticOptions.Disabled
         );
         var received = new List<ConfiglueDiagnosticEvent>();
@@ -228,7 +223,7 @@ public sealed partial class RuntimeDiagnosticTests
     {
         var exception = new InvalidOperationException("credential=secret-password");
         await using var runtime = CreateRuntime(
-            [new("bad", new ThrowingReader(exception))],
+            [new StateSource<AppSettings.Fragment>("bad", new ThrowingReader(exception), new StateSourceOptions<AppSettings.Fragment>())],
             capacity: 16
         );
         var thrown = await Should.ThrowAsync<InvalidOperationException>(async () =>
@@ -259,7 +254,7 @@ public sealed partial class RuntimeDiagnosticTests
     public async Task CallerCancellation_IsDistinguishedFromReadFailures()
     {
         var reader = new ProbeReader();
-        await using var runtime = CreateRuntime([new("remote", reader)], capacity: 16);
+        await using var runtime = CreateRuntime([new StateSource<AppSettings.Fragment>("remote", reader, new StateSourceOptions<AppSettings.Fragment>())], capacity: 16);
         using var cancellation = new CancellationTokenSource();
         var read = runtime.GetValueAsync(cancellation.Token).AsTask();
         await reader.Started.Task.WaitAsync(TimeSpan.FromSeconds(5));
@@ -274,7 +269,7 @@ public sealed partial class RuntimeDiagnosticTests
     [Arguments(4097)]
     public void InvalidHistoryCapacity_IsRejected(int capacity) =>
         Should.Throw<InvalidOperationException>(() =>
-            CreateRuntime([new("store", new InMemoryStateSource<AppSettings.Fragment>())], capacity)
+            CreateRuntime([new StateSource<AppSettings.Fragment>("store", new InMemoryStateSource<AppSettings.Fragment>(), new StateSourceOptions<AppSettings.Fragment>())], capacity)
         );
 
     [Test]
@@ -283,7 +278,7 @@ public sealed partial class RuntimeDiagnosticTests
         var store = new InMemoryStateSource<AppSettings.Fragment>(
             new AppSettings.Fragment { RetryCount = 101, Label = "validation-secret" }
         );
-        await using var runtime = CreateRuntime([new("store", store)], capacity: 16);
+        await using var runtime = CreateRuntime([new StateSource<AppSettings.Fragment>("store", store, new StateSourceOptions<AppSettings.Fragment>())], capacity: 16);
         await Should.ThrowAsync<ConfiglueValidationException>(async () =>
             await runtime.GetValueAsync()
         );

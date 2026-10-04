@@ -12,12 +12,7 @@ public sealed class CompositeWriteOwnershipTests
         );
         var composite = new CompositeStateSource<AppSettings.Fragment>(
             new StateSourceSet<AppSettings.Fragment>([
-                new StateSource<AppSettings.Fragment>(
-                    "child",
-                    childStore,
-                    writer: childStore,
-                    watcher: childStore
-                ),
+                new StateSource<AppSettings.Fragment>("child", childStore, new StateSourceOptions<AppSettings.Fragment> { Writer = childStore, Watcher = childStore }),
             ]),
             writePlan: new StateWritePlan(
                 null,
@@ -51,12 +46,7 @@ public sealed class CompositeWriteOwnershipTests
         );
         var composite = new CompositeStateSource<AppSettings.Fragment>(
             new StateSourceSet<AppSettings.Fragment>([
-                new StateSource<AppSettings.Fragment>(
-                    "child",
-                    childStore,
-                    writer: childStore,
-                    watcher: childStore
-                ),
+                new StateSource<AppSettings.Fragment>("child", childStore, new StateSourceOptions<AppSettings.Fragment> { Writer = childStore, Watcher = childStore }),
             ]),
             writePlan: StateWritePlan.DefaultTo(SourceId.From("child"))
         );
@@ -88,12 +78,7 @@ public sealed class CompositeWriteOwnershipTests
         );
         var composite = new CompositeStateSource<AppSettings.Fragment>(
             new StateSourceSet<AppSettings.Fragment>([
-                new StateSource<AppSettings.Fragment>(
-                    "child",
-                    childStore,
-                    writer: childStore,
-                    watcher: childStore
-                ),
+                new StateSource<AppSettings.Fragment>("child", childStore, new StateSourceOptions<AppSettings.Fragment> { Writer = childStore, Watcher = childStore }),
             ]),
             SourceId.From("child")
         );
@@ -120,18 +105,8 @@ public sealed class CompositeWriteOwnershipTests
         var secondStore = new InMemoryStateSource<AppSettings.Fragment>();
         var composite = new CompositeStateSource<AppSettings.Fragment>(
             new StateSourceSet<AppSettings.Fragment>([
-                new StateSource<AppSettings.Fragment>(
-                    "first",
-                    firstStore,
-                    writer: firstStore,
-                    watcher: firstStore
-                ),
-                new StateSource<AppSettings.Fragment>(
-                    "second",
-                    secondStore,
-                    writer: secondStore,
-                    watcher: secondStore
-                ),
+                new StateSource<AppSettings.Fragment>("first", firstStore, new StateSourceOptions<AppSettings.Fragment> { Writer = firstStore, Watcher = firstStore }),
+                new StateSource<AppSettings.Fragment>("second", secondStore, new StateSourceOptions<AppSettings.Fragment> { Writer = secondStore, Watcher = secondStore }),
             ]),
             SourceId.From("first"),
             StateWritePlan.DefaultTo(SourceId.From("second"))
@@ -148,12 +123,7 @@ public sealed class CompositeWriteOwnershipTests
         var childStore = new InMemoryStateSource<AppSettings.Fragment>();
         StateSourceSet<AppSettings.Fragment> Components() =>
             new([
-                new StateSource<AppSettings.Fragment>(
-                    "child",
-                    childStore,
-                    writer: childStore,
-                    watcher: childStore
-                ),
+                new StateSource<AppSettings.Fragment>("child", childStore, new StateSourceOptions<AppSettings.Fragment> { Writer = childStore, Watcher = childStore }),
             ]);
 
         Should.Throw<ArgumentException>(() =>
@@ -189,13 +159,8 @@ public sealed class CompositeWriteOwnershipTests
         var readOnlyStore = new InMemoryStateSource<AppSettings.Fragment>();
         StateSourceSet<AppSettings.Fragment> Components() =>
             new([
-                new StateSource<AppSettings.Fragment>(
-                    "writable",
-                    writableStore,
-                    writer: writableStore,
-                    watcher: writableStore
-                ),
-                new StateSource<AppSettings.Fragment>("readonly", readOnlyStore),
+                new StateSource<AppSettings.Fragment>("writable", writableStore, new StateSourceOptions<AppSettings.Fragment> { Writer = writableStore, Watcher = writableStore }),
+                new StateSource<AppSettings.Fragment>("readonly", readOnlyStore, new StateSourceOptions<AppSettings.Fragment>()),
             ]);
 
         Should.Throw<ArgumentException>(() =>
@@ -224,12 +189,7 @@ public sealed class CompositeWriteOwnershipTests
         );
         var composite = new CompositeStateSource<AppSettings.Fragment>(
             new StateSourceSet<AppSettings.Fragment>([
-                new StateSource<AppSettings.Fragment>(
-                    "child",
-                    childStore,
-                    writer: childStore,
-                    watcher: childStore
-                ),
+                new StateSource<AppSettings.Fragment>("child", childStore, new StateSourceOptions<AppSettings.Fragment> { Writer = childStore, Watcher = childStore }),
             ]),
             writePlan: new StateWritePlan(
                 null,
@@ -322,18 +282,8 @@ public sealed class CompositeWriteOwnershipTests
         var portStore = new InMemoryStateSource<AppSettings.Fragment>();
         var composite = new CompositeStateSource<AppSettings.Fragment>(
             new StateSourceSet<AppSettings.Fragment>([
-                new StateSource<AppSettings.Fragment>(
-                    "database",
-                    databaseStore,
-                    writer: databaseStore,
-                    watcher: databaseStore
-                ),
-                new StateSource<AppSettings.Fragment>(
-                    "port",
-                    portStore,
-                    writer: portStore,
-                    watcher: portStore
-                ),
+                new StateSource<AppSettings.Fragment>("database", databaseStore, new StateSourceOptions<AppSettings.Fragment> { Writer = databaseStore, Watcher = databaseStore }),
+                new StateSource<AppSettings.Fragment>("port", portStore, new StateSourceOptions<AppSettings.Fragment> { Writer = portStore, Watcher = portStore }),
             ]),
             writePlan: new StateWritePlan(
                 null,
@@ -368,12 +318,7 @@ public sealed class CompositeWriteOwnershipTests
         );
         var composite = new CompositeStateSource<AppSettings.Fragment>(
             new StateSourceSet<AppSettings.Fragment>([
-                new StateSource<AppSettings.Fragment>(
-                    "child",
-                    childStore,
-                    writer: childStore,
-                    watcher: childStore
-                ),
+                new StateSource<AppSettings.Fragment>("child", childStore, new StateSourceOptions<AppSettings.Fragment> { Writer = childStore, Watcher = childStore }),
             ]),
             writePlan: new StateWritePlan(
                 null,

@@ -461,11 +461,11 @@ public sealed class SsmParameterStoreTests
     {
         var fake = new FakeSsmParameterClient();
         using var ssm = CreateSource(fake, null);
-        var ssmSource = new StateSource<AppSettings.Fragment>("ssm", ssm, priority: 10);
+        var ssmSource = new StateSource<AppSettings.Fragment>("ssm", ssm, new StateSourceOptions<AppSettings.Fragment> { Priority = 10 });
         var options = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
             new StateSourceSet<AppSettings.Fragment>([
                 ssmSource,
-                new StateSource<AppSettings.Fragment>("defaults", new FallbackReader()),
+                new StateSource<AppSettings.Fragment>("defaults", new FallbackReader(), new StateSourceOptions<AppSettings.Fragment>()),
             ])
         );
 

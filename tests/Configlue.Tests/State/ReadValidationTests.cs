@@ -113,20 +113,12 @@ public sealed class ReadValidationTests
     {
         StateSourceSet<AppSettings.Fragment> sources() =>
             new([
-                new StateSource<AppSettings.Fragment>(
-                    "low",
-                    new InMemoryStateSource<AppSettings.Fragment>(
+                new StateSource<AppSettings.Fragment>("low", new InMemoryStateSource<AppSettings.Fragment>(
                         new AppSettings.Fragment { RetryCount = Optional<int>.Present(150) }
-                    ),
-                    priority: 100
-                ),
-                new StateSource<AppSettings.Fragment>(
-                    "high",
-                    new InMemoryStateSource<AppSettings.Fragment>(
+                    ), new StateSourceOptions<AppSettings.Fragment> { Priority = 100 }),
+                new StateSource<AppSettings.Fragment>("high", new InMemoryStateSource<AppSettings.Fragment>(
                         new AppSettings.Fragment { RetryCount = Optional<int>.Present(5) }
-                    ),
-                    priority: 200
-                ),
+                    ), new StateSourceOptions<AppSettings.Fragment> { Priority = 200 }),
             ]);
 
         var strict = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
@@ -155,16 +147,13 @@ public sealed class ReadValidationTests
     {
         var options = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
             new StateSourceSet<AppSettings.Fragment>([
-                new StateSource<AppSettings.Fragment>(
-                    "layer",
-                    new InMemoryStateSource<AppSettings.Fragment>(
+                new StateSource<AppSettings.Fragment>("layer", new InMemoryStateSource<AppSettings.Fragment>(
                         new AppSettings.Fragment
                         {
                             RetryCount = Optional<int>.Present(150),
                             Label = Optional<string?>.Present("kept"),
                         }
-                    )
-                ),
+                    ), new StateSourceOptions<AppSettings.Fragment>()),
             ]),
             readValidationMode: ReadValidationMode.IgnoreValue
         );
@@ -181,9 +170,7 @@ public sealed class ReadValidationTests
     {
         var options = new ConfiglueRuntime<ReadValidationRoot, ReadValidationRoot.Fragment>(
             new StateSourceSet<ReadValidationRoot.Fragment>([
-                new StateSource<ReadValidationRoot.Fragment>(
-                    "nested-layer",
-                    new InMemoryStateSource<ReadValidationRoot.Fragment>(
+                new StateSource<ReadValidationRoot.Fragment>("nested-layer", new InMemoryStateSource<ReadValidationRoot.Fragment>(
                         new ReadValidationRoot.Fragment
                         {
                             Nested = Optional<ReadValidationNested.Fragment?>.Present(
@@ -194,8 +181,7 @@ public sealed class ReadValidationTests
                                 }
                             ),
                         }
-                    )
-                ),
+                    ), new StateSourceOptions<ReadValidationRoot.Fragment>()),
             ]),
             readValidationMode: ReadValidationMode.IgnoreValue
         );
@@ -213,12 +199,9 @@ public sealed class ReadValidationTests
         {
             var options = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
                 new StateSourceSet<AppSettings.Fragment>([
-                    new StateSource<AppSettings.Fragment>(
-                        "layer",
-                        new InMemoryStateSource<AppSettings.Fragment>(
+                    new StateSource<AppSettings.Fragment>("layer", new InMemoryStateSource<AppSettings.Fragment>(
                             new AppSettings.Fragment { RetryCount = Optional<int>.Present(150) }
-                        )
-                    ),
+                        ), new StateSourceOptions<AppSettings.Fragment>()),
                 ]),
                 validateDataAnnotations: false,
                 readValidationMode: mode
@@ -236,15 +219,12 @@ public sealed class ReadValidationTests
     {
         var options = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
             new StateSourceSet<AppSettings.Fragment>([
-                new StateSource<AppSettings.Fragment>(
-                    "layer",
-                    new InMemoryStateSource<AppSettings.Fragment>(
+                new StateSource<AppSettings.Fragment>("layer", new InMemoryStateSource<AppSettings.Fragment>(
                         new AppSettings.Fragment
                         {
                             Label = Optional<string?>.Present("custom-invalid"),
                         }
-                    )
-                ),
+                    ), new StateSourceOptions<AppSettings.Fragment>()),
             ]),
             validators: [new InvalidLabelValidator()],
             validateDataAnnotations: false,
@@ -263,22 +243,14 @@ public sealed class ReadValidationTests
     {
         var options = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
             new StateSourceSet<AppSettings.Fragment>([
-                new StateSource<AppSettings.Fragment>(
-                    "invalid",
-                    new StubReader(
+                new StateSource<AppSettings.Fragment>("invalid", new StubReader(
                         StateReadResult<AppSettings.Fragment>.InvalidPayload(
                             new AppSettings.Fragment()
                         )
-                    ),
-                    priority: 100,
-                    fallbackCondition: StateFallbackCondition.InvalidPayload
-                ),
-                new StateSource<AppSettings.Fragment>(
-                    "valid",
-                    new InMemoryStateSource<AppSettings.Fragment>(
+                    ), new StateSourceOptions<AppSettings.Fragment> { Priority = 100, FallbackCondition = StateFallbackCondition.InvalidPayload }),
+                new StateSource<AppSettings.Fragment>("valid", new InMemoryStateSource<AppSettings.Fragment>(
                         new AppSettings.Fragment { RetryCount = Optional<int>.Present(8) }
-                    )
-                ),
+                    ), new StateSourceOptions<AppSettings.Fragment>()),
             ])
         );
 
@@ -297,21 +269,13 @@ public sealed class ReadValidationTests
         // allows the lower-priority source to take over.
         var options = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
             new StateSourceSet<AppSettings.Fragment>([
-                new StateSource<AppSettings.Fragment>(
-                    "invalid-value",
-                    new InMemoryStateSource<AppSettings.Fragment>(
+                new StateSource<AppSettings.Fragment>("invalid-value", new InMemoryStateSource<AppSettings.Fragment>(
                         new AppSettings.Fragment { RetryCount = Optional<int>.Present(150) }
-                    ),
-                    priority: 100,
-                    fallbackCondition: StateFallbackCondition.NotFoundOrUnavailable
-                        | StateFallbackCondition.InvalidPayload
-                ),
-                new StateSource<AppSettings.Fragment>(
-                    "valid",
-                    new InMemoryStateSource<AppSettings.Fragment>(
+                    ), new StateSourceOptions<AppSettings.Fragment> { Priority = 100, FallbackCondition = StateFallbackCondition.NotFoundOrUnavailable
+                        | StateFallbackCondition.InvalidPayload }),
+                new StateSource<AppSettings.Fragment>("valid", new InMemoryStateSource<AppSettings.Fragment>(
                         new AppSettings.Fragment { RetryCount = Optional<int>.Present(8) }
-                    )
-                ),
+                    ), new StateSourceOptions<AppSettings.Fragment>()),
             ])
         );
 
@@ -332,12 +296,9 @@ public sealed class ReadValidationTests
                 model.ReadValidationMode = ReadValidationMode.IgnoreValue;
                 model.Sources(sources =>
                     sources.Add(
-                        new StateSource<AppSettings.Fragment>(
-                            "layer",
-                            new InMemoryStateSource<AppSettings.Fragment>(
+                        new StateSource<AppSettings.Fragment>("layer", new InMemoryStateSource<AppSettings.Fragment>(
                                 new AppSettings.Fragment { RetryCount = Optional<int>.Present(150) }
-                            )
-                        )
+                            ), new StateSourceOptions<AppSettings.Fragment>())
                     )
                 );
             });
@@ -352,15 +313,12 @@ public sealed class ReadValidationTests
     {
         var options = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
             new StateSourceSet<AppSettings.Fragment>([
-                new StateSource<AppSettings.Fragment>(
-                    "invalid-layer",
-                    new StubReader(
+                new StateSource<AppSettings.Fragment>("invalid-layer", new StubReader(
                         StateReadResult<AppSettings.Fragment>.InvalidPayload(
                             new AppSettings.Fragment(),
                             "rev-1"
                         )
-                    )
-                ),
+                    ), new StateSourceOptions<AppSettings.Fragment>()),
             ])
         );
 
@@ -415,16 +373,13 @@ public sealed class ReadValidationTests
     {
         var options = new ConfiglueRuntime<CompareSettings, CompareSettings.Fragment>(
             new StateSourceSet<CompareSettings.Fragment>([
-                new StateSource<CompareSettings.Fragment>(
-                    "layer",
-                    new InMemoryStateSource<CompareSettings.Fragment>(
+                new StateSource<CompareSettings.Fragment>("layer", new InMemoryStateSource<CompareSettings.Fragment>(
                         new CompareSettings.Fragment
                         {
                             Expected = Optional<string>.Present("same"),
                             Actual = Optional<string>.Present("same"),
                         }
-                    )
-                ),
+                    ), new StateSourceOptions<CompareSettings.Fragment>()),
             ])
         );
 
@@ -440,16 +395,13 @@ public sealed class ReadValidationTests
     {
         var options = new ConfiglueRuntime<CompareSettings, CompareSettings.Fragment>(
             new StateSourceSet<CompareSettings.Fragment>([
-                new StateSource<CompareSettings.Fragment>(
-                    "layer",
-                    new InMemoryStateSource<CompareSettings.Fragment>(
+                new StateSource<CompareSettings.Fragment>("layer", new InMemoryStateSource<CompareSettings.Fragment>(
                         new CompareSettings.Fragment
                         {
                             Expected = Optional<string>.Present("same"),
                             Actual = Optional<string>.Present("different"),
                         }
-                    )
-                ),
+                    ), new StateSourceOptions<CompareSettings.Fragment>()),
             ])
         );
 
@@ -472,16 +424,13 @@ public sealed class ReadValidationTests
     {
         var options = new ConfiglueRuntime<CompareSettings, CompareSettings.Fragment>(
             new StateSourceSet<CompareSettings.Fragment>([
-                new StateSource<CompareSettings.Fragment>(
-                    "layer",
-                    new InMemoryStateSource<CompareSettings.Fragment>(
+                new StateSource<CompareSettings.Fragment>("layer", new InMemoryStateSource<CompareSettings.Fragment>(
                         new CompareSettings.Fragment
                         {
                             Expected = Optional<string>.Present("same"),
                             Actual = Optional<string>.Present("different"),
                         }
-                    )
-                ),
+                    ), new StateSourceOptions<CompareSettings.Fragment>()),
             ]),
             readValidationMode: ReadValidationMode.StrictThrow
         );
@@ -498,16 +447,13 @@ public sealed class ReadValidationTests
     {
         var options = new ConfiglueRuntime<CompareSettings, CompareSettings.Fragment>(
             new StateSourceSet<CompareSettings.Fragment>([
-                new StateSource<CompareSettings.Fragment>(
-                    "layer",
-                    new InMemoryStateSource<CompareSettings.Fragment>(
+                new StateSource<CompareSettings.Fragment>("layer", new InMemoryStateSource<CompareSettings.Fragment>(
                         new CompareSettings.Fragment
                         {
                             Expected = Optional<string>.Present("same"),
                             Actual = Optional<string>.Present("same"),
                         }
-                    )
-                ),
+                    ), new StateSourceOptions<CompareSettings.Fragment>()),
             ]),
             readValidationMode: ReadValidationMode.StrictThrow
         );
@@ -523,16 +469,13 @@ public sealed class ReadValidationTests
     {
         var options = new ConfiglueRuntime<CompareSettings, CompareSettings.Fragment>(
             new StateSourceSet<CompareSettings.Fragment>([
-                new StateSource<CompareSettings.Fragment>(
-                    "layer",
-                    new InMemoryStateSource<CompareSettings.Fragment>(
+                new StateSource<CompareSettings.Fragment>("layer", new InMemoryStateSource<CompareSettings.Fragment>(
                         new CompareSettings.Fragment
                         {
                             Expected = Optional<string>.Present("same"),
                             Actual = Optional<string>.Present("different"),
                         }
-                    )
-                ),
+                    ), new StateSourceOptions<CompareSettings.Fragment>()),
             ]),
             readValidationMode: ReadValidationMode.IgnoreValue
         );
@@ -549,9 +492,7 @@ public sealed class ReadValidationTests
     {
         var options = new ConfiglueRuntime<CompareRootSettings, CompareRootSettings.Fragment>(
             new StateSourceSet<CompareRootSettings.Fragment>([
-                new StateSource<CompareRootSettings.Fragment>(
-                    "layer",
-                    new InMemoryStateSource<CompareRootSettings.Fragment>(
+                new StateSource<CompareRootSettings.Fragment>("layer", new InMemoryStateSource<CompareRootSettings.Fragment>(
                         new CompareRootSettings.Fragment
                         {
                             Nested = Optional<CompareNestedSettings.Fragment?>.Present(
@@ -562,8 +503,7 @@ public sealed class ReadValidationTests
                                 }
                             ),
                         }
-                    )
-                ),
+                    ), new StateSourceOptions<CompareRootSettings.Fragment>()),
             ])
         );
 
@@ -578,9 +518,7 @@ public sealed class ReadValidationTests
     {
         var options = new ConfiglueRuntime<CompareRootSettings, CompareRootSettings.Fragment>(
             new StateSourceSet<CompareRootSettings.Fragment>([
-                new StateSource<CompareRootSettings.Fragment>(
-                    "layer",
-                    new InMemoryStateSource<CompareRootSettings.Fragment>(
+                new StateSource<CompareRootSettings.Fragment>("layer", new InMemoryStateSource<CompareRootSettings.Fragment>(
                         new CompareRootSettings.Fragment
                         {
                             Nested = Optional<CompareNestedSettings.Fragment?>.Present(
@@ -591,8 +529,7 @@ public sealed class ReadValidationTests
                                 }
                             ),
                         }
-                    )
-                ),
+                    ), new StateSourceOptions<CompareRootSettings.Fragment>()),
             ])
         );
 
@@ -608,9 +545,7 @@ public sealed class ReadValidationTests
     {
         var options = new ConfiglueRuntime<CompareRootSettings, CompareRootSettings.Fragment>(
             new StateSourceSet<CompareRootSettings.Fragment>([
-                new StateSource<CompareRootSettings.Fragment>(
-                    "layer",
-                    new InMemoryStateSource<CompareRootSettings.Fragment>(
+                new StateSource<CompareRootSettings.Fragment>("layer", new InMemoryStateSource<CompareRootSettings.Fragment>(
                         new CompareRootSettings.Fragment
                         {
                             Nested = Optional<CompareNestedSettings.Fragment?>.Present(
@@ -621,8 +556,7 @@ public sealed class ReadValidationTests
                                 }
                             ),
                         }
-                    )
-                ),
+                    ), new StateSourceOptions<CompareRootSettings.Fragment>()),
             ]),
             readValidationMode: ReadValidationMode.StrictThrow
         );
@@ -639,9 +573,7 @@ public sealed class ReadValidationTests
     {
         var options = new ConfiglueRuntime<CompareRootSettings, CompareRootSettings.Fragment>(
             new StateSourceSet<CompareRootSettings.Fragment>([
-                new StateSource<CompareRootSettings.Fragment>(
-                    "layer",
-                    new InMemoryStateSource<CompareRootSettings.Fragment>(
+                new StateSource<CompareRootSettings.Fragment>("layer", new InMemoryStateSource<CompareRootSettings.Fragment>(
                         new CompareRootSettings.Fragment
                         {
                             Nested = Optional<CompareNestedSettings.Fragment?>.Present(
@@ -652,8 +584,7 @@ public sealed class ReadValidationTests
                                 }
                             ),
                         }
-                    )
-                ),
+                    ), new StateSourceOptions<CompareRootSettings.Fragment>()),
             ]),
             readValidationMode: ReadValidationMode.IgnoreValue
         );
@@ -674,16 +605,13 @@ public sealed class ReadValidationTests
             ContextCaptureSettings.Fragment
         >(
             new StateSourceSet<ContextCaptureSettings.Fragment>([
-                new StateSource<ContextCaptureSettings.Fragment>(
-                    "layer",
-                    new InMemoryStateSource<ContextCaptureSettings.Fragment>(
+                new StateSource<ContextCaptureSettings.Fragment>("layer", new InMemoryStateSource<ContextCaptureSettings.Fragment>(
                         new ContextCaptureSettings.Fragment
                         {
                             Expected = Optional<string>.Present("same"),
                             Actual = Optional<string>.Present("same"),
                         }
-                    )
-                ),
+                    ), new StateSourceOptions<ContextCaptureSettings.Fragment>()),
             ])
         );
 
@@ -707,16 +635,13 @@ public sealed class ReadValidationTests
         {
             var options = new ConfiglueRuntime<CompareSettings, CompareSettings.Fragment>(
                 new StateSourceSet<CompareSettings.Fragment>([
-                    new StateSource<CompareSettings.Fragment>(
-                        "layer",
-                        new InMemoryStateSource<CompareSettings.Fragment>(
+                    new StateSource<CompareSettings.Fragment>("layer", new InMemoryStateSource<CompareSettings.Fragment>(
                             new CompareSettings.Fragment
                             {
                                 Expected = Optional<string>.Present("same"),
                                 Actual = Optional<string>.Present("different"),
                             }
-                        )
-                    ),
+                        ), new StateSourceOptions<CompareSettings.Fragment>()),
                 ]),
                 validateDataAnnotations: false,
                 readValidationMode: mode

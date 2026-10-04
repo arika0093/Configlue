@@ -72,23 +72,13 @@ public sealed class ConfiglueFacadeTests
                 model.Sources(sources =>
                 {
                     sources.Add(
-                        new StateSource<AppSettings.Fragment>(
-                            "user-overlay",
-                            overlay,
-                            priority: 100,
-                            writer: overlay
-                        )
+                        new StateSource<AppSettings.Fragment>("user-overlay", overlay, new StateSourceOptions<AppSettings.Fragment> { Priority = 100, Writer = overlay })
                     );
                     sources.Add(
-                        new StateSource<AppSettings.Fragment>("defaults", defaults, priority: 0)
+                        new StateSource<AppSettings.Fragment>("defaults", defaults, new StateSourceOptions<AppSettings.Fragment> { Priority = 0 })
                     );
                     sources.Add(
-                        new StateSource<AppSettings.Fragment>(
-                            "session-overlay",
-                            sessionOverlay,
-                            priority: 200,
-                            writer: sessionOverlay
-                        )
+                        new StateSource<AppSettings.Fragment>("session-overlay", sessionOverlay, new StateSourceOptions<AppSettings.Fragment> { Priority = 200, Writer = sessionOverlay })
                     );
                 });
             });
@@ -259,12 +249,7 @@ public sealed class ConfiglueFacadeTests
                 ActiveProfileName = "default",
             }
         );
-        var catalog = new StateSource<ConfiglueProfileCatalog>(
-            "catalog",
-            catalogStore,
-            writer: catalogStore,
-            watcher: catalogStore
-        );
+        var catalog = new StateSource<ConfiglueProfileCatalog>("catalog", catalogStore, new StateSourceOptions<ConfiglueProfileCatalog> { Writer = catalogStore, Watcher = catalogStore });
         await using var context = ConfiglueApp.CreateContext(builder =>
         {
             builder.Add<AppSettings>(model =>
@@ -296,12 +281,7 @@ public sealed class ConfiglueFacadeTests
     public async Task FacadeProfilesCreateSwitchAndRemoveNamedOptionsInContext()
     {
         var catalogStore = new InMemoryStateSource<ConfiglueProfileCatalog>();
-        var catalog = new StateSource<ConfiglueProfileCatalog>(
-            "catalog",
-            catalogStore,
-            writer: catalogStore,
-            watcher: catalogStore
-        );
+        var catalog = new StateSource<ConfiglueProfileCatalog>("catalog", catalogStore, new StateSourceOptions<ConfiglueProfileCatalog> { Writer = catalogStore, Watcher = catalogStore });
         await using var context = ConfiglueApp.CreateContext(builder =>
         {
             builder.Add<AppSettings>(model =>
@@ -346,12 +326,7 @@ public sealed class ConfiglueFacadeTests
     public async Task FacadeProfileRegistryEventsCanReenterManagerAfterCatalogChanges()
     {
         var catalogStore = new InMemoryStateSource<ConfiglueProfileCatalog>();
-        var catalog = new StateSource<ConfiglueProfileCatalog>(
-            "catalog",
-            catalogStore,
-            writer: catalogStore,
-            watcher: catalogStore
-        );
+        var catalog = new StateSource<ConfiglueProfileCatalog>("catalog", catalogStore, new StateSourceOptions<ConfiglueProfileCatalog> { Writer = catalogStore, Watcher = catalogStore });
         await using var context = ConfiglueApp.CreateContext(builder =>
         {
             builder.Add<AppSettings>(model =>
@@ -468,12 +443,7 @@ public sealed class ConfiglueFacadeTests
     public async Task FacadeProfilesAreVisibleThroughTheDiMonitorUntilRemoval()
     {
         var catalogStore = new InMemoryStateSource<ConfiglueProfileCatalog>();
-        var catalog = new StateSource<ConfiglueProfileCatalog>(
-            "catalog",
-            catalogStore,
-            writer: catalogStore,
-            watcher: catalogStore
-        );
+        var catalog = new StateSource<ConfiglueProfileCatalog>("catalog", catalogStore, new StateSourceOptions<ConfiglueProfileCatalog> { Writer = catalogStore, Watcher = catalogStore });
         var services = new ServiceCollection();
         services.AddConfiglueMicrosoftOptions<AppSettings>();
         services.AddConfiglue(builder =>
@@ -513,12 +483,7 @@ public sealed class ConfiglueFacadeTests
             name =>
             {
                 var store = new InMemoryStateSource<AppSettings.Fragment>();
-                var source = new StateSource<AppSettings.Fragment>(
-                    $"facade-{name}",
-                    store,
-                    writer: store,
-                    watcher: store
-                );
+                var source = new StateSource<AppSettings.Fragment>($"facade-{name}", store, new StateSourceOptions<AppSettings.Fragment> { Writer = store, Watcher = store });
                 var runtime = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
                     new StateSourceSet<AppSettings.Fragment>([source])
                 );
@@ -738,7 +703,7 @@ public sealed class ConfiglueFacadeTests
             {
                 var store = new InMemoryStateSource<AppSettings.Fragment>();
                 return new StateSourceSet<AppSettings.Fragment>([
-                    new(name, store, writer: store, watcher: store),
+                    new StateSource<AppSettings.Fragment>(name, store, new StateSourceOptions<AppSettings.Fragment> { Writer = store, Watcher = store }),
                 ]);
             }
         );
@@ -833,12 +798,7 @@ public sealed class ConfiglueFacadeTests
             name =>
             {
                 var store = new InMemoryStateSource<AppSettings.Fragment>();
-                var source = new StateSource<AppSettings.Fragment>(
-                    $"facade-{name}",
-                    store,
-                    writer: store,
-                    watcher: store
-                );
+                var source = new StateSource<AppSettings.Fragment>($"facade-{name}", store, new StateSourceOptions<AppSettings.Fragment> { Writer = store, Watcher = store });
                 var runtime = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
                     new StateSourceSet<AppSettings.Fragment>([source])
                 );
@@ -873,7 +833,7 @@ public sealed class ConfiglueFacadeTests
         var store = new InMemoryStateSource<AppSettings.Fragment>(
             new AppSettings.Fragment { Label = Optional<string?>.Present(label) }
         );
-        return new StateSource<AppSettings.Fragment>(id, store, writer: store, watcher: store);
+        return new StateSource<AppSettings.Fragment>(id, store, new StateSourceOptions<AppSettings.Fragment> { Writer = store, Watcher = store });
     }
 
     private sealed record SettingsSourceValue

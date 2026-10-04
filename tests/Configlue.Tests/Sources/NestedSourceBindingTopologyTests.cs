@@ -14,18 +14,8 @@ public sealed partial class NestedSourceBindingTests
         var ordinaryStore = new InMemoryStateSource<DatabaseSettings.Fragment>(
             new DatabaseSettings.Fragment { Host = Optional<string>.Present("ordinary.db") }
         );
-        var explicitSource = new StateSource<DatabaseSettings.Fragment>(
-            "explicit-database",
-            explicitStore,
-            writer: explicitStore,
-            explicitOnly: true
-        );
-        var ordinarySource = new StateSource<DatabaseSettings.Fragment>(
-            "ordinary-database",
-            ordinaryStore,
-            priority: 100,
-            writer: ordinaryStore
-        );
+        var explicitSource = new StateSource<DatabaseSettings.Fragment>("explicit-database", explicitStore, new StateSourceOptions<DatabaseSettings.Fragment> { Writer = explicitStore, ExplicitOnly = true });
+        var ordinarySource = new StateSource<DatabaseSettings.Fragment>("ordinary-database", ordinaryStore, new StateSourceOptions<DatabaseSettings.Fragment> { Priority = 100, Writer = ordinaryStore });
 
         await using var context = ConfiglueApp.CreateContext(builder =>
         {
@@ -79,11 +69,7 @@ public sealed partial class NestedSourceBindingTests
                             DatabaseSettings,
                             DatabaseSettings.Fragment
                         >(
-                            new StateSource<DatabaseSettings.Fragment>(
-                                "first-database",
-                                firstStore,
-                                writer: firstStore
-                            ),
+                            new StateSource<DatabaseSettings.Fragment>("first-database", firstStore, new StateSourceOptions<DatabaseSettings.Fragment> { Writer = firstStore }),
                             settings => settings.Database
                         );
                         sources.AddMounted<
@@ -92,11 +78,7 @@ public sealed partial class NestedSourceBindingTests
                             DatabaseSettings,
                             DatabaseSettings.Fragment
                         >(
-                            new StateSource<DatabaseSettings.Fragment>(
-                                "second-database",
-                                secondStore,
-                                writer: secondStore
-                            ),
+                            new StateSource<DatabaseSettings.Fragment>("second-database", secondStore, new StateSourceOptions<DatabaseSettings.Fragment> { Writer = secondStore }),
                             settings => settings.Database
                         );
                     })
@@ -116,12 +98,7 @@ public sealed partial class NestedSourceBindingTests
                 Port = Optional<int>.Present(7443),
             }
         );
-        var source = new StateSource<RemoteDatabaseContract.Fragment>(
-            "remote-contract",
-            sourceStore,
-            priority: 100,
-            writer: sourceStore
-        );
+        var source = new StateSource<RemoteDatabaseContract.Fragment>("remote-contract", sourceStore, new StateSourceOptions<RemoteDatabaseContract.Fragment> { Priority = 100, Writer = sourceStore });
         var projected = StateSourceProjection.ProjectWithUpdate<
             RemoteDatabaseContract.Fragment,
             DatabaseSettings.Fragment
@@ -200,17 +177,27 @@ public sealed partial class NestedSourceBindingTests
     {
         var resource = new InMemoryResource();
         var codec = new JsonStateCodec<NestedSettings.Fragment>();
-        var leftRawSource = SerializedStateSource.FromResource<NestedSettings.Fragment>(
+        IResourceReader leftSection = new JsonSectionResource(resource, "App:Left");
+        var leftRawSource = new StateSource<NestedSettings.Fragment>(
             "left-settings",
-            new JsonSectionResource(resource, "App:Left"),
-            codec,
-            priority: 10
+            new SerializedSource<NestedSettings.Fragment>(
+                leftSection,
+                codec,
+                writer: leftSection as IResourceWriter,
+                watcher: leftSection as ISourceWatcher
+            ),
+            new StateSourceOptions<NestedSettings.Fragment> { Priority = 10 }
         );
-        var rightRawSource = SerializedStateSource.FromResource<NestedSettings.Fragment>(
+        IResourceReader rightSection = new JsonSectionResource(resource, "App:Right");
+        var rightRawSource = new StateSource<NestedSettings.Fragment>(
             "right-settings",
-            new JsonSectionResource(resource, "App:Right"),
-            codec,
-            priority: 10
+            new SerializedSource<NestedSettings.Fragment>(
+                rightSection,
+                codec,
+                writer: rightSection as IResourceWriter,
+                watcher: rightSection as ISourceWatcher
+            ),
+            new StateSourceOptions<NestedSettings.Fragment> { Priority = 10 }
         );
         var leftSource = StateSourceProjection.ProjectWithUpdate(
             leftRawSource,
@@ -278,11 +265,7 @@ public sealed partial class NestedSourceBindingTests
                 sourceSchemaV1
             )
         );
-        var source = new StateSource<RemoteDatabaseContract.Fragment>(
-            "legacy-database",
-            legacyReader,
-            physicalOrigin: "legacy://database"
-        );
+        var source = new StateSource<RemoteDatabaseContract.Fragment>("legacy-database", legacyReader, new StateSourceOptions<RemoteDatabaseContract.Fragment> { PhysicalOrigin = "legacy://database" });
         var migrated = StateSourceProjection.Project<
             RemoteDatabaseContract.Fragment,
             DatabaseSettings.Fragment
@@ -338,11 +321,7 @@ public sealed partial class NestedSourceBindingTests
         var remoteStore = new InMemoryStateSource<InnerSettingsV2.Fragment>(
             new InnerSettingsV2.Fragment { Count = Optional<int>.Present(9) }
         );
-        var remote = new StateSource<InnerSettingsV2.Fragment>(
-            "remote-inner",
-            remoteStore,
-            priority: 100
-        );
+        var remote = new StateSource<InnerSettingsV2.Fragment>("remote-inner", remoteStore, new StateSourceOptions<InnerSettingsV2.Fragment> { Priority = 100 });
 
         await using var context = ConfiglueApp.CreateContext(builder =>
         {
@@ -350,7 +329,7 @@ public sealed partial class NestedSourceBindingTests
                 model.Sources(sources =>
                 {
                     sources.Add(
-                        new StateSource<RootWithNestedSettings.Fragment>("defaults", baseStore)
+                        new StateSource<RootWithNestedSettings.Fragment>("defaults", baseStore, new StateSourceOptions<RootWithNestedSettings.Fragment>())
                     );
                     sources.AddMounted<
                         RootWithNestedSettings,
@@ -378,24 +357,12 @@ public sealed partial class NestedSourceBindingTests
     public async Task DistinctMountedSourcesCanShareOnePhysicalResourceIdentity()
     {
         var resourceId = new ResourceId("file:settings.json");
-        var settingsSource = new StateSource<NestedSettings.Fragment>(
-            "settings-section",
-            new InMemoryStateSource<NestedSettings.Fragment>(
+        var settingsSource = new StateSource<NestedSettings.Fragment>("settings-section", new InMemoryStateSource<NestedSettings.Fragment>(
                 new NestedSettings.Fragment { Label = Optional<string?>.Present("section-label") }
-            ),
-            priority: 100,
-            physicalOrigin: "settings.json#Settings",
-            fixedResourceId: resourceId
-        );
-        var innerSource = new StateSource<InnerSettingsV2.Fragment>(
-            "inner-section",
-            new InMemoryStateSource<InnerSettingsV2.Fragment>(
+            ), new StateSourceOptions<NestedSettings.Fragment> { Priority = 100, PhysicalOrigin = "settings.json#Settings", FixedResourceId = resourceId });
+        var innerSource = new StateSource<InnerSettingsV2.Fragment>("inner-section", new InMemoryStateSource<InnerSettingsV2.Fragment>(
                 new InnerSettingsV2.Fragment { Count = Optional<int>.Present(11) }
-            ),
-            priority: 200,
-            physicalOrigin: "settings.json#Settings:Inner",
-            fixedResourceId: resourceId
-        );
+            ), new StateSourceOptions<InnerSettingsV2.Fragment> { Priority = 200, PhysicalOrigin = "settings.json#Settings:Inner", FixedResourceId = resourceId });
 
         await using var context = ConfiglueApp.CreateContext(builder =>
         {
@@ -442,7 +409,7 @@ public sealed partial class NestedSourceBindingTests
     public void MountRejectsUnknownAndMismatchedNestedPaths()
     {
         var sourceStore = new InMemoryStateSource<DatabaseSettings.Fragment>();
-        var source = new StateSource<DatabaseSettings.Fragment>("database", sourceStore);
+        var source = new StateSource<DatabaseSettings.Fragment>("database", sourceStore, new StateSourceOptions<DatabaseSettings.Fragment>());
 
         Should.Throw<ArgumentException>(() =>
             StateSourceProjection.Mount<DatabaseSettings.Fragment, AppSettings.Fragment>(
@@ -464,7 +431,7 @@ public sealed partial class NestedSourceBindingTests
         );
 
         var otherSourceStore = new InMemoryStateSource<InnerSettingsV2.Fragment>();
-        var otherSource = new StateSource<InnerSettingsV2.Fragment>("inner", otherSourceStore);
+        var otherSource = new StateSource<InnerSettingsV2.Fragment>("inner", otherSourceStore, new StateSourceOptions<InnerSettingsV2.Fragment>());
         Should.Throw<ArgumentException>(() =>
             StateSourceProjection.Mount<InnerSettingsV2.Fragment, AppSettings.Fragment>(
                 otherSource,

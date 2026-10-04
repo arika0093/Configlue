@@ -13,7 +13,7 @@ public sealed class ContextualResourceContractTests
     {
         var resource = new ContextualMemoryResource(perSubjectIdentity: true);
         var codec = new JsonStateCodec<AppSettings.Fragment>();
-        var source = SerializedStateSource.FromResource<AppSettings.Fragment>("contextual", resource, codec);
+        var source = new StateSource<AppSettings.Fragment>("contextual", new SerializedSource<AppSettings.Fragment>(resource, codec, writer: (IResourceReader)resource as IResourceWriter, watcher: (IResourceReader)resource as ISourceWatcher), new StateSourceOptions<AppSettings.Fragment>());
         var first = new SettingsSubject("a", "one");
         var second = new SettingsSubject("b", "two");
         source.GetResourceId(first).ShouldBe(resource.GetResourceId(Context(first)));
@@ -34,7 +34,7 @@ public sealed class ContextualResourceContractTests
         await plan.BatchWriter.WriteBatchAsync([plan.Mutation]);
         (await source.ReadAsync(first)).Value!.Label.Value.ShouldBe("batch");
         var fixedId = new ResourceId("fixed:override");
-        var fixedSource = SerializedStateSource.FromResource<AppSettings.Fragment>("fixed", resource, codec, fixedResourceId: fixedId);
+        var fixedSource = new StateSource<AppSettings.Fragment>("fixed", new SerializedSource<AppSettings.Fragment>(resource, codec, writer: (IResourceReader)resource as IResourceWriter, watcher: (IResourceReader)resource as ISourceWatcher), new StateSourceOptions<AppSettings.Fragment> { FixedResourceId = fixedId });
         fixedSource.GetResourceId(first).ShouldBe(fixedId);
         fixedSource.GetResourceId(second).ShouldBe(fixedId);
         StateSourceProjection.Project(fixedSource, static fragment => fragment).GetResourceId(first).ShouldBe(fixedId);
@@ -52,12 +52,7 @@ public sealed class ContextualResourceContractTests
 
         var reader = new SerializedStateReader<AppSettings.Fragment>(resource, codec);
         var writer = new SerializedStateWriter<AppSettings.Fragment>(resource, codec);
-        var source = new StateSource<AppSettings.Fragment>(
-            "subject-settings",
-            reader,
-            writer: writer,
-            modelId: "subject-settings-model"
-        );
+        var source = new StateSource<AppSettings.Fragment>("subject-settings", reader, new StateSourceOptions<AppSettings.Fragment> { Writer = writer, ModelId = "subject-settings-model" });
 
         source.GetResourceContext(subjectA).ModelId.ShouldBe("subject-settings-model");
         var initial = await source.ReadAsync(subjectA);

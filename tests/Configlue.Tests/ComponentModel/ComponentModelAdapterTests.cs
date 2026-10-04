@@ -748,7 +748,7 @@ public sealed class ComponentModelAdapterTests
         var services = new ServiceCollection();
         services.AddConfiglueState<AppSettings, AppSettings.Fragment>(
             new StateSourceSet<AppSettings.Fragment>([
-                new("settings", store, writer: store, watcher: store),
+                new StateSource<AppSettings.Fragment>("settings", store, new StateSourceOptions<AppSettings.Fragment> { Writer = store, Watcher = store }),
             ]),
             onChangeDebounce: TimeSpan.Zero
         );

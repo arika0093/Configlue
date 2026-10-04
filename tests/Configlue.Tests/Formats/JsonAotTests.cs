@@ -181,11 +181,7 @@ public sealed class JsonAotTests
     public async Task JsonAot_UsesGeneratedMetadataForProjectedModelState()
     {
         var resource = new InMemoryResource();
-        var source = SerializedStateSource.FromResource<JsonAotSettings>(
-            "json",
-            resource,
-            new JsonStateCodec<JsonAotSettings>(JsonAotSettingsJsonContext.Default.JsonAotSettings)
-        );
+        var source = new StateSource<JsonAotSettings>("json", new SerializedSource<JsonAotSettings>(resource, new JsonStateCodec<JsonAotSettings>(JsonAotSettingsJsonContext.Default.JsonAotSettings), writer: (IResourceReader)resource as IResourceWriter, watcher: (IResourceReader)resource as ISourceWatcher), new StateSourceOptions<JsonAotSettings>());
         var projected = StateSourceProjection.Project(
             source,
             static settings => JsonAotSettings.Fragment.From(settings),

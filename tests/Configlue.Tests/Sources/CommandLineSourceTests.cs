@@ -517,7 +517,7 @@ public sealed class CommandLineSourceTests
                         }
                     );
                     sources.Add(
-                        new StateSource<AppSettings.Fragment>("base", baseStore, writer: baseStore)
+                        new StateSource<AppSettings.Fragment>("base", baseStore, new StateSourceOptions<AppSettings.Fragment> { Writer = baseStore })
                     );
                     sources.FromCommandLine(
                         new CommandLineSourceOptions

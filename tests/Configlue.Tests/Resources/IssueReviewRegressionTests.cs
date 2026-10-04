@@ -9,12 +9,7 @@ public sealed class IssueReviewRegressionTests
     public async Task DefaultContextsPassThroughSourceResolverWriterWatcherCompositeAndFallback()
     {
         var backend = new ReviewSource();
-        var source = new StateSource<ExplicitReviewSettings.Fragment>(
-            SourceId.From("review"),
-            backend,
-            writer: backend,
-            watcher: backend
-        );
+        var source = new StateSource<ExplicitReviewSettings.Fragment>(SourceId.From("review"), backend, new StateSourceOptions<ExplicitReviewSettings.Fragment> { Writer = backend, Watcher = backend });
         var set = new StateSourceSet<ExplicitReviewSettings.Fragment>(new[] { source });
         var resolver = new StateSourceResolver<ExplicitReviewSettings.Fragment>(set);
         var writer = new StateSourceWriter<ExplicitReviewSettings.Fragment>(set);

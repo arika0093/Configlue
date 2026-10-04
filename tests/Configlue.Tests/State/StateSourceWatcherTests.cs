@@ -130,13 +130,7 @@ public sealed class StateSourceWatcherTests
         ISourceWatcher watcher,
         StateFallbackCondition fallbackCondition = StateFallbackCondition.None
     ) =>
-        new(
-            id,
-            reader,
-            priority: priority,
-            fallbackCondition: fallbackCondition,
-            watcher: watcher
-        );
+        new StateSource<AppSettings.Fragment>(id, reader, new StateSourceOptions<AppSettings.Fragment> { Priority = priority, FallbackCondition = fallbackCondition, Watcher = watcher });
 
     private sealed class FixedReader(StateReadStatus status) : ISourceReader<AppSettings.Fragment>
     {

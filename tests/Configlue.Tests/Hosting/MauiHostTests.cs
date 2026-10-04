@@ -11,11 +11,7 @@ public sealed class MauiHostTests
     public async Task SecureStorage_ComposesWithGeneratedFragment_AndJsonSourcePipeline()
     {
         var resource = new SecureStorageResource(new FakeStorage(), "secret");
-        var source = SerializedStateSource.FromResource<HostSettings.Fragment>(
-            "secure",
-            resource,
-            new JsonStateCodec<HostSettings.Fragment>()
-        );
+        var source = new StateSource<HostSettings.Fragment>("secure", new SerializedSource<HostSettings.Fragment>(resource, new JsonStateCodec<HostSettings.Fragment>(), writer: (IResourceReader)resource as IResourceWriter, watcher: (IResourceReader)resource as ISourceWatcher), new StateSourceOptions<HostSettings.Fragment>());
         var written = await source.WriteAsync(
             ConfiglueResourceContext.Default,
             new StateWriteRequest<HostSettings.Fragment>(

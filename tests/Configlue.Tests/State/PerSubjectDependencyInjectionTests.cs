@@ -37,22 +37,16 @@ public sealed class PerSubjectDependencyInjectionTests
                 model.WritePlan = StateWritePlan.DefaultTo(SourceId.From("users"));
                 model.Sources(sources =>
                     sources.Add(
-                        new StateSource<AppSettings.Fragment>(
-                            "users",
-                            users,
-                            writer: users,
-                            watcher: users,
-                            resourceKeySelector: subject =>
+                        new StateSource<AppSettings.Fragment>("users", users, new StateSourceOptions<AppSettings.Fragment> { Writer = users, Watcher = users, ResourceKeySelector = subject =>
                                 subject is SettingsSubject typed
                                     ? ResourceKey.From(typed.Key)
-                                    : ResourceKey.Default
-                        )
+                                    : ResourceKey.Default })
                     )
                 );
             });
             builder.Add<DatabaseSettings>(model =>
                 model.Sources(sources =>
-                    sources.Add(new StateSource<DatabaseSettings.Fragment>("server", server))
+                    sources.Add(new StateSource<DatabaseSettings.Fragment>("server", server, new StateSourceOptions<DatabaseSettings.Fragment>()))
                 )
             );
         });
@@ -143,15 +137,10 @@ public sealed class PerSubjectDependencyInjectionTests
                 model.OnChangeDebounce = TimeSpan.Zero;
                 model.Sources(sources =>
                     sources.Add(
-                        new StateSource<AppSettings.Fragment>(
-                            "users",
-                            users,
-                            watcher: users,
-                            resourceKeySelector: subject =>
+                        new StateSource<AppSettings.Fragment>("users", users, new StateSourceOptions<AppSettings.Fragment> { Watcher = users, ResourceKeySelector = subject =>
                                 subject is SettingsSubject typed
                                     ? ResourceKey.From(typed.Key)
-                                    : ResourceKey.Default
-                        )
+                                    : ResourceKey.Default })
                     )
                 );
             })
@@ -253,14 +242,10 @@ public sealed class PerSubjectDependencyInjectionTests
                 model.PerSubject<MutableSubjectAccessor>();
                 model.Sources(sources =>
                     sources.Add(
-                        new StateSource<AppSettings.Fragment>(
-                            "users",
-                            users,
-                            resourceKeySelector: current =>
+                        new StateSource<AppSettings.Fragment>("users", users, new StateSourceOptions<AppSettings.Fragment> { ResourceKeySelector = current =>
                                 current is SettingsSubject typed
                                     ? ResourceKey.From(typed.Key)
-                                    : ResourceKey.Default
-                        )
+                                    : ResourceKey.Default })
                     )
                 );
             })
@@ -315,15 +300,10 @@ public sealed class PerSubjectDependencyInjectionTests
                 model.WritePlan = StateWritePlan.DefaultTo(SourceId.From("users"));
                 model.Sources(sources =>
                     sources.Add(
-                        new StateSource<AppSettings.Fragment>(
-                            "users",
-                            users,
-                            writer: users,
-                            resourceKeySelector: current =>
+                        new StateSource<AppSettings.Fragment>("users", users, new StateSourceOptions<AppSettings.Fragment> { Writer = users, ResourceKeySelector = current =>
                                 current is SettingsSubject typed
                                     ? ResourceKey.From(typed.Key)
-                                    : ResourceKey.Default
-                        )
+                                    : ResourceKey.Default })
                     )
                 );
             })
@@ -438,15 +418,10 @@ public sealed class PerSubjectDependencyInjectionTests
                 model.WritePlan = StateWritePlan.DefaultTo(SourceId.From("users"));
                 model.Sources(sources =>
                     sources.Add(
-                        new StateSource<AppSettings.Fragment>(
-                            "users",
-                            users,
-                            writer: users,
-                            resourceKeySelector: current =>
+                        new StateSource<AppSettings.Fragment>("users", users, new StateSourceOptions<AppSettings.Fragment> { Writer = users, ResourceKeySelector = current =>
                                 current is SettingsSubject typed
                                     ? ResourceKey.From(typed.Key)
-                                    : ResourceKey.Default
-                        )
+                                    : ResourceKey.Default })
                     )
                 );
             })
@@ -493,15 +468,10 @@ public sealed class PerSubjectDependencyInjectionTests
                 model.WritePlan = StateWritePlan.DefaultTo(SourceId.From("users"));
                 model.Sources(sources =>
                     sources.Add(
-                        new StateSource<AppSettings.Fragment>(
-                            "users",
-                            users,
-                            writer: users,
-                            resourceKeySelector: current =>
+                        new StateSource<AppSettings.Fragment>("users", users, new StateSourceOptions<AppSettings.Fragment> { Writer = users, ResourceKeySelector = current =>
                                 current is SettingsSubject typed
                                     ? ResourceKey.From(typed.Key)
-                                    : ResourceKey.Default
-                        )
+                                    : ResourceKey.Default })
                     )
                 );
             })

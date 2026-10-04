@@ -80,24 +80,12 @@ public class ConfiglueSourceSetBuilder : IConfiglueSourceRegistrationSink
                 var source =
                     sourceFactory(provider)
                     ?? throw new InvalidOperationException("A source factory returned null.");
-                var keyedSource = new StateSource<TFragment>(
-                    sourceKey.Id,
+                return Sources.StateSourceReconfiguration.Reconfigure(
+                    source,
                     source.Reader,
-                    new StateSourceOptions<TFragment>
-                    {
-                        Priority = source.Priority,
-                        FallbackCondition = source.FallbackCondition,
-                        Writer = source.Writer,
-                        DisableWriteCapability = source.Writer is null,
-                        Watcher = source.Watcher,
-                        PhysicalOrigin = source.PhysicalOrigin,
-                        FixedResourceId = source.ConfiguredResourceId,
-                        ResourceKeySelector = source.GetResourceKey,
-                        RouteSelector = source.GetRouteKey,
-                    }
+                    source.Writer,
+                    id: sourceKey.Id
                 );
-                source.CopyRoutingMetadataTo(keyedSource);
-                return keyedSource;
             })
         );
     }

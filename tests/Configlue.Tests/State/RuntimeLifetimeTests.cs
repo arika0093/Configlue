@@ -28,8 +28,8 @@ public sealed partial class RuntimeLifetimeTests
             RuntimeLifetimeSettings.Fragment
         >(
             new StateSourceSet<RuntimeLifetimeSettings.Fragment>([
-                new("immediate", store, watcher: immediate),
-                new("delayed", store, watcher: delayed),
+                new StateSource<RuntimeLifetimeSettings.Fragment>("immediate", store, new StateSourceOptions<RuntimeLifetimeSettings.Fragment> { Watcher = immediate }),
+                new StateSource<RuntimeLifetimeSettings.Fragment>("delayed", store, new StateSourceOptions<RuntimeLifetimeSettings.Fragment> { Watcher = delayed }),
             ])
         );
         using var subscription = runtime.OnChange(_ => { });
@@ -62,7 +62,7 @@ public sealed partial class RuntimeLifetimeTests
             RuntimeLifetimeSettings.Fragment
         >(
             new StateSourceSet<RuntimeLifetimeSettings.Fragment>([
-                new("delayed", store, watcher: delayed),
+                new StateSource<RuntimeLifetimeSettings.Fragment>("delayed", store, new StateSourceOptions<RuntimeLifetimeSettings.Fragment> { Watcher = delayed }),
             ]),
             onChangeDebounce: TimeSpan.Zero
         );
@@ -102,7 +102,7 @@ public sealed partial class RuntimeLifetimeTests
             RuntimeLifetimeSettings.Fragment
         >(
             new StateSourceSet<RuntimeLifetimeSettings.Fragment>([
-                new("watcher", store, watcher: watcher),
+                new StateSource<RuntimeLifetimeSettings.Fragment>("watcher", store, new StateSourceOptions<RuntimeLifetimeSettings.Fragment> { Watcher = watcher }),
             ]),
             onChangeDebounce: TimeSpan.Zero
         );
@@ -168,7 +168,7 @@ public sealed partial class RuntimeLifetimeTests
             RuntimeLifetimeSettings.Fragment
         >(
             new StateSourceSet<RuntimeLifetimeSettings.Fragment>([
-                new("watcher", store, watcher: watcher),
+                new StateSource<RuntimeLifetimeSettings.Fragment>("watcher", store, new StateSourceOptions<RuntimeLifetimeSettings.Fragment> { Watcher = watcher }),
             ]),
             onChangeDebounce: TimeSpan.Zero
         );
@@ -264,12 +264,7 @@ public sealed partial class RuntimeLifetimeTests
             }
 
             context.Own(resource);
-            var source = new StateSource<TFragment>(
-                sourceId,
-                (ISourceReader<TFragment>)(object)store,
-                writer: (ISourceWriter<TFragment>)(object)store,
-                watcher: (ISourceWatcher)(object)store
-            );
+            var source = new StateSource<TFragment>(sourceId, (ISourceReader<TFragment>)(object)store, new StateSourceOptions<TFragment> { Writer = (ISourceWriter<TFragment>)(object)store, Watcher = (ISourceWatcher)(object)store });
             return context.Complete(source);
         }
     }
@@ -319,11 +314,7 @@ public sealed partial class RuntimeLifetimeTests
             builder.Add<RuntimeLifetimeSettings>(model =>
                 model.Sources(sources =>
                     sources.Add(
-                        new StateSource<RuntimeLifetimeSettings.Fragment>(
-                            "store",
-                            store,
-                            writer: store
-                        )
+                        new StateSource<RuntimeLifetimeSettings.Fragment>("store", store, new StateSourceOptions<RuntimeLifetimeSettings.Fragment> { Writer = store })
                     )
                 )
             )
@@ -460,11 +451,7 @@ public sealed partial class RuntimeLifetimeTests
                 model.UseScopedRuntime();
                 model.Sources(sources =>
                     sources.Add(
-                        new StateSource<AppSettings.Fragment>(
-                            "first-store",
-                            firstStore,
-                            writer: firstStore
-                        )
+                        new StateSource<AppSettings.Fragment>("first-store", firstStore, new StateSourceOptions<AppSettings.Fragment> { Writer = firstStore })
                     )
                 );
             });
@@ -474,11 +461,7 @@ public sealed partial class RuntimeLifetimeTests
                 model.UseScopedRuntime();
                 model.Sources(sources =>
                     sources.Add(
-                        new StateSource<AppSettings.Fragment>(
-                            "second-store",
-                            secondStore,
-                            writer: secondStore
-                        )
+                        new StateSource<AppSettings.Fragment>("second-store", secondStore, new StateSourceOptions<AppSettings.Fragment> { Writer = secondStore })
                     )
                 );
             });
@@ -597,11 +580,7 @@ public sealed partial class RuntimeLifetimeTests
                 model.UseScopedRuntime();
                 model.Sources(sources =>
                     sources.Add(
-                        new StateSource<AppSettings.Fragment>(
-                            "default-store",
-                            defaultStore,
-                            writer: defaultStore
-                        )
+                        new StateSource<AppSettings.Fragment>("default-store", defaultStore, new StateSourceOptions<AppSettings.Fragment> { Writer = defaultStore })
                     )
                 );
             });
@@ -611,11 +590,7 @@ public sealed partial class RuntimeLifetimeTests
                 model.UseScopedRuntime();
                 model.Sources(sources =>
                     sources.Add(
-                        new StateSource<AppSettings.Fragment>(
-                            "named-store",
-                            namedStore,
-                            writer: namedStore
-                        )
+                        new StateSource<AppSettings.Fragment>("named-store", namedStore, new StateSourceOptions<AppSettings.Fragment> { Writer = namedStore })
                     )
                 );
             });
@@ -676,12 +651,7 @@ public sealed partial class RuntimeLifetimeTests
                 model.UseScopedRuntime();
                 model.Sources(sources =>
                     sources.Add(
-                        new StateSource<AppSettings.Fragment>(
-                            "first-users",
-                            firstUsers,
-                            writer: firstUsers,
-                            watcher: firstUsers
-                        )
+                        new StateSource<AppSettings.Fragment>("first-users", firstUsers, new StateSourceOptions<AppSettings.Fragment> { Writer = firstUsers, Watcher = firstUsers })
                     )
                 );
             });
@@ -692,12 +662,7 @@ public sealed partial class RuntimeLifetimeTests
                 model.UseScopedRuntime();
                 model.Sources(sources =>
                     sources.Add(
-                        new StateSource<AppSettings.Fragment>(
-                            "second-users",
-                            secondUsers,
-                            writer: secondUsers,
-                            watcher: secondUsers
-                        )
+                        new StateSource<AppSettings.Fragment>("second-users", secondUsers, new StateSourceOptions<AppSettings.Fragment> { Writer = secondUsers, Watcher = secondUsers })
                     )
                 );
             });

@@ -668,12 +668,7 @@ public sealed class GeneratedFragmentTests
             new JsonStateCodec<HistoricalSettingsV1.Fragment>(),
             oldCodec
         );
-        var source = SerializedStateSource.FromResource<HistoricalSettings.Fragment>(
-            "legacy-v2",
-            resource,
-            new JsonStateCodec<HistoricalSettings.Fragment>(),
-            schemaDispatcher: dispatcher
-        );
+        var source = new StateSource<HistoricalSettings.Fragment>("legacy-v2", new SerializedSource<HistoricalSettings.Fragment>(resource, new JsonStateCodec<HistoricalSettings.Fragment>(), schemaDispatcher: dispatcher, writer: (IResourceReader)resource as IResourceWriter, watcher: (IResourceReader)resource as ISourceWatcher), new StateSourceOptions<HistoricalSettings.Fragment>());
 
         var result = await source.Reader.ReadAsync();
 
@@ -716,12 +711,7 @@ public sealed class GeneratedFragmentTests
             new JsonStateCodec<HistoricalSettingsV1.Fragment>(),
             new JsonStateCodec<HistoricalSettingsV2.Fragment>()
         );
-        var source = SerializedStateSource.FromResource<HistoricalSettings.Fragment>(
-            "legacy",
-            resource,
-            new JsonStateCodec<HistoricalSettings.Fragment>(),
-            schemaDispatcher: dispatcher
-        );
+        var source = new StateSource<HistoricalSettings.Fragment>("legacy", new SerializedSource<HistoricalSettings.Fragment>(resource, new JsonStateCodec<HistoricalSettings.Fragment>(), schemaDispatcher: dispatcher, writer: (IResourceReader)resource as IResourceWriter, watcher: (IResourceReader)resource as ISourceWatcher), new StateSourceOptions<HistoricalSettings.Fragment>());
 
         await Should.ThrowAsync<InvalidOperationException>(async () =>
             await source.Reader.ReadAsync()
@@ -1059,12 +1049,7 @@ public sealed class GeneratedFragmentTests
                 return builder.Build();
             }
         );
-        var source = SerializedStateSource.FromResource<HistoricalSettings.Fragment>(
-            "legacy",
-            resource,
-            currentCodec,
-            schemaDispatcher: dispatcher
-        );
+        var source = new StateSource<HistoricalSettings.Fragment>("legacy", new SerializedSource<HistoricalSettings.Fragment>(resource, currentCodec, schemaDispatcher: dispatcher, writer: (IResourceReader)resource as IResourceWriter, watcher: (IResourceReader)resource as ISourceWatcher), new StateSourceOptions<HistoricalSettings.Fragment>());
 
         var fragmentResult = await source.Reader.ReadAsync();
         (fragmentResult.Status).ShouldBe(StateReadStatus.Success);

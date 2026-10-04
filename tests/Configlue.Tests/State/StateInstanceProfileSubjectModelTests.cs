@@ -114,12 +114,7 @@ public sealed class StateInstanceProfileSubjectModelTests
     public async Task ProfilesAreNamedStateIdentitiesSurvivingUnloadAndRematerialization()
     {
         var catalogStore = new InMemoryStateSource<ConfiglueProfileCatalog>();
-        var catalog = new StateSource<ConfiglueProfileCatalog>(
-            "catalog",
-            catalogStore,
-            writer: catalogStore,
-            watcher: catalogStore
-        );
+        var catalog = new StateSource<ConfiglueProfileCatalog>("catalog", catalogStore, new StateSourceOptions<ConfiglueProfileCatalog> { Writer = catalogStore, Watcher = catalogStore });
         // One backing store per state name simulates persisted per-profile data.
         var backingStores = new Dictionary<string, InMemoryStateSource<AppSettings.Fragment>>(
             StringComparer.Ordinal
@@ -134,12 +129,7 @@ public sealed class StateInstanceProfileSubjectModelTests
                 backingStores[stateName] = store;
             }
 
-            return new StateSource<AppSettings.Fragment>(
-                "profile-source-" + stateName,
-                store,
-                writer: store,
-                watcher: store
-            );
+            return new StateSource<AppSettings.Fragment>("profile-source-" + stateName, store, new StateSourceOptions<AppSettings.Fragment> { Writer = store, Watcher = store });
         }
 
         await using var context = ConfiglueApp.CreateContext(builder =>
@@ -179,12 +169,7 @@ public sealed class StateInstanceProfileSubjectModelTests
     public async Task ProfilePlusSubjectCompositionIsDeterministic()
     {
         var catalogStore = new InMemoryStateSource<ConfiglueProfileCatalog>();
-        var catalog = new StateSource<ConfiglueProfileCatalog>(
-            "catalog",
-            catalogStore,
-            writer: catalogStore,
-            watcher: catalogStore
-        );
+        var catalog = new StateSource<ConfiglueProfileCatalog>("catalog", catalogStore, new StateSourceOptions<ConfiglueProfileCatalog> { Writer = catalogStore, Watcher = catalogStore });
         var store = new SubjectKeyedStore();
         await using var context = ConfiglueApp.CreateContext(builder =>
         {
@@ -297,7 +282,7 @@ public sealed class StateInstanceProfileSubjectModelTests
     private static StateSource<AppSettings.Fragment> CreateSource(string id, string label)
     {
         var store = new InMemoryStateSource<AppSettings.Fragment>(Fragment(label));
-        return new StateSource<AppSettings.Fragment>(id, store, writer: store, watcher: store);
+        return new StateSource<AppSettings.Fragment>(id, store, new StateSourceOptions<AppSettings.Fragment> { Writer = store, Watcher = store });
     }
 
     private static AppSettings.Fragment Fragment(string? label) =>

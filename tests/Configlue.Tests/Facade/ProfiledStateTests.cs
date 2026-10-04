@@ -343,11 +343,7 @@ public sealed class ProfiledStateTests
         var committedRegistry = CreateProfileRegistry();
         var committedProfiles = new ConfiglueProfiledState<AppSettings, AppSettings.Fragment>(
             committedRegistry,
-            new StateSource<ConfiglueProfileCatalog>(
-                "catalog",
-                committedStore,
-                writer: committedWriter
-            )
+            new StateSource<ConfiglueProfileCatalog>("catalog", committedStore, new StateSourceOptions<ConfiglueProfileCatalog> { Writer = committedWriter })
         );
         await committedProfiles.GetProfileNamesAsync();
         var committedNotifications = new ConcurrentQueue<(string Published, string Reentered)>();
@@ -386,11 +382,7 @@ public sealed class ProfiledStateTests
         var unchangedRegistry = CreateProfileRegistry();
         var unchangedProfiles = new ConfiglueProfiledState<AppSettings, AppSettings.Fragment>(
             unchangedRegistry,
-            new StateSource<ConfiglueProfileCatalog>(
-                "catalog",
-                unchangedStore,
-                writer: new CommitThenThrowCatalogWriter(unchangedStore, commitBeforeThrow: false)
-            )
+            new StateSource<ConfiglueProfileCatalog>("catalog", unchangedStore, new StateSourceOptions<ConfiglueProfileCatalog> { Writer = new CommitThenThrowCatalogWriter(unchangedStore, commitBeforeThrow: false) })
         );
         await unchangedProfiles.GetProfileNamesAsync();
         var unchangedNotifications = new ConcurrentQueue<string>();
@@ -418,7 +410,7 @@ public sealed class ProfiledStateTests
         var registry = new ThrowingNotificationDeferralRegistry(innerRegistry);
         var profiles = new ConfiglueProfiledState<AppSettings, AppSettings.Fragment>(
             registry,
-            new StateSource<ConfiglueProfileCatalog>("catalog", catalogStore, writer: catalogStore)
+            new StateSource<ConfiglueProfileCatalog>("catalog", catalogStore, new StateSourceOptions<ConfiglueProfileCatalog> { Writer = catalogStore })
         );
 
         registry.ThrowOnNextAcquisition();
@@ -461,7 +453,7 @@ public sealed class ProfiledStateTests
         var registry = new ThrowingNotificationDeferralRegistry(innerRegistry);
         var profiles = new ConfiglueProfiledState<AppSettings, AppSettings.Fragment>(
             registry,
-            new StateSource<ConfiglueProfileCatalog>("catalog", catalogStore, writer: catalogStore)
+            new StateSource<ConfiglueProfileCatalog>("catalog", catalogStore, new StateSourceOptions<ConfiglueProfileCatalog> { Writer = catalogStore })
         );
         await profiles.GetProfileNamesAsync();
         await (await profiles.GetProfileAsync("default")).SaveAsync(patch =>
@@ -879,12 +871,7 @@ public sealed class ProfiledStateTests
     {
         var store = new InMemoryStateSource<ConfiglueProfileCatalog>();
         return (
-            new StateSource<ConfiglueProfileCatalog>(
-                "catalog",
-                store,
-                writer: store,
-                watcher: store
-            ),
+            new StateSource<ConfiglueProfileCatalog>("catalog", store, new StateSourceOptions<ConfiglueProfileCatalog> { Writer = store, Watcher = store }),
             store
         );
     }
@@ -920,12 +907,7 @@ public sealed class ProfiledStateTests
             static _ => new InMemoryStateSource<AppSettings.Fragment>()
         );
         var sourceId = string.IsNullOrEmpty(stateName) ? "default" : stateName;
-        return new StateSource<AppSettings.Fragment>(
-            sourceId,
-            store,
-            writer: store,
-            watcher: store
-        );
+        return new StateSource<AppSettings.Fragment>(sourceId, store, new StateSourceOptions<AppSettings.Fragment> { Writer = store, Watcher = store });
     }
 
     private static async Task<bool> TryCreateProfileAsync(
@@ -951,7 +933,7 @@ public sealed class ProfiledStateTests
         new(name =>
         {
             var store = new InMemoryStateSource<AppSettings.Fragment>();
-            var source = new StateSource<AppSettings.Fragment>(name, store, writer: store);
+            var source = new StateSource<AppSettings.Fragment>(name, store, new StateSourceOptions<AppSettings.Fragment> { Writer = store });
             return new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
                 new StateSourceSet<AppSettings.Fragment>([source])
             );
@@ -971,11 +953,7 @@ public sealed class ProfiledStateTests
     ) =>
         new(
             registry,
-            new StateSource<ConfiglueProfileCatalog>(
-                "catalog",
-                new BarrierCatalogReader(manager, barrier, store),
-                writer: new BarrierCatalogWriter(barrier, store)
-            )
+            new StateSource<ConfiglueProfileCatalog>("catalog", new BarrierCatalogReader(manager, barrier, store), new StateSourceOptions<ConfiglueProfileCatalog> { Writer = new BarrierCatalogWriter(barrier, store) })
         );
 
     private static ServiceProvider CreateServiceProvider(string filePath)
@@ -991,22 +969,14 @@ public sealed class ProfiledStateTests
             {
                 var file = provider.GetRequiredService<FileResource>();
                 var section = new JsonSectionResource(file, $"Profiles:{profileName}");
-                var source = SerializedStateSource.FromResource<AppSettings.Fragment>(
-                    profileName,
-                    section,
-                    StateCodecBinding.Dynamic(new JsonStateCodec())
-                );
+                var source = new StateSource<AppSettings.Fragment>(profileName, new SerializedSource<AppSettings.Fragment>(section, StateCodecBinding.Dynamic(new JsonStateCodec()), writer: (IResourceReader)section as IResourceWriter, watcher: (IResourceReader)section as ISourceWatcher), new StateSourceOptions<AppSettings.Fragment>());
                 return new StateSourceSet<AppSettings.Fragment>([source]);
             },
             provider =>
             {
                 var file = provider.GetRequiredService<FileResource>();
                 var section = new JsonSectionResource(file, "ProfileCatalog");
-                return SerializedStateSource.FromResource<ConfiglueProfileCatalog>(
-                    "profile-catalog",
-                    section,
-                    StateCodecBinding.Dynamic(new JsonStateCodec())
-                );
+                return new StateSource<ConfiglueProfileCatalog>("profile-catalog", new SerializedSource<ConfiglueProfileCatalog>(section, StateCodecBinding.Dynamic(new JsonStateCodec()), writer: (IResourceReader)section as IResourceWriter, watcher: (IResourceReader)section as ISourceWatcher), new StateSourceOptions<ConfiglueProfileCatalog>());
             },
             onChangeDebounce: TimeSpan.Zero
         );

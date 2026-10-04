@@ -304,23 +304,7 @@ public static class StateSourceProjection
                     migrationChain
                 )
                 : null;
-        var projected = new StateSource<TTarget>(
-            source.Id,
-            reader,
-            new StateSourceOptions<TTarget>
-            {
-                Priority = source.Priority,
-                FallbackCondition = source.FallbackCondition,
-                Writer = writer,
-                Watcher = source.Watcher,
-                PhysicalOrigin = source.PhysicalOrigin,
-                FixedResourceId = source.ConfiguredResourceId,
-                ResourceKeySelector = source.GetResourceKey,
-                RouteSelector = source.GetRouteKey,
-            }
-        );
-        source.CopyRoutingMetadataTo(projected);
-        return projected;
+        return StateSourceReconfiguration.Reconfigure(source, reader, writer);
     }
 
     private sealed class ProjectedReader<TSource, TTarget>(

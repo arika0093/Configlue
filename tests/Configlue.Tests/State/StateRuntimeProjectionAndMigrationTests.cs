@@ -29,13 +29,7 @@ public sealed partial class StateRuntimeTests
                 ),
             }
         );
-        var databaseSource = new StateSource<DatabaseSettings.Fragment>(
-            "remote-database",
-            remoteDatabase,
-            priority: 100,
-            writer: remoteDatabase,
-            physicalOrigin: "database-row"
-        );
+        var databaseSource = new StateSource<DatabaseSettings.Fragment>("remote-database", remoteDatabase, new StateSourceOptions<DatabaseSettings.Fragment> { Priority = 100, Writer = remoteDatabase, PhysicalOrigin = "database-row" });
         var projectedSource = StateSourceProjection.Project<
             DatabaseSettings.Fragment,
             AppSettings.Fragment
@@ -51,7 +45,7 @@ public sealed partial class StateRuntimeTests
         );
         var sourceSet = new StateSourceSet<AppSettings.Fragment>([
             projectedSource,
-            new("defaults", defaults, priority: 0),
+            new StateSource<AppSettings.Fragment>("defaults", defaults, new StateSourceOptions<AppSettings.Fragment> { Priority = 0 }),
         ]);
         var options = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
             sourceSet,
@@ -95,11 +89,7 @@ public sealed partial class StateRuntimeTests
                 sourceSchema
             )
         );
-        var source = new StateSource<DatabaseSettings.Fragment>(
-            "legacy-database",
-            legacy,
-            priority: 100
-        );
+        var source = new StateSource<DatabaseSettings.Fragment>("legacy-database", legacy, new StateSourceOptions<DatabaseSettings.Fragment> { Priority = 100 });
         var projected = StateSourceProjection.Project<
             DatabaseSettings.Fragment,
             AppSettings.Fragment
@@ -147,8 +137,8 @@ public sealed partial class StateRuntimeTests
             }
         );
         var sourceSet = new StateSourceSet<AppSettings.Fragment>([
-            new("user", user, priority: 100, physicalOrigin: "user-settings.json"),
-            new("defaults", defaults, priority: 0, physicalOrigin: "defaults.json"),
+            new StateSource<AppSettings.Fragment>("user", user, new StateSourceOptions<AppSettings.Fragment> { Priority = 100, PhysicalOrigin = "user-settings.json" }),
+            new StateSource<AppSettings.Fragment>("defaults", defaults, new StateSourceOptions<AppSettings.Fragment> { Priority = 0, PhysicalOrigin = "defaults.json" }),
         ]);
         var options = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(sourceSet);
 
@@ -183,8 +173,8 @@ public sealed partial class StateRuntimeTests
         );
         var options = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
             new StateSourceSet<AppSettings.Fragment>([
-                new("user", user, priority: 100),
-                new("defaults", defaults, priority: 0),
+                new StateSource<AppSettings.Fragment>("user", user, new StateSourceOptions<AppSettings.Fragment> { Priority = 100 }),
+                new StateSource<AppSettings.Fragment>("defaults", defaults, new StateSourceOptions<AppSettings.Fragment> { Priority = 0 }),
             ])
         );
 
@@ -216,8 +206,8 @@ public sealed partial class StateRuntimeTests
         );
         var options = new ConfiglueRuntime<SetUnionSettings, SetUnionSettings.Fragment>(
             new StateSourceSet<SetUnionSettings.Fragment>([
-                new("user", user, priority: 100),
-                new("defaults", defaults, priority: 0),
+                new StateSource<SetUnionSettings.Fragment>("user", user, new StateSourceOptions<SetUnionSettings.Fragment> { Priority = 100 }),
+                new StateSource<SetUnionSettings.Fragment>("defaults", defaults, new StateSourceOptions<SetUnionSettings.Fragment> { Priority = 0 }),
             ])
         );
 
@@ -251,8 +241,8 @@ public sealed partial class StateRuntimeTests
             ReplaceCollectionSettings.Fragment
         >(
             new StateSourceSet<ReplaceCollectionSettings.Fragment>([
-                new("user", user, priority: 100),
-                new("defaults", defaults, priority: 0),
+                new StateSource<ReplaceCollectionSettings.Fragment>("user", user, new StateSourceOptions<ReplaceCollectionSettings.Fragment> { Priority = 100 }),
+                new StateSource<ReplaceCollectionSettings.Fragment>("defaults", defaults, new StateSourceOptions<ReplaceCollectionSettings.Fragment> { Priority = 0 }),
             ])
         );
 
@@ -283,9 +273,9 @@ public sealed partial class StateRuntimeTests
         );
         var target = new InMemoryStateSource<AppSettings.Fragment>();
         var sources = new StateSourceSet<AppSettings.Fragment>([
-            new("environment", environment, priority: 100),
-            new("legacy", legacy, priority: 50),
-            new("current", target, priority: 0, writer: target),
+            new StateSource<AppSettings.Fragment>("environment", environment, new StateSourceOptions<AppSettings.Fragment> { Priority = 100 }),
+            new StateSource<AppSettings.Fragment>("legacy", legacy, new StateSourceOptions<AppSettings.Fragment> { Priority = 50 }),
+            new StateSource<AppSettings.Fragment>("current", target, new StateSourceOptions<AppSettings.Fragment> { Priority = 0, Writer = target }),
         ]);
         var options = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
             sources,
@@ -335,11 +325,11 @@ public sealed partial class StateRuntimeTests
         var retryTarget = new InMemoryStateSource<AppSettings.Fragment>();
         var options = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
             new StateSourceSet<AppSettings.Fragment>([
-                new("environment", environment, priority: 200),
-                new("user", user, priority: 100),
-                new("legacy", legacy, priority: 50),
-                new("primary", primaryTarget, priority: 0, writer: primaryTarget),
-                new("retry-only", retryTarget, priority: -1, writer: retryTarget),
+                new StateSource<AppSettings.Fragment>("environment", environment, new StateSourceOptions<AppSettings.Fragment> { Priority = 200 }),
+                new StateSource<AppSettings.Fragment>("user", user, new StateSourceOptions<AppSettings.Fragment> { Priority = 100 }),
+                new StateSource<AppSettings.Fragment>("legacy", legacy, new StateSourceOptions<AppSettings.Fragment> { Priority = 50 }),
+                new StateSource<AppSettings.Fragment>("primary", primaryTarget, new StateSourceOptions<AppSettings.Fragment> { Priority = 0, Writer = primaryTarget }),
+                new StateSource<AppSettings.Fragment>("retry-only", retryTarget, new StateSourceOptions<AppSettings.Fragment> { Priority = -1, Writer = retryTarget }),
             ]),
             StateWritePlan.DefaultTo(SourceId.From("primary"))
         );
@@ -398,14 +388,9 @@ public sealed partial class StateRuntimeTests
         var secondTarget = new InMemoryStateSource<AppSettings.Fragment>();
         var options = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
             new StateSourceSet<AppSettings.Fragment>([
-                new("source", source, priority: 100, writer: source),
-                new("first-target", firstTarget, priority: 0, writer: firstTarget),
-                new(
-                    "second-target",
-                    secondTarget,
-                    priority: -1,
-                    writer: new FailOnceStateWriter<AppSettings.Fragment>(secondTarget)
-                ),
+                new StateSource<AppSettings.Fragment>("source", source, new StateSourceOptions<AppSettings.Fragment> { Priority = 100, Writer = source }),
+                new StateSource<AppSettings.Fragment>("first-target", firstTarget, new StateSourceOptions<AppSettings.Fragment> { Priority = 0, Writer = firstTarget }),
+                new StateSource<AppSettings.Fragment>("second-target", secondTarget, new StateSourceOptions<AppSettings.Fragment> { Priority = -1, Writer = new FailOnceStateWriter<AppSettings.Fragment>(secondTarget) }),
             ]),
             defaultWritePlan: StateWritePlan.DefaultTo(SourceId.From("first-target"))
         );
@@ -476,8 +461,8 @@ public sealed partial class StateRuntimeTests
         var target = new InMemoryStateSource<AppSettings.Fragment>();
         var options = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
             new StateSourceSet<AppSettings.Fragment>([
-                new("source", source, priority: 100),
-                new("target", target, priority: 0, writer: target),
+                new StateSource<AppSettings.Fragment>("source", source, new StateSourceOptions<AppSettings.Fragment> { Priority = 100 }),
+                new StateSource<AppSettings.Fragment>("target", target, new StateSourceOptions<AppSettings.Fragment> { Priority = 0, Writer = target }),
             ])
         );
         IConfiglueRuntimeState<AppSettings> writableOptions = options;

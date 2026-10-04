@@ -26,19 +26,9 @@ public sealed class CrossResourceMigrationIntegrationTests
                 modelSchema: AppSettings.FragmentSchema,
                 documentLayout: new DocumentLayoutOptions { ModelId = "app-settings" }
             );
-            var source = SerializedStateSource.FromResource<AppSettings.Fragment>(
-                "json-file",
-                sourceFile,
-                jsonCodec,
-                priority: 100
-            );
+            var source = new StateSource<AppSettings.Fragment>("json-file", new SerializedSource<AppSettings.Fragment>(sourceFile, jsonCodec, writer: (IResourceReader)sourceFile as IResourceWriter, watcher: (IResourceReader)sourceFile as ISourceWatcher), new StateSourceOptions<AppSettings.Fragment> { Priority = 100 });
             var targetSection = new YamlSectionResource(targetFile, "App:Settings");
-            var target = SerializedStateSource.FromResource<AppSettings.Fragment>(
-                "yaml-section",
-                targetSection,
-                yamlCodec,
-                priority: 0
-            );
+            var target = new StateSource<AppSettings.Fragment>("yaml-section", new SerializedSource<AppSettings.Fragment>(targetSection, yamlCodec, writer: (IResourceReader)targetSection as IResourceWriter, watcher: (IResourceReader)targetSection as ISourceWatcher), new StateSourceOptions<AppSettings.Fragment> { Priority = 0 });
             await source.Writer!.WriteAsync(
                 new StateWriteRequest<AppSettings.Fragment>(
                     new AppSettings.Fragment
@@ -112,19 +102,9 @@ public sealed class CrossResourceMigrationIntegrationTests
                 modelSchema: AppSettings.FragmentSchema,
                 documentLayout: new DocumentLayoutOptions { ModelId = "app-settings" }
             );
-            var jsonSource = SerializedStateSource.FromResource<AppSettings.Fragment>(
-                "json-file",
-                jsonSourceFile,
-                jsonCodec,
-                priority: 100
-            );
+            var jsonSource = new StateSource<AppSettings.Fragment>("json-file", new SerializedSource<AppSettings.Fragment>(jsonSourceFile, jsonCodec, writer: (IResourceReader)jsonSourceFile as IResourceWriter, watcher: (IResourceReader)jsonSourceFile as ISourceWatcher), new StateSourceOptions<AppSettings.Fragment> { Priority = 100 });
             var yamlSourceResource = new InMemoryResource();
-            var yamlSource = SerializedStateSource.FromResource<AppSettings.Fragment>(
-                "yaml-memory",
-                yamlSourceResource,
-                yamlCodec,
-                priority: 50
-            );
+            var yamlSource = new StateSource<AppSettings.Fragment>("yaml-memory", new SerializedSource<AppSettings.Fragment>(yamlSourceResource, yamlCodec, writer: (IResourceReader)yamlSourceResource as IResourceWriter, watcher: (IResourceReader)yamlSourceResource as ISourceWatcher), new StateSourceOptions<AppSettings.Fragment> { Priority = 50 });
             await jsonSource.Writer!.WriteAsync(
                 new StateWriteRequest<AppSettings.Fragment>(
                     new AppSettings.Fragment
@@ -151,18 +131,8 @@ public sealed class CrossResourceMigrationIntegrationTests
             );
             var jsonBefore = (await jsonSourceFile.ReadAsync()).Content.ToArray();
             var jsonTargetResource = new InMemoryResource();
-            var jsonTarget = SerializedStateSource.FromResource<AppSettings.Fragment>(
-                "json-target",
-                jsonTargetResource,
-                jsonCodec,
-                priority: 0
-            );
-            var yamlTarget = SerializedStateSource.FromResource<AppSettings.Fragment>(
-                "yaml-target",
-                yamlTargetFile,
-                yamlCodec,
-                priority: -1
-            );
+            var jsonTarget = new StateSource<AppSettings.Fragment>("json-target", new SerializedSource<AppSettings.Fragment>(jsonTargetResource, jsonCodec, writer: (IResourceReader)jsonTargetResource as IResourceWriter, watcher: (IResourceReader)jsonTargetResource as ISourceWatcher), new StateSourceOptions<AppSettings.Fragment> { Priority = 0 });
+            var yamlTarget = new StateSource<AppSettings.Fragment>("yaml-target", new SerializedSource<AppSettings.Fragment>(yamlTargetFile, yamlCodec, writer: (IResourceReader)yamlTargetFile as IResourceWriter, watcher: (IResourceReader)yamlTargetFile as ISourceWatcher), new StateSourceOptions<AppSettings.Fragment> { Priority = -1 });
             await using var options = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
                 new StateSourceSet<AppSettings.Fragment>([
                     jsonSource,
@@ -257,26 +227,15 @@ public sealed class CrossResourceMigrationIntegrationTests
                 return builder.Build();
             }
         );
-        var source = SerializedStateSource.FromResource<HistoricalSettings.Fragment>(
-            "legacy-json",
-            sourceResource,
-            new JsonStateCodec<HistoricalSettings.Fragment>(
+        var source = new StateSource<HistoricalSettings.Fragment>("legacy-json", new SerializedSource<HistoricalSettings.Fragment>(sourceResource, new JsonStateCodec<HistoricalSettings.Fragment>(
                 documentLayout: new DocumentLayoutOptions { ModelId = currentSchema.ModelId }
-            ),
-            priority: 100,
-            schemaDispatcher: dispatcher
-        );
+            ), schemaDispatcher: dispatcher, writer: (IResourceReader)sourceResource as IResourceWriter, watcher: (IResourceReader)sourceResource as ISourceWatcher), new StateSourceOptions<HistoricalSettings.Fragment> { Priority = 100 });
         var targetResource = new InMemoryResource();
         var yamlCodec = new YamlStateCodec<HistoricalSettings.Fragment>(
             modelSchema: HistoricalSettings.FragmentSchema,
             documentLayout: new DocumentLayoutOptions { ModelId = currentSchema.ModelId }
         );
-        var target = SerializedStateSource.FromResource<HistoricalSettings.Fragment>(
-            "current-yaml",
-            targetResource,
-            yamlCodec,
-            priority: 0
-        );
+        var target = new StateSource<HistoricalSettings.Fragment>("current-yaml", new SerializedSource<HistoricalSettings.Fragment>(targetResource, yamlCodec, writer: (IResourceReader)targetResource as IResourceWriter, watcher: (IResourceReader)targetResource as ISourceWatcher), new StateSourceOptions<HistoricalSettings.Fragment> { Priority = 0 });
         await using var options = new ConfiglueRuntime<
             HistoricalSettings,
             HistoricalSettings.Fragment
@@ -317,8 +276,8 @@ public sealed class CrossResourceMigrationIntegrationTests
         );
         await using var options = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
             new StateSourceSet<AppSettings.Fragment>([
-                new("source", source, priority: 100),
-                new("target", target, priority: 0, writer: target),
+                new StateSource<AppSettings.Fragment>("source", source, new StateSourceOptions<AppSettings.Fragment> { Priority = 100 }),
+                new StateSource<AppSettings.Fragment>("target", target, new StateSourceOptions<AppSettings.Fragment> { Priority = 0, Writer = target }),
             ]),
             StateWritePlan.DefaultTo(SourceId.From("source"))
         );

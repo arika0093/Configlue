@@ -7,21 +7,9 @@ public sealed class SourcePrecedenceTests
     [Test]
     public void StateSourceSet_OrdersHigherPriorityFirstAndKeepsRegistrationOrderForTies()
     {
-        var firstTie = new StateSource<string>(
-            "first-tie",
-            new InMemoryStateSource<string>(),
-            priority: 100
-        );
-        var lowest = new StateSource<string>(
-            "lowest",
-            new InMemoryStateSource<string>(),
-            priority: 0
-        );
-        var secondTie = new StateSource<string>(
-            "second-tie",
-            new InMemoryStateSource<string>(),
-            priority: 100
-        );
+        var firstTie = new StateSource<string>("first-tie", new InMemoryStateSource<string>(), new StateSourceOptions<string> { Priority = 100 });
+        var lowest = new StateSource<string>("lowest", new InMemoryStateSource<string>(), new StateSourceOptions<string> { Priority = 0 });
+        var secondTie = new StateSource<string>("second-tie", new InMemoryStateSource<string>(), new StateSourceOptions<string> { Priority = 100 });
 
         var sourceSet = new StateSourceSet<string>([firstTie, lowest, secondTie]);
 
@@ -44,9 +32,9 @@ public sealed class SourcePrecedenceTests
         );
         await using var options = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
             new StateSourceSet<AppSettings.Fragment>([
-                new("earlier", earlier, priority: 100),
-                new("later", later, priority: 100),
-                new("higher", higher, priority: 200),
+                new StateSource<AppSettings.Fragment>("earlier", earlier, new StateSourceOptions<AppSettings.Fragment> { Priority = 100 }),
+                new StateSource<AppSettings.Fragment>("later", later, new StateSourceOptions<AppSettings.Fragment> { Priority = 100 }),
+                new StateSource<AppSettings.Fragment>("higher", higher, new StateSourceOptions<AppSettings.Fragment> { Priority = 200 }),
             ])
         );
 

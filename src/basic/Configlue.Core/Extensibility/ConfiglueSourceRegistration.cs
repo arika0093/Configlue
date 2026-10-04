@@ -122,26 +122,15 @@ public sealed class ConfiglueSourceRegistration
             return source;
         }
 
-        var configured = new StateSource<TFragment>(
-            _name is { } name ? SourceId.From(name) : source.Id,
+        return Sources.StateSourceReconfiguration.Reconfigure(
+            source,
             source.Reader,
-            new StateSourceOptions<TFragment>
-            {
-                Priority = _priority ?? source.Priority,
-                FallbackCondition = _fallbackCondition ?? source.FallbackCondition,
-                Writer = _readOnly == true ? null : source.Writer,
-                DisableWriteCapability = _readOnly == true || source.Writer is null,
-                Watcher = source.Watcher,
-                PhysicalOrigin = source.PhysicalOrigin,
-                FixedResourceId = source.ConfiguredResourceId,
-                ExplicitOnly = _explicitOnly ?? source.ExplicitOnly,
-                ResourceKeySelector = source.GetResourceKey,
-                RuntimeLifetime = _runtimeLifetime ?? source.RuntimeLifetime,
-                ModelId = source.ModelId,
-                RouteSelector = source.GetRouteKey,
-            }
+            _readOnly == true ? null : source.Writer,
+            id: _name is { } name ? SourceId.From(name) : null,
+            priority: _priority,
+            fallbackCondition: _fallbackCondition,
+            explicitOnly: _explicitOnly,
+            runtimeLifetime: _runtimeLifetime
         );
-        source.CopyRoutingMetadataTo(configured, _explicitOnly);
-        return configured;
     }
 }

@@ -20,16 +20,8 @@ public sealed partial class StateRuntimeTests
     [Test]
     public void StateSourceSet_ExposesPriorityOrderedIndexedAccess()
     {
-        var lowerPriority = new StateSource<string>(
-            "lower",
-            new InMemoryStateSource<string>(),
-            priority: 0
-        );
-        var higherPriority = new StateSource<string>(
-            "higher",
-            new InMemoryStateSource<string>(),
-            priority: 10
-        );
+        var lowerPriority = new StateSource<string>("lower", new InMemoryStateSource<string>(), new StateSourceOptions<string> { Priority = 0 });
+        var higherPriority = new StateSource<string>("higher", new InMemoryStateSource<string>(), new StateSourceOptions<string> { Priority = 10 });
         var sourceSet = new StateSourceSet<string>([lowerPriority, higherPriority]);
 
         sourceSet.Count.ShouldBe(2);
@@ -47,8 +39,8 @@ public sealed partial class StateRuntimeTests
         Should.Throw<InvalidOperationException>(() =>
             new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
                 new StateSourceSet<AppSettings.Fragment>([
-                    new StateSource<AppSettings.Fragment>("first", first, writer: first),
-                    new StateSource<AppSettings.Fragment>("second", second, writer: second),
+                    new StateSource<AppSettings.Fragment>("first", first, new StateSourceOptions<AppSettings.Fragment> { Writer = first }),
+                    new StateSource<AppSettings.Fragment>("second", second, new StateSourceOptions<AppSettings.Fragment> { Writer = second }),
                 ])
             )
         );
@@ -63,7 +55,7 @@ public sealed partial class StateRuntimeTests
         var reader = new CountingStateReader<AppSettings.Fragment>(store);
         await using var options = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
             new StateSourceSet<AppSettings.Fragment>([
-                new StateSource<AppSettings.Fragment>("settings", reader, writer: store),
+                new StateSource<AppSettings.Fragment>("settings", reader, new StateSourceOptions<AppSettings.Fragment> { Writer = store }),
             ])
         );
 
@@ -95,7 +87,7 @@ public sealed partial class StateRuntimeTests
         );
         await using var options = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
             new StateSourceSet<AppSettings.Fragment>([
-                new StateSource<AppSettings.Fragment>("settings", reader, writer: store),
+                new StateSource<AppSettings.Fragment>("settings", reader, new StateSourceOptions<AppSettings.Fragment> { Writer = store }),
             ])
         );
 
@@ -116,23 +108,8 @@ public sealed partial class StateRuntimeTests
         var legacy = new InMemoryStateSource<string>("legacy");
         var fallback = new FallbackStateSource<string>(
             new StateSourceSet<string>([
-                new(
-                    "canonical",
-                    canonical,
-                    priority: 100,
-                    fallbackCondition: StateFallbackCondition.NotFoundOrUnavailable,
-                    writer: canonical,
-                    watcher: canonical,
-                    physicalOrigin: "settings.json"
-                ),
-                new(
-                    "legacy",
-                    legacy,
-                    priority: 0,
-                    writer: legacy,
-                    watcher: legacy,
-                    physicalOrigin: "settings.yaml"
-                ),
+                new StateSource<string>("canonical", canonical, new StateSourceOptions<string> { Priority = 100, FallbackCondition = StateFallbackCondition.NotFoundOrUnavailable, Writer = canonical, Watcher = canonical, PhysicalOrigin = "settings.json" }),
+                new StateSource<string>("legacy", legacy, new StateSourceOptions<string> { Priority = 0, Writer = legacy, Watcher = legacy, PhysicalOrigin = "settings.yaml" }),
             ])
         );
         var source = fallback.CreateSource("settings");
@@ -170,23 +147,8 @@ public sealed partial class StateRuntimeTests
         );
         var fallback = new FallbackStateSource<AppSettings.Fragment>(
             new StateSourceSet<AppSettings.Fragment>([
-                new(
-                    "canonical",
-                    canonical,
-                    priority: 100,
-                    fallbackCondition: StateFallbackCondition.NotFoundOrUnavailable,
-                    writer: canonical,
-                    watcher: canonical,
-                    physicalOrigin: "settings.json"
-                ),
-                new(
-                    "legacy",
-                    legacy,
-                    priority: 0,
-                    writer: legacy,
-                    watcher: legacy,
-                    physicalOrigin: "settings.yaml"
-                ),
+                new StateSource<AppSettings.Fragment>("canonical", canonical, new StateSourceOptions<AppSettings.Fragment> { Priority = 100, FallbackCondition = StateFallbackCondition.NotFoundOrUnavailable, Writer = canonical, Watcher = canonical, PhysicalOrigin = "settings.json" }),
+                new StateSource<AppSettings.Fragment>("legacy", legacy, new StateSourceOptions<AppSettings.Fragment> { Priority = 0, Writer = legacy, Watcher = legacy, PhysicalOrigin = "settings.yaml" }),
             ]),
             writeSourceId: SourceId.From("canonical")
         );
@@ -221,15 +183,8 @@ public sealed partial class StateRuntimeTests
         var legacy = new InMemoryStateSource<string>("legacy");
         var fallback = new FallbackStateSource<string>(
             new StateSourceSet<string>([
-                new(
-                    "canonical",
-                    canonical,
-                    priority: 100,
-                    fallbackCondition: StateFallbackCondition.NotFoundOrUnavailable,
-                    writer: canonical,
-                    watcher: canonical
-                ),
-                new("legacy", legacy, priority: 0, writer: legacy, watcher: legacy),
+                new StateSource<string>("canonical", canonical, new StateSourceOptions<string> { Priority = 100, FallbackCondition = StateFallbackCondition.NotFoundOrUnavailable, Writer = canonical, Watcher = canonical }),
+                new StateSource<string>("legacy", legacy, new StateSourceOptions<string> { Priority = 0, Writer = legacy, Watcher = legacy }),
             ]),
             writeSourceId: SourceId.From("canonical")
         );
@@ -265,15 +220,8 @@ public sealed partial class StateRuntimeTests
         var legacy = new InMemoryStateSource<string>("legacy");
         var fallback = new FallbackStateSource<string>(
             new StateSourceSet<string>([
-                new(
-                    "canonical",
-                    canonical,
-                    priority: 100,
-                    fallbackCondition: StateFallbackCondition.NotFoundOrUnavailable,
-                    writer: canonical,
-                    watcher: canonical
-                ),
-                new("legacy", legacy, priority: 0, writer: legacy, watcher: legacy),
+                new StateSource<string>("canonical", canonical, new StateSourceOptions<string> { Priority = 100, FallbackCondition = StateFallbackCondition.NotFoundOrUnavailable, Writer = canonical, Watcher = canonical }),
+                new StateSource<string>("legacy", legacy, new StateSourceOptions<string> { Priority = 0, Writer = legacy, Watcher = legacy }),
             ])
         );
 
@@ -304,14 +252,8 @@ public sealed partial class StateRuntimeTests
         var legacy = new InMemoryStateSource<string>("legacy");
         var fallback = new FallbackStateSource<string>(
             new StateSourceSet<string>([
-                new(
-                    "canonical",
-                    canonical,
-                    priority: 100,
-                    fallbackCondition: StateFallbackCondition.NotFoundOrUnavailable,
-                    writer: canonical
-                ),
-                new("legacy", legacy, priority: 0, writer: legacy),
+                new StateSource<string>("canonical", canonical, new StateSourceOptions<string> { Priority = 100, FallbackCondition = StateFallbackCondition.NotFoundOrUnavailable, Writer = canonical }),
+                new StateSource<string>("legacy", legacy, new StateSourceOptions<string> { Priority = 0, Writer = legacy }),
             ])
         );
         var initial = await fallback.ReadAsync();
@@ -336,21 +278,8 @@ public sealed partial class StateRuntimeTests
         primary.SetUnavailable();
         var fallback = new InMemoryStateSource<string>("local");
         var sources = new StateSourceSet<string>([
-            new StateSource<string>(
-                "remote",
-                primary,
-                priority: 100,
-                fallbackCondition: StateFallbackCondition.NotFoundOrUnavailable,
-                writer: primary,
-                watcher: primary
-            ),
-            new StateSource<string>(
-                "local",
-                fallback,
-                priority: 0,
-                writer: fallback,
-                watcher: fallback
-            ),
+            new StateSource<string>("remote", primary, new StateSourceOptions<string> { Priority = 100, FallbackCondition = StateFallbackCondition.NotFoundOrUnavailable, Writer = primary, Watcher = primary }),
+            new StateSource<string>("local", fallback, new StateSourceOptions<string> { Priority = 0, Writer = fallback, Watcher = fallback }),
         ]);
         var reader = new StateSourceResolver<string>(sources);
         var writer = new StateSourceWriter<string>(sources, SourceId.From("local"));
@@ -384,21 +313,10 @@ public sealed partial class StateRuntimeTests
         var pendingWatcher = new PendingStateWatcher();
         var throwingWatcher = new SynchronousThrowingStateWatcher();
         var sources = new StateSourceSet<string>([
-            new(
-                "pending",
-                new FixedStateReader<string>(StateReadResult<string>.Unavailable("primary")),
-                priority: 100,
-                fallbackCondition: StateFallbackCondition.Unavailable,
-                watcher: pendingWatcher
-            ),
-            new(
-                "throwing",
-                new FixedStateReader<string>(
+            new StateSource<string>("pending", new FixedStateReader<string>(StateReadResult<string>.Unavailable("primary")), new StateSourceOptions<string> { Priority = 100, FallbackCondition = StateFallbackCondition.Unavailable, Watcher = pendingWatcher }),
+            new StateSource<string>("throwing", new FixedStateReader<string>(
                     StateReadResult<string>.Success("fallback", "fallback")
-                ),
-                priority: 0,
-                watcher: throwingWatcher
-            ),
+                ), new StateSourceOptions<string> { Priority = 0, Watcher = throwingWatcher }),
         ]);
         // The candidate set is read-only, so only the reader/watcher pair is composed here:
         // StateSourceWriter construction now rejects sets without a writable root.
@@ -428,26 +346,15 @@ public sealed partial class StateRuntimeTests
         var pendingWatcher = new PendingStateWatcher();
         var throwingWatcher = new SynchronousThrowingStateWatcher();
         var sources = new StateSourceSet<AppSettings.Fragment>([
-            new(
-                "pending",
-                new FixedStateReader<AppSettings.Fragment>(
+            new StateSource<AppSettings.Fragment>("pending", new FixedStateReader<AppSettings.Fragment>(
                     StateReadResult<AppSettings.Fragment>.Unavailable("primary")
-                ),
-                priority: 100,
-                fallbackCondition: StateFallbackCondition.Unavailable,
-                watcher: pendingWatcher
-            ),
-            new(
-                "throwing",
-                new FixedStateReader<AppSettings.Fragment>(
+                ), new StateSourceOptions<AppSettings.Fragment> { Priority = 100, FallbackCondition = StateFallbackCondition.Unavailable, Watcher = pendingWatcher }),
+            new StateSource<AppSettings.Fragment>("throwing", new FixedStateReader<AppSettings.Fragment>(
                     StateReadResult<AppSettings.Fragment>.Success(
                         new AppSettings.Fragment { RetryCount = Optional<int>.Present(3) },
                         "fallback"
                     )
-                ),
-                priority: 0,
-                watcher: throwingWatcher
-            ),
+                ), new StateSourceOptions<AppSettings.Fragment> { Priority = 0, Watcher = throwingWatcher }),
         ]);
         await using var options = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
             sources,
@@ -462,15 +369,10 @@ public sealed partial class StateRuntimeTests
     }
 
     [Test]
-    public async Task SerializedStateSource_ComposesResourceCodecWriterAndWatcherCapabilities()
+    public async Task SerializedSource_ComposesResourceCodecWriterAndWatcherCapabilities()
     {
         var resource = new InMemoryResource();
-        var source = SerializedStateSource.FromResource<AppSettings.Fragment>(
-            "serialized",
-            resource,
-            new JsonStateCodec<AppSettings.Fragment>(),
-            physicalOrigin: "memory://settings"
-        );
+        var source = new StateSource<AppSettings.Fragment>("serialized", new SerializedSource<AppSettings.Fragment>(resource, new JsonStateCodec<AppSettings.Fragment>(), writer: (IResourceReader)resource as IResourceWriter, watcher: (IResourceReader)resource as ISourceWatcher), new StateSourceOptions<AppSettings.Fragment> { PhysicalOrigin = "memory://settings" });
         var sourceSet = new StateSourceSet<AppSettings.Fragment>([source]);
         var options = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(sourceSet);
 
@@ -491,11 +393,7 @@ public sealed partial class StateRuntimeTests
     public async Task RuntimeStampsGeneratedModelIdOnPhysicalResourceContext()
     {
         var resource = new CapturingResource();
-        var source = SerializedStateSource.FromResource<AppSettings.Fragment>(
-            "settings",
-            resource,
-            new JsonStateCodec<AppSettings.Fragment>()
-        );
+        var source = new StateSource<AppSettings.Fragment>("settings", new SerializedSource<AppSettings.Fragment>(resource, new JsonStateCodec<AppSettings.Fragment>(), writer: (IResourceReader)resource as IResourceWriter, watcher: (IResourceReader)resource as ISourceWatcher), new StateSourceOptions<AppSettings.Fragment>());
         await using var options = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
             new StateSourceSet<AppSettings.Fragment>([source])
         );

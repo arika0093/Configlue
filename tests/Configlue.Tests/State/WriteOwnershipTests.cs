@@ -17,8 +17,8 @@ public sealed class WriteOwnershipTests
         );
         await using var options = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
             new StateSourceSet<AppSettings.Fragment>([
-                new("policy", policy, priority: 100),
-                new("user", user, priority: 0, writer: user),
+                new StateSource<AppSettings.Fragment>("policy", policy, new StateSourceOptions<AppSettings.Fragment> { Priority = 100 }),
+                new StateSource<AppSettings.Fragment>("user", user, new StateSourceOptions<AppSettings.Fragment> { Priority = 0, Writer = user }),
             ])
         );
 
@@ -43,10 +43,10 @@ public sealed class WriteOwnershipTests
                     model.Sources(sources =>
                     {
                         sources.Add(
-                            new StateSource<AppSettings.Fragment>("first", first, writer: first)
+                            new StateSource<AppSettings.Fragment>("first", first, new StateSourceOptions<AppSettings.Fragment> { Writer = first })
                         );
                         sources.Add(
-                            new StateSource<AppSettings.Fragment>("second", second, writer: second)
+                            new StateSource<AppSettings.Fragment>("second", second, new StateSourceOptions<AppSettings.Fragment> { Writer = second })
                         );
                     })
                 )
@@ -65,10 +65,10 @@ public sealed class WriteOwnershipTests
                 model.Sources(sources =>
                 {
                     sources.Add(
-                        new StateSource<AppSettings.Fragment>("first", first, writer: first)
+                        new StateSource<AppSettings.Fragment>("first", first, new StateSourceOptions<AppSettings.Fragment> { Writer = first })
                     );
                     sources.Add(
-                        new StateSource<AppSettings.Fragment>("second", second, writer: second)
+                        new StateSource<AppSettings.Fragment>("second", second, new StateSourceOptions<AppSettings.Fragment> { Writer = second })
                     );
                 });
                 model.Writes(write => write.DefaultTo(SourceKey<AppSettings>.Named("second")));
@@ -99,10 +99,10 @@ public sealed class WriteOwnershipTests
                 model.Sources(sources =>
                 {
                     sources.Add(
-                        new StateSource<AppSettings.Fragment>("root", root, writer: root)
+                        new StateSource<AppSettings.Fragment>("root", root, new StateSourceOptions<AppSettings.Fragment> { Writer = root })
                     );
                     sources.Add(
-                        new StateSource<AppSettings.Fragment>("database", database, writer: database)
+                        new StateSource<AppSettings.Fragment>("database", database, new StateSourceOptions<AppSettings.Fragment> { Writer = database })
                     );
                 });
                 model.Writes(write =>
@@ -140,7 +140,7 @@ public sealed class WriteOwnershipTests
                 model.Sources(sources =>
                 {
                     sources.Add(
-                        new StateSource<AppSettings.Fragment>("root", rootStore, writer: rootStore)
+                        new StateSource<AppSettings.Fragment>("root", rootStore, new StateSourceOptions<AppSettings.Fragment> { Writer = rootStore })
                     );
                     sources.AddMounted<
                         AppSettings,
@@ -148,11 +148,7 @@ public sealed class WriteOwnershipTests
                         DatabaseSettings,
                         DatabaseSettings.Fragment
                     >(
-                        new StateSource<DatabaseSettings.Fragment>(
-                            "database-owner",
-                            databaseStore,
-                            writer: databaseStore
-                        ),
+                        new StateSource<DatabaseSettings.Fragment>("database-owner", databaseStore, new StateSourceOptions<DatabaseSettings.Fragment> { Writer = databaseStore }),
                         settings => settings.Database
                     );
                 })
@@ -178,19 +174,10 @@ public sealed class WriteOwnershipTests
                 model.Sources(sources =>
                 {
                     sources.Add(
-                        new StateSource<AppSettings.Fragment>(
-                            "ordinary",
-                            ordinary,
-                            writer: ordinary
-                        )
+                        new StateSource<AppSettings.Fragment>("ordinary", ordinary, new StateSourceOptions<AppSettings.Fragment> { Writer = ordinary })
                     );
                     sources.Add(
-                        new StateSource<AppSettings.Fragment>(
-                            "explicit",
-                            explicitOnly,
-                            writer: explicitOnly,
-                            explicitOnly: true
-                        )
+                        new StateSource<AppSettings.Fragment>("explicit", explicitOnly, new StateSourceOptions<AppSettings.Fragment> { Writer = explicitOnly, ExplicitOnly = true })
                     );
                 })
             )
@@ -219,8 +206,8 @@ public sealed class WriteOwnershipTests
         var user = new InMemoryStateSource<AppSettings.Fragment>();
         await using var options = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
             new StateSourceSet<AppSettings.Fragment>([
-                new("policy", policy, priority: 100),
-                new("user", user, priority: 0, writer: user),
+                new StateSource<AppSettings.Fragment>("policy", policy, new StateSourceOptions<AppSettings.Fragment> { Priority = 100 }),
+                new StateSource<AppSettings.Fragment>("user", user, new StateSourceOptions<AppSettings.Fragment> { Priority = 0, Writer = user }),
             ]),
             StateWritePlan.DefaultTo(SourceId.From("user"))
         );

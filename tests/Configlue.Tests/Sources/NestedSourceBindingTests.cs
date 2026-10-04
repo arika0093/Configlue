@@ -50,15 +50,7 @@ public sealed partial class NestedSourceBindingTests
         var remoteStore = new InMemoryStateSource<DatabaseSettings.Fragment>(
             new DatabaseSettings.Fragment { Host = Optional<string>.Present("remote.db") }
         );
-        var remote = new StateSource<DatabaseSettings.Fragment>(
-            "remote-database",
-            remoteStore,
-            priority: 100,
-            writer: remoteStore,
-            watcher: remoteStore,
-            physicalOrigin: "database-row",
-            fixedResourceId: new ResourceId("database-resource")
-        );
+        var remote = new StateSource<DatabaseSettings.Fragment>("remote-database", remoteStore, new StateSourceOptions<DatabaseSettings.Fragment> { Priority = 100, Writer = remoteStore, Watcher = remoteStore, PhysicalOrigin = "database-row", FixedResourceId = new ResourceId("database-resource") });
         var mounted = StateSourceProjection.Mount<DatabaseSettings.Fragment, AppSettings.Fragment>(
             remote,
             "Database"
@@ -71,11 +63,7 @@ public sealed partial class NestedSourceBindingTests
                 model.Sources(sources =>
                 {
                     sources.Add(
-                        new StateSource<AppSettings.Fragment>(
-                            "defaults",
-                            baseStore,
-                            writer: baseStore
-                        )
+                        new StateSource<AppSettings.Fragment>("defaults", baseStore, new StateSourceOptions<AppSettings.Fragment> { Writer = baseStore })
                     );
                     sources.AddMounted<
                         AppSettings,
@@ -159,19 +147,14 @@ public sealed partial class NestedSourceBindingTests
                 Port = Optional<int>.Present(7443),
             }
         );
-        var remote = new StateSource<DatabaseSettings.Fragment>(
-            "remote-database",
-            remoteStore,
-            priority: 100,
-            writer: remoteStore
-        );
+        var remote = new StateSource<DatabaseSettings.Fragment>("remote-database", remoteStore, new StateSourceOptions<DatabaseSettings.Fragment> { Priority = 100, Writer = remoteStore });
 
         await using var context = ConfiglueApp.CreateContext(builder =>
         {
             builder.Add<AppSettings>(model =>
                 model.Sources(sources =>
                 {
-                    sources.Add(new StateSource<AppSettings.Fragment>("defaults", baseStore));
+                    sources.Add(new StateSource<AppSettings.Fragment>("defaults", baseStore, new StateSourceOptions<AppSettings.Fragment>()));
                     sources.AddMounted<
                         AppSettings,
                         AppSettings.Fragment,
@@ -217,11 +200,7 @@ public sealed partial class NestedSourceBindingTests
                 Port = Optional<int>.Present(7443),
             }
         );
-        var databaseSource = new StateSource<DatabaseSettings.Fragment>(
-            "database-owner",
-            databaseStore,
-            writer: databaseStore
-        );
+        var databaseSource = new StateSource<DatabaseSettings.Fragment>("database-owner", databaseStore, new StateSourceOptions<DatabaseSettings.Fragment> { Writer = databaseStore });
 
         await using var context = ConfiglueApp.CreateContext(builder =>
         {
@@ -229,7 +208,7 @@ public sealed partial class NestedSourceBindingTests
                 model.Sources(sources =>
                 {
                     sources.Add(
-                        new StateSource<AppSettings.Fragment>("root", rootStore, writer: rootStore)
+                        new StateSource<AppSettings.Fragment>("root", rootStore, new StateSourceOptions<AppSettings.Fragment> { Writer = rootStore })
                     );
                     sources.AddMounted<
                         AppSettings,
@@ -267,18 +246,10 @@ public sealed partial class NestedSourceBindingTests
                 model.Sources(sources =>
                 {
                     sources.Add(
-                        new StateSource<AppSettings.Fragment>(
-                            "first-root",
-                            firstRootStore,
-                            writer: firstRootStore
-                        )
+                        new StateSource<AppSettings.Fragment>("first-root", firstRootStore, new StateSourceOptions<AppSettings.Fragment> { Writer = firstRootStore })
                     );
                     sources.Add(
-                        new StateSource<AppSettings.Fragment>(
-                            "second-root",
-                            secondRootStore,
-                            writer: secondRootStore
-                        )
+                        new StateSource<AppSettings.Fragment>("second-root", secondRootStore, new StateSourceOptions<AppSettings.Fragment> { Writer = secondRootStore })
                     );
                     sources.AddMounted<
                         AppSettings,
@@ -286,11 +257,7 @@ public sealed partial class NestedSourceBindingTests
                         DatabaseSettings,
                         DatabaseSettings.Fragment
                     >(
-                        new StateSource<DatabaseSettings.Fragment>(
-                            "database-owner",
-                            databaseStore,
-                            writer: databaseStore
-                        ),
+                        new StateSource<DatabaseSettings.Fragment>("database-owner", databaseStore, new StateSourceOptions<DatabaseSettings.Fragment> { Writer = databaseStore }),
                         settings => settings.Database
                     );
                 });
