@@ -1033,6 +1033,15 @@ public static class ConfiglueStateEndpointRouteBuilderExtensions
             return;
         }
 
+        var lastEventIds = context.Request.Headers["Last-Event-ID"];
+        if (
+            lastEventIds.Count == 1
+            && TryExtractHex(FormatEtag(lastEventIds[0] ?? string.Empty), out var lastEventId)
+        )
+        {
+            currentEtag = lastEventId;
+        }
+
         context.Response.StatusCode = StatusCodes.Status200OK;
         context.Response.ContentType = "text/event-stream";
         context.Response.Headers.CacheControl = "no-cache";
@@ -1085,6 +1094,26 @@ public static class ConfiglueStateEndpointRouteBuilderExtensions
 
         try
         {
+            // Subscribe before the convergence read so changes during SSE startup
+            // are observed even when they occurred after the client's last GET.
+            var current = await state.GetValueAsync(cancellation).ConfigureAwait(false);
+            var convergedEtag = ComputeEtagHex(
+                EncodeModel(descriptor, current, options.SerializerOptions)
+            );
+            lock (gate)
+            {
+                // A notification received during the read already supplies a pending
+                // invalidation; avoid replacing it with a possibly older snapshot.
+                if (
+                    pendingEtag is null
+                    && !string.Equals(convergedEtag, currentEtag, StringComparison.Ordinal)
+                )
+                {
+                    pendingEtag = convergedEtag;
+                    signal.TrySetResult();
+                }
+            }
+
             while (!cancellation.IsCancellationRequested)
             {
                 Task signalTask;

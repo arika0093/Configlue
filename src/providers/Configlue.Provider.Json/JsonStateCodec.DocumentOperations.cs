@@ -317,7 +317,6 @@ internal static partial class JsonStateCodecOperations
         using (var writer = new Utf8JsonWriter(buffer))
         {
             writer.WriteStartObject();
-#pragma warning disable S3267 // Keep this hot path free of a LINQ iterator allocation.
             foreach (var property in root.EnumerateObject())
             {
                 if (
@@ -330,7 +329,6 @@ internal static partial class JsonStateCodecOperations
 
                 property.WriteTo(writer);
             }
-#pragma warning restore S3267
 
             writer.WriteEndObject();
         }

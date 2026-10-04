@@ -513,6 +513,38 @@ public sealed class StateHttpTransportTests
     }
 
     [Test]
+    public async Task Events_ReconnectReportsChangeSinceLastEventId()
+    {
+        var store = new InMemoryStateSource<AppSettings.Fragment>(
+            new AppSettings.Fragment { RetryCount = Optional<int>.Present(1) }
+        );
+        await using var app = await StartStateAppAsync(store, "/api/settings");
+        using var client = app.GetTestClient();
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        using var initial = await client.GetAsync("/api/settings", timeout.Token);
+        var baseline = initial.Headers.ETag!.Tag.Trim('"');
+
+        // Change before opening the stream: no live subscription can receive it.
+        store.Set(new AppSettings.Fragment { RetryCount = Optional<int>.Present(9) });
+        using var current = await client.GetAsync("/api/settings", timeout.Token);
+        var expected = current.Headers.ETag!.Tag.Trim('"');
+        expected.ShouldNotBe(baseline);
+
+        using var request = new HttpRequestMessage(HttpMethod.Get, "/api/settings/events");
+        request.Headers.TryAddWithoutValidation("Last-Event-ID", baseline);
+        using var response = await client.SendAsync(
+            request,
+            HttpCompletionOption.ResponseHeadersRead,
+            timeout.Token
+        );
+        response.EnsureSuccessStatusCode();
+        using var stream = await response.Content.ReadAsStreamAsync(timeout.Token);
+        using var reader = new StreamReader(stream);
+        (await reader.ReadLineAsync(timeout.Token)).ShouldBe("event: changed");
+        (await reader.ReadLineAsync(timeout.Token)).ShouldBe($"id: {expected}");
+    }
+
+    [Test]
     public async Task Watcher_CancellationDisposalAndMultipleWatchers()
     {
         var store = new InMemoryStateSource<AppSettings.Fragment>(
@@ -539,6 +571,9 @@ public sealed class StateHttpTransportTests
         });
 
         var runtime = (IConfiglueRuntimeState<AppSettings>)context.GetState<AppSettings>();
+        // Establish the initial effective value before waiting for a change. A fixed
+        // delay cannot ensure initialization finishes on a busy CI runner.
+        (await runtime.GetValueAsync()).RetryCount.ShouldBe(1);
         using var canceled = new CancellationTokenSource();
         canceled.Cancel();
         await Should.ThrowAsync<OperationCanceledException>(async () =>
@@ -548,7 +583,6 @@ public sealed class StateHttpTransportTests
         using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
         var first = runtime.WaitForChangeObservedAsync("1", timeout.Token);
         var second = runtime.WaitForChangeObservedAsync("1", timeout.Token);
-        await Task.Delay(200, timeout.Token);
         store.Set(new AppSettings.Fragment { RetryCount = Optional<int>.Present(9) });
         await first;
         await second;

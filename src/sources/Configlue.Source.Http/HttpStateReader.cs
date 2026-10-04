@@ -198,10 +198,7 @@ public sealed class HttpStateReader<TFragment>
             var buffer = new System.Buffers.ArrayBufferWriter<byte>();
             using (var writer = new Utf8JsonWriter(buffer))
             {
-#pragma warning disable S6966 // Utf8JsonWriter over IBufferWriter only offers synchronous Flush.
                 converter.Write(writer, request.Value, options);
-                writer.Flush();
-#pragma warning restore S6966
             }
 
             body = buffer.WrittenMemory.ToArray();

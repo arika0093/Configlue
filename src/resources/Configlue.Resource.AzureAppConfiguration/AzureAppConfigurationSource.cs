@@ -695,9 +695,9 @@ public sealed class AzureAppConfigurationSource<TFragment>
         }
 
         lookups[schema] = SchemaMemberLookup.Create(schema);
-#pragma warning disable S3267 // False positive: the loop recurses into nested schemas with a null guard.
-        foreach (var member in schema.Members)
+        for (var index = 0; index < schema.Members.Count; index++)
         {
+            var member = schema.Members[index];
             var factory = member.NestedSchemaFactory;
             if (factory is null)
             {
@@ -706,7 +706,6 @@ public sealed class AzureAppConfigurationSource<TFragment>
 
             CollectLookups(factory(), lookups, ancestors);
         }
-#pragma warning restore S3267
 
         ancestors.Remove(schema.ModelType);
     }

@@ -1,5 +1,3 @@
-#pragma warning disable S1075 // Agent endpoint paths use RFC 3986 forward slashes; never filesystem paths.
-
 using System.Net;
 
 namespace Configlue.Resource.AwsAppConfig;
@@ -48,7 +46,9 @@ internal sealed class AwsAppConfigAgentHttpFetcher : IAwsAppConfigAgentFetcher
         ArgumentException.ThrowIfNullOrWhiteSpace(applicationId);
         ArgumentException.ThrowIfNullOrWhiteSpace(environmentId);
         ArgumentException.ThrowIfNullOrWhiteSpace(configurationProfileId);
+#pragma warning disable S1075 // URI paths require RFC 3986 delimiters.
         var baseUri = baseAddress.AbsoluteUri.TrimEnd('/') + "/";
+#pragma warning restore S1075
         return new Uri(
             baseUri
                 + "applications/"

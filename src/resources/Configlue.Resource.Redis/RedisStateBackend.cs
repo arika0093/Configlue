@@ -1,5 +1,3 @@
-#pragma warning disable S2077 // Redis key/channel names are controlled; row values are sent separately to Lua.
-
 using System.Collections.Concurrent;
 using System.Globalization;
 using System.Runtime.CompilerServices;

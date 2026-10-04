@@ -23,7 +23,9 @@ public sealed class MemberSelectorContractTests
         var names = ConfiglueMemberSelector.GetMemberNames(selector, "test selector", "selector");
 
         names.ShouldBe(["Label"]);
-        ConfiglueMemberSelector.GetPropertyPath(selector, "test selector", "selector").ShouldBe("Label");
+        ConfiglueMemberSelector
+            .GetPropertyPath(selector, "test selector", "selector")
+            .ShouldBe("Label");
     }
 
     [Test]
@@ -35,7 +37,8 @@ public sealed class MemberSelectorContractTests
         var names = ConfiglueMemberSelector.GetMemberNames(selector, "test selector", "selector");
 
         names.ShouldBe(["Child", "Next", "Label"]);
-        ConfiglueMemberSelector.GetPropertyPath(selector, "test selector", "selector")
+        ConfiglueMemberSelector
+            .GetPropertyPath(selector, "test selector", "selector")
             .ShouldBe("Child.Next.Label");
     }
 
@@ -45,9 +48,11 @@ public sealed class MemberSelectorContractTests
         Expression<Func<SelectorModel, int?>> nullableSelector = static model => model.RetryCount;
         Expression<Func<SelectorModel, object?>> referenceSelector = static model => model.Label;
 
-        ConfiglueMemberSelector.GetMemberNames(nullableSelector, "test selector", "selector")
+        ConfiglueMemberSelector
+            .GetMemberNames(nullableSelector, "test selector", "selector")
             .ShouldBe(["RetryCount"]);
-        ConfiglueMemberSelector.GetMemberNames(referenceSelector, "test selector", "selector")
+        ConfiglueMemberSelector
+            .GetMemberNames(referenceSelector, "test selector", "selector")
             .ShouldBe(["Label"]);
     }
 
@@ -183,7 +188,9 @@ public sealed class MemberSelectorContractTests
         );
 
         typed.PropertyRoutes.ShouldBe(fromStrings.PropertyRoutes);
-        typed.ResolveSourceId("Database.Port").ShouldBe(fromStrings.ResolveSourceId("Database.Port"));
+        typed
+            .ResolveSourceId("Database.Port")
+            .ShouldBe(fromStrings.ResolveSourceId("Database.Port"));
         typed.ResolveSourceId("Label").ShouldBe(fromStrings.ResolveSourceId("Label"));
     }
 
@@ -208,14 +215,13 @@ public sealed class MemberSelectorContractTests
 
         single.ShouldBe("Database");
         nested.ShouldBe("Database.Host");
-        nested
-            .ShouldBe(
-                ConfiglueMemberSelector.GetPropertyPath(
-                    (Expression<Func<AppSettings, string>>)(static settings => settings.Database!.Host),
-                    "mounted subtree selector",
-                    "subtreeSelector"
-                )
-            );
+        nested.ShouldBe(
+            ConfiglueMemberSelector.GetPropertyPath(
+                (Expression<Func<AppSettings, string>>)(static settings => settings.Database!.Host),
+                "mounted subtree selector",
+                "subtreeSelector"
+            )
+        );
     }
 
     [Test]
@@ -351,10 +357,7 @@ public sealed class MemberSelectorContractTests
                 model.Sources(sources =>
                 {
                     var baseStore = new InMemoryStateSource<AppSettings.Fragment>(
-                        new AppSettings.Fragment
-                        {
-                            RetryCount = Optional<int>.Present(4),
-                        }
+                        new AppSettings.Fragment { RetryCount = Optional<int>.Present(4) }
                     );
                     sources.Add(
                         new StateSource<AppSettings.Fragment>(
@@ -386,9 +389,7 @@ public sealed class MemberSelectorContractTests
 
         public int RetryCount { get; set; }
 
-#pragma warning disable CS0649
-        public int Legacy;
-#pragma warning restore CS0649
+        public int Legacy = 0;
 
         public SelectorChild? Child { get; set; }
     }

@@ -1,8 +1,6 @@
 using System.Text;
 using System.Text.Json;
 
-#pragma warning disable S3267 // Loops validate batch payloads and throw; LINQ would obscure failures.
-
 namespace Configlue.Source.Consul;
 
 internal sealed class ConsulKvBatchWriter<TFragment>

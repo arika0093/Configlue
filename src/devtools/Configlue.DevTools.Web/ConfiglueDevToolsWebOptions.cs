@@ -30,16 +30,16 @@ public sealed class ConfiglueDevToolsWebOptions
     /// </summary>
     public bool AutoOpenBrowser { get; set; }
 
+#pragma warning disable S3928 // Validation reports the invalid options property.
     internal void Validate()
     {
         if (Port is < 0 or > 65535)
         {
-#pragma warning disable S3928 // Options-object property validation; there is no parameter named Port.
             throw new ArgumentOutOfRangeException(
                 nameof(Port),
                 "The DevTools port must be 0-65535."
             );
-#pragma warning restore S3928
         }
     }
+#pragma warning restore S3928
 }

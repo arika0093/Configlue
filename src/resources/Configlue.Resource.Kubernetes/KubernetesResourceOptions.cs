@@ -1,4 +1,3 @@
-#pragma warning disable S3928 // Option property names are not method parameters by design.
 namespace Configlue.Resource.Kubernetes;
 
 /// <summary>Options for a resource backed by one Kubernetes ConfigMap or Secret key.</summary>
@@ -36,6 +35,7 @@ public sealed class KubernetesResourceOptions
     /// <summary>The maximum watch reconnect delay.</summary>
     public TimeSpan WatchReconnectMaxDelay { get; init; } = TimeSpan.FromSeconds(5);
 
+#pragma warning disable S3928 // Validation reports the invalid options property.
     internal void Validate(bool keyRequired)
     {
         if (WatchReconnectInitialDelay <= TimeSpan.Zero)
@@ -48,4 +48,5 @@ public sealed class KubernetesResourceOptions
             throw new ArgumentOutOfRangeException(nameof(WatchReconnectMaxDelay));
         }
     }
+#pragma warning restore S3928
 }

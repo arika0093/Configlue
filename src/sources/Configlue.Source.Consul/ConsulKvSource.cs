@@ -4,8 +4,6 @@ using System.Text.Json;
 using Configlue.CompilerServices;
 using Configlue.Internal;
 
-#pragma warning disable S3267 // Loops validate entries and throw with key context; LINQ would obscure failures.
-
 namespace Configlue.Source.Consul;
 
 /// <summary>
@@ -564,8 +562,9 @@ public sealed class ConsulKvSource<TFragment>
             }
 
             lookups[current] = ConsulMemberLookup.Create(current);
-            foreach (var member in current.Members)
+            for (var index = 0; index < current.Members.Count; index++)
             {
+                var member = current.Members[index];
                 if (member.NestedSchemaFactory is not null)
                 {
                     Collect(member.NestedSchemaFactory(), lookups, ancestors);
@@ -621,8 +620,9 @@ public sealed class ConsulKvSource<TFragment>
 
         var desired = CollectDesiredKeys(prefix, (IConfiglueFragment)(object)request.Value);
         var currentByKey = new Dictionary<string, ConsulKvEntry>(StringComparer.Ordinal);
-        foreach (var entry in current.Entries)
+        for (var index = 0; index < current.Entries.Count; index++)
         {
+            var entry = current.Entries[index];
             if (!currentByKey.TryAdd(entry.Key, entry))
             {
                 throw new InvalidOperationException(

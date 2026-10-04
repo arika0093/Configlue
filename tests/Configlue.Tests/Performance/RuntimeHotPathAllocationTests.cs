@@ -11,6 +11,8 @@ public partial class NoValidationBudgetSettings
     public int Counter { get; set; }
 }
 
+// Allocation measurements share the process GC and ArrayPool caches.
+[NotInParallel]
 public sealed class RuntimeHotPathAllocationTests
 {
     [Test]

@@ -38,6 +38,7 @@ internal sealed class StateSourceResolver<T> : ISourceReader<T>
 
     private readonly StateSourceSet<T> _sourceSet;
     private readonly ILogger? _logger;
+    private readonly Func<long> _getTimestamp;
     private Resolution? _resolution;
     private readonly ConcurrentDictionary<
         (SubjectKey SubjectKey, RouteKey Route),
@@ -61,11 +62,13 @@ internal sealed class StateSourceResolver<T> : ISourceReader<T>
     /// The approximate cached entry count at which sweeps are attempted on access even before the idle timeout
     /// elapses. Defaults to <see cref="SubjectResolutionSweepThreshold"/>.
     /// </param>
+    /// <param name="getTimestamp">An optional monotonic timestamp source in Stopwatch ticks.</param>
     public StateSourceResolver(
         StateSourceSet<T> sourceSet,
         ILogger? logger = null,
         TimeSpan? subjectResolutionIdleTimeout = null,
-        int subjectResolutionSweepThreshold = SubjectResolutionSweepThreshold
+        int subjectResolutionSweepThreshold = SubjectResolutionSweepThreshold,
+        Func<long>? getTimestamp = null
     )
     {
         ArgumentNullException.ThrowIfNull(sourceSet);
@@ -82,12 +85,13 @@ internal sealed class StateSourceResolver<T> : ISourceReader<T>
 
         _sourceSet = sourceSet;
         _logger = logger;
+        _getTimestamp = getTimestamp ?? Stopwatch.GetTimestamp;
         _subjectResolutionSweepThreshold = subjectResolutionSweepThreshold;
         _subjectResolutionIdleTicks = (long)(
             idleTimeout.TotalMilliseconds * Stopwatch.Frequency / 1000.0
         );
         _subjectResolutionSweepCountdown = subjectResolutionSweepThreshold;
-        _subjectResolutionLastSweepTimestamp = Stopwatch.GetTimestamp();
+        _subjectResolutionLastSweepTimestamp = _getTimestamp();
     }
 
     /// <summary>The source that most recently supplied a value.</summary>
@@ -529,7 +533,6 @@ internal sealed class StateSourceResolver<T> : ISourceReader<T>
             throw;
         }
         // Preserve the source reader's exception type for provider recovery handling.
-#pragma warning disable S2139
         catch (Exception exception)
         {
             if (_logger is { } errorLogger && errorLogger.IsEnabled(LogLevel.Error))
@@ -543,7 +546,6 @@ internal sealed class StateSourceResolver<T> : ISourceReader<T>
             }
             throw;
         }
-#pragma warning restore S2139
     }
 
     internal StateSourceWatchTargets<T> GetSourcesForWatch(string? fallbackRevision)
@@ -636,7 +638,7 @@ internal sealed class StateSourceResolver<T> : ISourceReader<T>
         }
 
         var key = (subject.Key, context.Route);
-        var now = Stopwatch.GetTimestamp();
+        var now = _getTimestamp();
         while (true)
         {
             // The dictionary never hands out an entry we may mutate without re-proving residency.
@@ -716,8 +718,7 @@ internal sealed class StateSourceResolver<T> : ISourceReader<T>
     }
 
     /// <summary>Test-only hook that forces an idle sweep at the current timestamp.</summary>
-    internal int EvictIdleSubjectResolutionsForTest() =>
-        SweepSubjectResolutions(Stopwatch.GetTimestamp());
+    internal int EvictIdleSubjectResolutionsForTest() => SweepSubjectResolutions(_getTimestamp());
 
     /// <summary>
     /// Test-only hook that evicts a resident entry even while a watch lease is held so the behavior of stale
@@ -840,7 +841,7 @@ internal sealed class StateSourceResolver<T> : ISourceReader<T>
             _owner = owner;
             _key = key;
             _resolution = resolution;
-            _lastAccessTimestamp = Stopwatch.GetTimestamp();
+            _lastAccessTimestamp = _owner._getTimestamp();
         }
 
         /// <summary>Counts a freshly added entry once it is proven to still be resident.</summary>
@@ -893,7 +894,7 @@ internal sealed class StateSourceResolver<T> : ISourceReader<T>
                 }
 
                 _watchReferenceCount++;
-                _lastAccessTimestamp = Stopwatch.GetTimestamp();
+                _lastAccessTimestamp = _owner._getTimestamp();
                 resolution = _resolution;
                 lease = new WatchLease(this);
                 return true;

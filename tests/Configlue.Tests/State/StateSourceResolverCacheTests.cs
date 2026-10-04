@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using Configlue.Resources;
 using Configlue.Sources;
 using Configlue.State;
@@ -10,13 +11,11 @@ public sealed class StateSourceResolverCacheTests
     [Test]
     public async Task IdleSubjectResolutions_AreEvictedOnAccessAndRebuilt()
     {
+        var clock = new CacheClock();
         var source = CreateSource();
-        var resolver = CreateResolver(source, TimeSpan.FromMilliseconds(40));
+        var resolver = CreateResolver(source, clock, TimeSpan.FromMilliseconds(40));
 
-        // Keep the seeding loop well inside the idle window even on loaded
-        // runners; otherwise mid-loop sweeps evict early subjects and the count
-        // below flakes. Eviction breadth is covered by ManySubjects below.
-        const int subjectCount = 16;
+        const int subjectCount = 64;
         for (var index = 0; index < subjectCount; index++)
         {
             var result = await resolver.ReadAsync(Context(source, index));
@@ -25,7 +24,7 @@ public sealed class StateSourceResolverCacheTests
 
         resolver.SubjectResolutionCount.ShouldBe(subjectCount);
 
-        await Task.Delay(TimeSpan.FromMilliseconds(150));
+        clock.Advance(TimeSpan.FromMilliseconds(150));
         var reread = await resolver.ReadAsync(Context(source, 0));
         (reread.Status).ShouldBe(StateReadStatus.Success);
         (reread.Value!.RetryCount).ShouldBe(3);
@@ -41,13 +40,19 @@ public sealed class StateSourceResolverCacheTests
     [Test]
     public async Task ManySubjects_DoNotGrowTheCacheUnbounded()
     {
+        var clock = new CacheClock();
         var source = CreateSource();
-        var resolver = CreateResolver(source, TimeSpan.FromMilliseconds(20), sweepThreshold: 8);
+        var resolver = CreateResolver(
+            source,
+            clock,
+            TimeSpan.FromMilliseconds(20),
+            sweepThreshold: 8
+        );
 
         for (var index = 0; index < 60; index++)
         {
             await resolver.ReadAsync(Context(source, index));
-            await Task.Delay(TimeSpan.FromMilliseconds(5));
+            clock.Advance(TimeSpan.FromMilliseconds(5));
         }
 
         // Idle sweeps keep the cache proportional to the live window, not the number of subjects ever read.
@@ -57,22 +62,23 @@ public sealed class StateSourceResolverCacheTests
     [Test]
     public async Task ActiveWatchReference_PreventsIdleEvictionUntilReleased()
     {
+        var clock = new CacheClock();
         var source = CreateSource();
-        var resolver = CreateResolver(source, TimeSpan.FromMilliseconds(40));
+        var resolver = CreateResolver(source, clock, TimeSpan.FromMilliseconds(40));
 
         await resolver.ReadAsync(Context(source, 0));
         await resolver.ReadAsync(Context(source, 1));
 
         using (resolver.GetSourcesForWatch(Subject(0), RouteKey.Default, "revision"))
         {
-            await Task.Delay(TimeSpan.FromMilliseconds(150));
+            clock.Advance(TimeSpan.FromMilliseconds(150));
             await resolver.ReadAsync(Context(source, 2));
             // The watched entry survives its idle period while the watch lease is held; the unwatched
             // entry is evicted.
             resolver.SubjectResolutionCount.ShouldBe(2);
         }
 
-        await Task.Delay(TimeSpan.FromMilliseconds(150));
+        clock.Advance(TimeSpan.FromMilliseconds(150));
         await resolver.ReadAsync(Context(source, 3));
         // After release the previously watched entry is evictable again.
         resolver.SubjectResolutionCount.ShouldBe(1);
@@ -81,13 +87,14 @@ public sealed class StateSourceResolverCacheTests
     [Test]
     public async Task EvictedSubject_StillReadsAndWatchesCorrectly()
     {
+        var clock = new CacheClock();
         var source = CreateSource();
-        var resolver = CreateResolver(source, TimeSpan.FromMilliseconds(20));
+        var resolver = CreateResolver(source, clock, TimeSpan.FromMilliseconds(20));
 
         await resolver.ReadAsync(Context(source, 0));
         resolver.SubjectResolutionCount.ShouldBe(1);
 
-        await Task.Delay(TimeSpan.FromMilliseconds(60));
+        clock.Advance(TimeSpan.FromMilliseconds(60));
         await resolver.ReadAsync(Context(source, 1));
         resolver.SubjectResolutionCount.ShouldBe(1);
 
@@ -109,13 +116,15 @@ public sealed class StateSourceResolverCacheTests
 
     private static StateSourceResolver<AppSettings.Fragment> CreateResolver(
         StateSource<AppSettings.Fragment> source,
+        CacheClock clock,
         TimeSpan idleTimeout,
         int sweepThreshold = 1_000_000
     ) =>
         new(
             new StateSourceSet<AppSettings.Fragment>([source]),
             subjectResolutionIdleTimeout: idleTimeout,
-            subjectResolutionSweepThreshold: sweepThreshold
+            subjectResolutionSweepThreshold: sweepThreshold,
+            getTimestamp: () => clock.Timestamp
         );
 
     private static StateSource<AppSettings.Fragment> CreateSource()
@@ -123,7 +132,11 @@ public sealed class StateSourceResolverCacheTests
         var store = new InMemoryStateSource<AppSettings.Fragment>(
             new AppSettings.Fragment { RetryCount = Optional<int>.Present(3) }
         );
-        return new StateSource<AppSettings.Fragment>("cache-source", store, new StateSourceOptions<AppSettings.Fragment> { Writer = store, Watcher = store });
+        return new StateSource<AppSettings.Fragment>(
+            "cache-source",
+            store,
+            new StateSourceOptions<AppSettings.Fragment> { Writer = store, Watcher = store }
+        );
     }
 
     private static ConfiglueResourceContext Context(
@@ -132,6 +145,14 @@ public sealed class StateSourceResolverCacheTests
     ) => source.GetResourceContext(Subject(index));
 
     private static CacheSubject Subject(int index) => new(index);
+
+    private sealed class CacheClock
+    {
+        public long Timestamp { get; private set; }
+
+        public void Advance(TimeSpan elapsed) =>
+            Timestamp += (long)(elapsed.TotalSeconds * Stopwatch.Frequency);
+    }
 
     private sealed record CacheSubject(int Index) : IConfiglueSubject
     {

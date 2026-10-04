@@ -88,8 +88,12 @@ public sealed class KubernetesResourceTests
 
         var first = await resource.ReadAsync(CreateContext());
         var second = await resource.ReadAsync(CreateContext());
-        Encoding.UTF8.GetString(first.Content.Span).ShouldBe(Encoding.UTF8.GetString(second.Content.Span));
-        Encoding.UTF8.GetString(first.Content.Span).ShouldBe("""{"data":{"a":"1","b":"2"},"binaryData":{"z":"CQ=="}}""");
+        Encoding
+            .UTF8.GetString(first.Content.Span)
+            .ShouldBe(Encoding.UTF8.GetString(second.Content.Span));
+        Encoding
+            .UTF8.GetString(first.Content.Span)
+            .ShouldBe("""{"data":{"a":"1","b":"2"},"binaryData":{"z":"CQ=="}}""");
 
         var expected = await ExpectedReadAsync(first.Content.ToArray(), first.Revision);
         expected.Status.ShouldBe(StateReadStatus.Success);
@@ -729,12 +733,12 @@ public sealed class KubernetesResourceTests
 
         resource.ToString().ShouldNotContain(secretText);
         resource.GetResourceId(context).Value.ShouldNotContain(secretText);
-        resource
-            .GetResourceId(context)
-            .ShouldBe(resource.GetResourceId(CreateContext()));
+        resource.GetResourceId(context).ShouldBe(resource.GetResourceId(CreateContext()));
         try
         {
-            throw new KubernetesImmutableException("The Secret 'app-config/credentials' is immutable.");
+            throw new KubernetesImmutableException(
+                "The Secret 'app-config/credentials' is immutable."
+            );
         }
         catch (KubernetesImmutableException exception)
         {
@@ -831,7 +835,9 @@ public sealed class KubernetesResourceTests
     public async Task ConfigMapAndSecret_BackTypedStateThroughCodec()
     {
         var client = new FakeKubernetesObjectClient();
-        var payload = EncodeFragment(new AppSettings.Fragment { RetryCount = Optional<int>.Present(9) });
+        var payload = EncodeFragment(
+            new AppSettings.Fragment { RetryCount = Optional<int>.Present(9) }
+        );
         client.SeedConfigMap(
             "app-config",
             "settings",
@@ -875,8 +881,10 @@ public sealed class KubernetesResourceTests
 
     private static ConfiglueResourceContext CreateContext() => ConfiglueResourceContext.Default;
 
-    private static ValueTask<ResourceReadResult> ExpectedReadAsync(byte[] content, string? revision) =>
-        ValueTaskCompat.FromResult(ResourceReadResult.Success(content, revision));
+    private static ValueTask<ResourceReadResult> ExpectedReadAsync(
+        byte[] content,
+        string? revision
+    ) => ValueTaskCompat.FromResult(ResourceReadResult.Success(content, revision));
 
     private sealed record FakeSubject(SubjectKey Key) : IConfiglueSubject;
 
@@ -908,24 +916,27 @@ public sealed class KubernetesResourceTests
         public static async IAsyncEnumerable<T> Expired<T>()
         {
             await Task.Yield();
-            throw new KubernetesResourceExpiredException("The watch resourceVersion is expired.");
-#pragma warning disable CS0162 // Unreachable yield keeps the async-iterator shape.
+            await Task.FromException(
+                new KubernetesResourceExpiredException("The watch resourceVersion is expired.")
+            );
             yield break;
-#pragma warning restore CS0162
         }
     }
 
     private sealed class FakeKubernetesObjectClient : IKubernetesObjectClient
     {
-        private readonly Dictionary<(string Namespace, string Name), ConfigMapState> _configMaps = new();
+        private readonly Dictionary<(string Namespace, string Name), ConfigMapState> _configMaps =
+            new();
         private readonly Dictionary<(string Namespace, string Name), SecretState> _secrets = new();
         private long _revision = 100;
 
-        public Func<string, string, string?, CancellationToken, IAsyncEnumerable<KubernetesWatchEvent>>? WatchHandler
-        {
-            get;
-            set;
-        }
+        public Func<
+            string,
+            string,
+            string?,
+            CancellationToken,
+            IAsyncEnumerable<KubernetesWatchEvent>
+        >? WatchHandler { get; set; }
 
         public int WatchCalls { get; private set; }
 
@@ -978,7 +989,9 @@ public sealed class KubernetesResourceTests
             if (!_configMaps.TryGetValue((@namespace, name), out var state))
             {
                 return Task.FromException<KubernetesConfigMapSnapshot>(
-                    new KubernetesObjectNotFoundException($"The ConfigMap '{@namespace}/{name}' was not found.")
+                    new KubernetesObjectNotFoundException(
+                        $"The ConfigMap '{@namespace}/{name}' was not found."
+                    )
                 );
             }
 
@@ -1002,7 +1015,9 @@ public sealed class KubernetesResourceTests
             if (!_secrets.TryGetValue((@namespace, name), out var state))
             {
                 return Task.FromException<KubernetesSecretSnapshot>(
-                    new KubernetesObjectNotFoundException($"The Secret '{@namespace}/{name}' was not found.")
+                    new KubernetesObjectNotFoundException(
+                        $"The Secret '{@namespace}/{name}' was not found."
+                    )
                 );
             }
 
@@ -1030,14 +1045,18 @@ public sealed class KubernetesResourceTests
             if (current?.Immutable == true)
             {
                 return Task.FromException<string?>(
-                    new KubernetesImmutableException($"The ConfigMap '{@namespace}/{name}' is immutable.")
+                    new KubernetesImmutableException(
+                        $"The ConfigMap '{@namespace}/{name}' is immutable."
+                    )
                 );
             }
 
             if (requireMissing && exists)
             {
                 return Task.FromException<string?>(
-                    new KubernetesConflictException($"The ConfigMap '{@namespace}/{name}' already exists.")
+                    new KubernetesConflictException(
+                        $"The ConfigMap '{@namespace}/{name}' already exists."
+                    )
                 );
             }
 
@@ -1053,7 +1072,9 @@ public sealed class KubernetesResourceTests
                 );
             }
 
-            var revision = Interlocked.Increment(ref _revision).ToString(System.Globalization.CultureInfo.InvariantCulture);
+            var revision = Interlocked
+                .Increment(ref _revision)
+                .ToString(System.Globalization.CultureInfo.InvariantCulture);
             _configMaps[(@namespace, name)] = new ConfigMapState(
                 revision,
                 current?.Immutable ?? false,
@@ -1083,14 +1104,18 @@ public sealed class KubernetesResourceTests
             if (current?.Immutable == true)
             {
                 return Task.FromException<string?>(
-                    new KubernetesImmutableException($"The Secret '{@namespace}/{name}' is immutable.")
+                    new KubernetesImmutableException(
+                        $"The Secret '{@namespace}/{name}' is immutable."
+                    )
                 );
             }
 
             if (requireMissing && exists)
             {
                 return Task.FromException<string?>(
-                    new KubernetesConflictException($"The Secret '{@namespace}/{name}' already exists.")
+                    new KubernetesConflictException(
+                        $"The Secret '{@namespace}/{name}' already exists."
+                    )
                 );
             }
 
@@ -1106,7 +1131,9 @@ public sealed class KubernetesResourceTests
                 );
             }
 
-            var revision = Interlocked.Increment(ref _revision).ToString(System.Globalization.CultureInfo.InvariantCulture);
+            var revision = Interlocked
+                .Increment(ref _revision)
+                .ToString(System.Globalization.CultureInfo.InvariantCulture);
             _secrets[(@namespace, name)] = new SecretState(
                 revision,
                 current?.Immutable ?? false,

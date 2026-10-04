@@ -29,7 +29,8 @@
       >true</RestoreLockedMode>
     <NuGetLockFilePath Condition="'$(ConfiglueRuntimeRestore)' == 'true'"
       >$(BaseIntermediateOutputPath)packages.runtime.lock.json</NuGetLockFilePath>
-    <NoWarn>$(NoWarn);NU5100;NU5128</NoWarn>
+    <!-- MSBuild task assemblies belong under tasks/net10.0, not the runtime lib directory. -->
+    <NoWarn>$(NoWarn);NU5100</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>

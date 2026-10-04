@@ -25,6 +25,8 @@ public partial class FragmentEqualityBudgetSettings
 /// <c>benchmarks/Configlue.Benchmarks</c> provide the fine-grained
 /// before/after numbers.
 /// </summary>
+// Allocation measurements share the process GC and ArrayPool caches.
+[NotInParallel]
 public sealed class AllocationBudgetTests
 {
     [Test]
@@ -115,7 +117,10 @@ public sealed class AllocationBudgetTests
     }
 
     private static Dictionary<string, string> CreateLookup(int count) =>
-        Enumerable.Range(0, count).ToDictionary(static index => $"key-{index}", static index => $"value-{index}");
+        Enumerable
+            .Range(0, count)
+            .ToDictionary(static index => $"key-{index}", static index => $"value-{index}");
+
     [Test]
     public void StripUtf8Bom_SingleSegmentPrefix_AllocatesNothing()
     {
@@ -179,10 +184,7 @@ public sealed class AllocationBudgetTests
     [Test]
     public void OrdinalFragmentEnumeration_DoesNotAllocateIterator()
     {
-        var fragment = new AppSettings.Fragment
-        {
-            Label = Optional<string?>.Present("label"),
-        };
+        var fragment = new AppSettings.Fragment { Label = Optional<string?>.Present("label") };
         fragment.ShouldBeAssignableTo<IConfiglueOrdinalDynamicFragment>();
 
         // Assertion helpers allocate on the calling thread, so record the
@@ -245,7 +247,13 @@ public sealed class AllocationBudgetTests
 
     private static long Measure(Action action)
     {
-        action();
+        // Warm the complete loop so generic caches and tiered compilation have
+        // the same opportunity to settle for small and large inputs.
+        for (var index = 0; index < Iterations; index++)
+        {
+            action();
+        }
+
         GC.Collect(GC.MaxGeneration, GCCollectionMode.Forced, blocking: true);
         GC.WaitForPendingFinalizers();
         GC.Collect(GC.MaxGeneration, GCCollectionMode.Forced, blocking: true);

@@ -505,7 +505,6 @@ internal sealed class RuntimeWriteCoordinator<TModel, TFragment>
                     throw;
                 }
                 // Preserve the writer's exception type for callers that classify conflicts or retries.
-#pragma warning disable S2139
                 catch (Exception exception)
                 {
                     if (physicalWriteCount > 0)
@@ -521,7 +520,6 @@ internal sealed class RuntimeWriteCoordinator<TModel, TFragment>
 
                     throw;
                 }
-#pragma warning restore S2139
                 results.Add(
                     plan.Source.Id,
                     new StateSourceWriteResult(plan.Source.Id, plan.ResourceId, write.Revision)
@@ -559,7 +557,6 @@ internal sealed class RuntimeWriteCoordinator<TModel, TFragment>
                 throw;
             }
             // Preserve the batch writer's exception type for conflict and retry handling.
-#pragma warning disable S2139
             catch (Exception exception)
             {
                 if (physicalWriteCount > 0)
@@ -575,7 +572,6 @@ internal sealed class RuntimeWriteCoordinator<TModel, TFragment>
 
                 throw;
             }
-#pragma warning restore S2139
             foreach (var plan in group)
             {
                 results.Add(

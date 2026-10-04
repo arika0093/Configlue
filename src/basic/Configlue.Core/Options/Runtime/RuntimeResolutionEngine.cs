@@ -363,7 +363,6 @@ internal sealed partial class RuntimeResolutionEngine<TModel, TFragment>
                         throw;
                     }
                     // Preserve the codec's original exception type so its recoverability policy can classify it.
-#pragma warning disable S2139
                     catch (Exception exception)
                     {
                         observeSource?.Invoke(
@@ -379,7 +378,6 @@ internal sealed partial class RuntimeResolutionEngine<TModel, TFragment>
                         );
                         throw;
                     }
-#pragma warning restore S2139
                 }
 
                 var result = sourceResult.FromSource(source.Id, source.PhysicalOrigin);

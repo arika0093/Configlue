@@ -8,8 +8,6 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <LangVersion>preview</LangVersion>
-    <!-- S1075: '/' is the RFC 6901-mandated pointer delimiter, not a hardcoded file path. -->
-    <NoWarn>$(NoWarn);S1075;S3267;S1172</NoWarn>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="System.Text.Json" Version="10.0.0" />

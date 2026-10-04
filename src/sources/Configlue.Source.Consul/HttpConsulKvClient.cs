@@ -488,16 +488,23 @@ public sealed class HttpConsulKvClient : IConsulKvClient
 
     private static string NormalizeKey(string key) => key.Trim('/');
 
-#pragma warning disable S1144 // Set by System.Text.Json deserialization.
     private sealed class ConsulJsonEntry
     {
-        public string? Key { get; set; }
+        [System.Text.Json.Serialization.JsonConstructor]
+        public ConsulJsonEntry(string? key, string? value, ulong modifyIndex, ulong createIndex)
+        {
+            Key = key;
+            Value = value;
+            ModifyIndex = modifyIndex;
+            CreateIndex = createIndex;
+        }
 
-        public string? Value { get; set; }
+        public string? Key { get; }
 
-        public ulong ModifyIndex { get; set; }
+        public string? Value { get; }
 
-        public ulong CreateIndex { get; set; }
+        public ulong ModifyIndex { get; }
+
+        public ulong CreateIndex { get; }
     }
-#pragma warning restore S1144
 }

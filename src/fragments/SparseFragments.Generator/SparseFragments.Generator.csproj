@@ -9,9 +9,13 @@
     <IncludeBuildOutput>false</IncludeBuildOutput>
     <GenerateDocumentationFile>false</GenerateDocumentationFile>
     <PackageDescription>Standalone source generator for SparseFragments models.</PackageDescription>
-    <NoWarn>$(NoWarn);RS2008;NU5128</NoWarn>
+    <SuppressDependenciesWhenPacking>true</SuppressDependenciesWhenPacking>
   </PropertyGroup>
   <ItemGroup>
+    <AdditionalFiles Include="AnalyzerReleases.Shipped.md;AnalyzerReleases.Unshipped.md" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="System.Memory" Version="4.6.3" PrivateAssets="all" />
     <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.3.1" PrivateAssets="all" />
     <PackageReference
       Include="Microsoft.CodeAnalysis.Analyzers"

@@ -150,6 +150,7 @@ public static class JsonPatchEngine
         return JsonNode.Parse(node.ToJsonString());
     }
 
+#pragma warning disable S1075 // RFC 6901 JSON Pointer uses slash delimiters.
     private static void DiffNodes(
         JsonNode? before,
         JsonNode? after,
@@ -164,20 +165,22 @@ public static class JsonPatchEngine
 
         if (before is JsonObject beforeObject && after is JsonObject afterObject)
         {
-            foreach (var property in beforeObject)
+            foreach (var key in ((IDictionary<string, JsonNode?>)beforeObject).Keys)
             {
-                if (!afterObject.ContainsKey(property.Key))
+                if (afterObject.ContainsKey(key))
                 {
-                    ops.Add(
-                        new JsonPatchOperation(
-                            "remove",
-                            path + "/" + JsonPointer.Escape(property.Key),
-                            null,
-                            null,
-                            false
-                        )
-                    );
+                    continue;
                 }
+
+                ops.Add(
+                    new JsonPatchOperation(
+                        "remove",
+                        path + "/" + JsonPointer.Escape(key),
+                        null,
+                        null,
+                        false
+                    )
+                );
             }
 
             foreach (var property in afterObject)
@@ -210,6 +213,8 @@ public static class JsonPatchEngine
 
         ops.Add(new JsonPatchOperation("replace", path, null, Clone(after), true));
     }
+
+#pragma warning restore S1075
 
     private static void ApplyOne(
         ref JsonNode? current,
@@ -320,14 +325,7 @@ public static class JsonPatchEngine
 
         var tokens = JsonPointer.Parse(path);
         var parent = ResolveParent(current, tokens, isAdd: true, path, propertyNameComparison);
-        SetChild(
-            parent,
-            tokens[tokens.Length - 1],
-            value,
-            isAdd: true,
-            path,
-            propertyNameComparison
-        );
+        SetChild(parent, tokens[tokens.Length - 1], value, path, propertyNameComparison);
     }
 
     private static void ApplyRemove(
@@ -543,13 +541,15 @@ public static class JsonPatchEngine
 
         if (comparison == StringComparison.OrdinalIgnoreCase)
         {
-            foreach (var property in obj)
+            foreach (var key in ((IDictionary<string, JsonNode?>)obj).Keys)
             {
-                if (string.Equals(property.Key, token, StringComparison.OrdinalIgnoreCase))
+                if (!string.Equals(key, token, StringComparison.OrdinalIgnoreCase))
                 {
-                    actualKey = property.Key;
-                    return true;
+                    continue;
                 }
+
+                actualKey = key;
+                return true;
             }
         }
 
@@ -617,7 +617,6 @@ public static class JsonPatchEngine
         JsonNode parent,
         string token,
         JsonNode? value,
-        bool isAdd,
         string path,
         StringComparison propertyNameComparison
     )
@@ -781,8 +780,9 @@ public static class JsonPatchEngine
             );
         }
 
-        foreach (var c in token)
+        for (var position = 0; position < token.Length; position++)
         {
+            var c = token[position];
             if (c < '0' || c > '9')
             {
                 throw new JsonPatchException(
