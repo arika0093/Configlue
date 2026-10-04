@@ -91,16 +91,16 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
-      - name: Run .NET Framework portable tests
+      - name: Build .NET Framework consumption smoke
         if: matrix.os == 'windows-latest'
-        # Several race tests deliberately block worker threads at barriers. Bound
-        # concurrent test bodies on the legacy pool so their releasing continuations
-        # can run on the small CI worker; concurrency inside each test is unchanged.
+        # net48 is a compile-consumption target, not a runtime re-execution target
+        # (see docs/compat-matrix.md). Build the Portable smoke — the generator still
+        # executes at compile time, so generation failures fail the build. Runtime
+        # coverage stays on net10.0; legacy-consumer builds additionally run in
+        # test-package-consumers.yaml (netstandard2.0/net48).
         run: >
-          dotnet test tests/Configlue.Tests/Configlue.Tests.csproj
-          --framework net48 --runtime win-x86 --configuration Release
-          -- --timeout 5m --maximum-parallel-tests 2
-          --report-trx --no-progress
+          dotnet build tests/Configlue.Tests/Configlue.Tests.csproj
+          --framework net48 --configuration Release
 
       - name: Build Windows host integrations
         if: matrix.os == 'windows-latest'

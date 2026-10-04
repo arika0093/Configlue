@@ -4,12 +4,10 @@ using System.Threading.Channels;
 using Configlue.Sources;
 using Configlue.Testing;
 using Microsoft.Extensions.DependencyInjection;
-#if !NET48
 using Configlue.Hosting.AspNetCore;
 using Configlue.Hosting.Blazor;
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.Http;
-#endif
 
 namespace Configlue.Tests;
 
@@ -517,7 +515,6 @@ public sealed class PerSubjectDependencyInjectionTests
         );
     }
 
-#if !NET48
     [Test]
     public async Task HttpContextAccessorMapsRequestIntoTypedSubject()
     {
@@ -680,8 +677,6 @@ public sealed class PerSubjectDependencyInjectionTests
         authenticationStateProvider.SetUser("user-b");
         notifications.ShouldBe(1);
     }
-
-#endif
 
     private static AppSettings.Fragment Fragment(string? label) =>
         new() { Label = Optional<string?>.Present(label) };
@@ -880,7 +875,6 @@ public sealed class PerSubjectDependencyInjectionTests
         public void Dispose() => Interlocked.Exchange(ref _dispose, null)?.Invoke();
     }
 
-#if !NET48
     private sealed class TestAuthenticationStateProvider(string userId)
         : AuthenticationStateProvider
     {
@@ -902,5 +896,4 @@ public sealed class PerSubjectDependencyInjectionTests
                 )
             );
     }
-#endif
 }

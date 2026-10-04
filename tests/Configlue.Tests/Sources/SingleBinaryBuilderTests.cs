@@ -1,8 +1,6 @@
 using System.IO.Compression;
 using Configlue.Source.Presets;
-#if !NET48
 using Configlue.Transformer.AES;
-#endif
 
 namespace Configlue.Tests;
 
@@ -342,7 +340,6 @@ public sealed class SingleBinaryBuilderTests
         (await reopened.GetState<AppSettings>("work").GetValueAsync()).RetryCount.ShouldBe(19);
     }
 
-#if !NET48
     [Test]
     public async Task SingleBinaryUnnamedAndNamedDefaultRoundTripWithEncryption()
     {
@@ -381,7 +378,6 @@ public sealed class SingleBinaryBuilderTests
         (await reopened.GetState<AppSettings>().GetValueAsync()).RetryCount.ShouldBe(11);
         (await reopened.GetState<AppSettings>("default").GetValueAsync()).RetryCount.ShouldBe(22);
     }
-#endif
 
     [Test]
     public async Task SingleBinaryUsesTheSelectedHostProfileForUserGlobalPaths()
@@ -447,7 +443,6 @@ public sealed class SingleBinaryBuilderTests
         (await reopened.GetState<AppSettings>("work").GetValueAsync()).RetryCount.ShouldBe(19);
     }
 
-#if !NET48
     [Test]
     public async Task SingleBinaryPassphraseEncryptionRoundTripsAcrossContexts()
     {
@@ -539,7 +534,6 @@ public sealed class SingleBinaryBuilderTests
         );
         (await reopened.GetState<AppSettings>().GetValueAsync()).RetryCount.ShouldBe(54);
     }
-#endif
 
     [Test]
     public async Task ConcurrentWritesToDifferentEntriesMergeAndSameEntryConflicts()
@@ -667,7 +661,6 @@ public sealed class SingleBinaryBuilderTests
         entries.ShouldContain(SubjectEntryName(subject, "models/app/options/game.json"));
     }
 
-#if !NET48
     [Test]
     public async Task SingleBinaryEncryptedArchivePreservesMultipleSubjects()
     {
@@ -710,7 +703,6 @@ public sealed class SingleBinaryBuilderTests
         (await reopenedSubjects.ForSubject(subjectA).GetValueAsync()).RetryCount.ShouldBe(10);
         (await reopenedSubjects.ForSubject(subjectB).GetValueAsync()).RetryCount.ShouldBe(20);
     }
-#endif
 
     private static async Task<bool> Commit(EditSession<AppSettings> session)
     {

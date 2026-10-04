@@ -1,20 +1,17 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <TargetFrameworks>netstandard2.0;netstandard2.1;net10.0;net48</TargetFrameworks>
-    <!-- The .NET SDK infers a win-x86 RuntimeIdentifier for the .NET Framework executable
-         target on Windows, but NuGet restore does not, which causes NETSDK1047 for
-         net48/win-x86. Declaring the RID here keeps restore and build in agreement. -->
-    <RuntimeIdentifiers Condition="'$(OS)' == 'Windows_NT'">win-x86</RuntimeIdentifiers>
   </PropertyGroup>
-  <PropertyGroup Condition="'$(ConfiglueNetStandard)' == 'true'">
+  <!-- netstandard and net48 are compile-consumption smokes, not suite targets
+       (see docs/compat-matrix.md): the suite executes on net10.0 only. -->
+  <PropertyGroup
+    Condition="'$(ConfiglueNetStandard)' == 'true' or '$(TargetFramework)' == 'net48'"
+  >
     <IsTestProject>false</IsTestProject>
   </PropertyGroup>
-  <PropertyGroup Condition="'$(TargetFramework)' == 'net48'">
-    <OutputType>Exe</OutputType>
-    <EnableTUnitPolyfills>false</EnableTUnitPolyfills>
-    <PolyArgumentExceptions>true</PolyArgumentExceptions>
-  </PropertyGroup>
-  <ItemGroup Condition="'$(ConfiglueNetStandard)' != 'true'">
+  <ItemGroup
+    Condition="'$(ConfiglueNetStandard)' != 'true' and '$(TargetFramework)' != 'net48'"
+  >
     <PackageReference Include="StackExchange.Redis" Version="3.3.1" />
     <PackageReference Include="System.CommandLine" Version="2.0.12" />
   </ItemGroup>
@@ -24,38 +21,23 @@
     <PackageReference Include="bunit" Version="2.11.3" />
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
   </ItemGroup>
+  <!-- Reference assemblies let the net48 consumption smoke compile on any OS. -->
   <ItemGroup Condition="'$(TargetFramework)' == 'net48'">
-    <Using Include="System.Net.Http" />
-    <PackageReference Include="Polyfill" Version="11.4.1" PrivateAssets="all" />
     <PackageReference
       Include="Microsoft.NETFramework.ReferenceAssemblies"
       Version="1.0.3"
       PrivateAssets="all"
     />
-    <Compile Remove="Formats/ConfiglueSchemaMsBuildTests.cs" />
-    <Compile Remove="Resources/PipelineFingerprintTests.cs" />
-    <Compile Remove="Resources/PostgreSqlSourceTests.cs" />
-    <Compile Remove="Resources/PostgreSqlSourceCacheLifecycleTests.cs" />
-    <Compile Remove="Resources/PostgreSqlSourceResidencyLeaseTests.cs" />
-    <Compile Remove="Resources/PostgreSqlSchemaGuardTests.cs" />
-    <Compile Remove="State/StatePipelineTests.cs" />
-    <Compile Remove="State/RuntimeLifetimeTests.cs" />
-    <Compile Remove="Contracts/Transformers/TransformerRecoveryPolicyContractTests.cs" />
-    <Compile Remove="Contracts/Fragments/SharedMutableCollectionCloneTests.cs" />
-    <Compile Remove="Extensions/ObservableAdapterTests.cs" />
-    <Compile Remove="ReactiveSupport/ReactiveFixtures.cs" />
-    <Compile Remove="Blazor/**/*.cs" />
-    <Compile Remove="ComponentModel/**/*.cs" />
-    <Compile Remove="MessagePack/**/*.cs" />
-    <Compile Remove="Integration/**/*.cs" />
-    <Compile Remove="Hosting/**/*.cs" />
   </ItemGroup>
-  <ItemGroup Condition="'$(ConfiglueNetStandard)' == 'true'">
+  <ItemGroup
+    Condition="'$(ConfiglueNetStandard)' == 'true' or '$(TargetFramework)' == 'net48'"
+  >
     <PackageReference Remove="TUnit;Shouldly" />
     <Using Remove="Shouldly;Configlue.Codecs;Configlue.Migrations;Configlue.Resources;Configlue.Sources;Configlue.Extensibility;Configlue.State;Configlue.Transformers" />
     <PackageReference Include="Polyfill" Version="11.4.1" PrivateAssets="all" />
     <Compile Remove="**/*.cs" />
     <Compile Include="Portable/**/*.cs" />
+    <Compile Include="Compatibility/ReadOnlySetSmokeShim.cs" />
     <ProjectReference Include="../../src/basic/Configlue.Abstraction/Configlue.Abstraction.csproj" />
     <ProjectReference Include="../../src/basic/Configlue.Core/Configlue.Core.csproj" />
     <ProjectReference Include="../../src/providers/Configlue.Provider.Json/Configlue.Provider.Json.csproj" />
@@ -65,7 +47,9 @@
       ReferenceOutputAssembly="false"
     />
   </ItemGroup>
-  <ItemGroup Condition="'$(ConfiglueNetStandard)' != 'true'">
+  <ItemGroup
+    Condition="'$(ConfiglueNetStandard)' != 'true' and '$(TargetFramework)' != 'net48'"
+  >
     <ProjectReference Include="../../src/basic/Configlue/Configlue.csproj" />
     <ProjectReference Include="../../src/basic/Configlue.Core/Configlue.Core.csproj" />
     <ProjectReference Include="../../src/extensions/Configlue.Extensions.DI/Configlue.Extensions.DI.csproj" />

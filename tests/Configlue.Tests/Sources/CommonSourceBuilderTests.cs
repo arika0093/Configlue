@@ -4,9 +4,7 @@ using Configlue.Provider.Json;
 using Configlue.Source.CommandLine;
 using Configlue.Source.Presets;
 using Configlue.Testing;
-#if !NET48
 using Configlue.Transformer.AES;
-#endif
 
 namespace Configlue.Tests;
 
@@ -124,7 +122,6 @@ public sealed partial class CommonSourceFormatTests
         commandLine.CanWrite.ShouldBeFalse();
     }
 
-#if !NET48
     [Test]
     public async Task CommonSourceBuilder_AppliesProviderByteTransformers()
     {
@@ -153,5 +150,4 @@ public sealed partial class CommonSourceFormatTests
         (await options.GetValueAsync()).RetryCount.ShouldBe(39);
         (await File.ReadAllBytesAsync(explicitPath)).SequenceEqual(plaintext).ShouldBeFalse();
     }
-#endif
 }

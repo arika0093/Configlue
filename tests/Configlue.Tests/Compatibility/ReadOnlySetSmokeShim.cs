@@ -1,11 +1,11 @@
-#if NET48
+#if NET48 || NETSTANDARD2_0
 namespace System.Collections.Generic;
 
-// Test-only IReadOnlySet<T> shim for the net48 test target. The .NET Framework 4.8
-// BCL has no System.Collections.Generic.IReadOnlySet<T>, and the public polyfill
-// was removed from Configlue.Abstraction by design (#143), so test models that use
-// read-only sets need this declaration to compile and generate on net48.
-// Mirrors tests/fixtures/consumers/set-clones/CompatibilityIReadOnlySet.cs.
+// Test-only IReadOnlySet<T> shim for the net48/netstandard2.0 consumption smokes.
+// Neither TFM ships System.Collections.Generic.IReadOnlySet<T>, and the public
+// polyfill was removed from Configlue.Abstraction by design (#143), so smoke
+// models that use read-only sets need this declaration to compile and generate.
+// Mirrors the set-clones and package-sparse-netstandard consumer shims.
 // Do NOT move this into src/: it must never ship in a package.
 public interface IReadOnlySet<T> : IReadOnlyCollection<T>
 {
