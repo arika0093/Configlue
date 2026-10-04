@@ -13,6 +13,42 @@ namespace Configlue.DevTools
         public static System.Threading.Tasks.Task<bool> OpenBrowserAsync(string? launchUrl, Configlue.DevTools.IConfiglueDevToolsBrowserLauncher launcher, System.Threading.CancellationToken cancellationToken = default) { }
         public static System.Threading.Tasks.Task<bool> OpenBrowserAsync(string? launchUrl, System.Func<string, System.Threading.CancellationToken, System.Threading.Tasks.Task> openAsync, System.Threading.CancellationToken cancellationToken = default) { }
     }
+    public sealed class ConfiglueDevToolsDraftThrottle
+    {
+        public ConfiglueDevToolsDraftThrottle() { }
+        public ConfiglueDevToolsDraftThrottle(System.TimeSpan debounceInterval) { }
+        public System.TimeSpan DebounceInterval { get; set; }
+        public bool HasPendingEdit { get; }
+        public void MarkSent(System.DateTimeOffset nowUtc) { }
+        public void NoteEdit(System.DateTimeOffset nowUtc) { }
+        public bool ShouldSync(System.DateTimeOffset nowUtc, bool explicitRequest = false) { }
+    }
+    public sealed class ConfiglueDevToolsEditorSession<TModel> : System.IDisposable
+        where TModel : Configlue.CompilerServices.IConfiglueFacadeModel<TModel>
+    {
+        public Configlue.DevTools.ConfiglueViewerDocument CurrentDocument { get; }
+        public bool HasLocalChanges { get; }
+        public bool HasUpstreamChanges { get; }
+        public bool IsDisposed { get; }
+        public System.Collections.Generic.IReadOnlyList<Configlue.DevTools.ConfiglueEditorChangedPath> ModifiedPaths { get; }
+        public Configlue.ConfiglueModelSchema Schema { get; }
+        public Configlue.DevTools.ConfiglueViewerDocument SessionStartDocument { get; }
+        public string StateIdentity { get; }
+        public string StateName { get; }
+        public event System.Action? Changed;
+        public System.Threading.Tasks.ValueTask<Configlue.DevTools.ConfiglueEditorSyncResult> ApplySecretAsync(string memberPath, string? plaintext, System.Threading.CancellationToken cancellationToken = default) { }
+        public string BuildCanonicalDraftJson() { }
+        public System.Threading.Tasks.ValueTask<Configlue.DevTools.ConfiglueEditorSaveResult> CommitAsync(System.Threading.CancellationToken cancellationToken = default) { }
+        public void DiscardChanges() { }
+        public void Dispose() { }
+        public Configlue.DevTools.ConfiglueViewerSchemaSetup GetSchemaSetup() { }
+        public System.Threading.Tasks.ValueTask<Configlue.DevTools.ConfiglueEditorSyncResult> RebaseAsync(System.Threading.CancellationToken cancellationToken = default) { }
+        public System.Threading.Tasks.ValueTask<bool> RefreshAsync(System.Threading.CancellationToken cancellationToken = default) { }
+        public System.Threading.Tasks.ValueTask<Configlue.DevTools.ConfiglueEditorSyncResult> SyncDraftAsync(string draftJson, System.Threading.CancellationToken cancellationToken = default) { }
+        public System.Threading.Tasks.ValueTask<Configlue.DevTools.ConfiglueEditorPreviewResult> ValidateAsync(System.Threading.CancellationToken cancellationToken = default) { }
+        public static Configlue.DevTools.ConfiglueEditorFailureCategory Classify(System.Exception exception) { }
+        public static System.Threading.Tasks.ValueTask<Configlue.DevTools.ConfiglueDevToolsEditorSession<TModel>> OpenAsync(Configlue.IWritableState<TModel> state, Configlue.DevTools.ConfiglueDevToolsViewerOptions? options = null, string stateName = "", System.Threading.CancellationToken cancellationToken = default) { }
+    }
     public sealed class ConfiglueDevToolsRegistry
     {
         public ConfiglueDevToolsRegistry() { }
@@ -51,6 +87,80 @@ namespace Configlue.DevTools
         public string GetContributionJson(string memberPath) { }
         public System.Threading.Tasks.ValueTask<Configlue.DevTools.ConfiglueViewerDocument> LoadAsync(System.Threading.CancellationToken cancellationToken = default) { }
         public System.Threading.Tasks.ValueTask<Configlue.DevTools.ConfiglueViewerRefreshResult> RefreshAsync(System.Threading.CancellationToken cancellationToken = default) { }
+    }
+    public sealed class ConfiglueEditorChangedPath : System.IEquatable<Configlue.DevTools.ConfiglueEditorChangedPath>
+    {
+        public ConfiglueEditorChangedPath(string MemberPath, string Editability) { }
+        public string Editability { get; init; }
+        public string MemberPath { get; init; }
+    }
+    public enum ConfiglueEditorFailureCategory
+    {
+        None = 0,
+        Parse = 1,
+        Schema = 2,
+        Validation = 3,
+        NonEditable = 4,
+        Secret = 5,
+        Routing = 6,
+        Conflict = 7,
+        PartialWrite = 8,
+        Invalidated = 9,
+    }
+    public sealed class ConfiglueEditorPreviewResult : System.IEquatable<Configlue.DevTools.ConfiglueEditorPreviewResult>
+    {
+        public ConfiglueEditorPreviewResult(bool Success, Configlue.DevTools.ConfiglueEditorFailureCategory Category, System.Collections.Generic.IReadOnlyList<string> Errors, int PhysicalWriteCount, bool IsAtomic, bool IsEmpty, bool PreviewAvailable) { }
+        public Configlue.DevTools.ConfiglueEditorFailureCategory Category { get; init; }
+        public System.Collections.Generic.IReadOnlyList<string> Errors { get; init; }
+        public bool IsAtomic { get; init; }
+        public bool IsEmpty { get; init; }
+        public int PhysicalWriteCount { get; init; }
+        public bool PreviewAvailable { get; init; }
+        public bool Success { get; init; }
+        public static Configlue.DevTools.ConfiglueEditorPreviewResult Fail(Configlue.DevTools.ConfiglueEditorFailureCategory category, System.Collections.Generic.IReadOnlyList<string> errors) { }
+        public static Configlue.DevTools.ConfiglueEditorPreviewResult Ok(int physicalWriteCount, bool isAtomic, bool isEmpty) { }
+        public static Configlue.DevTools.ConfiglueEditorPreviewResult Unavailable() { }
+    }
+    public sealed class ConfiglueEditorSaveResult : System.IEquatable<Configlue.DevTools.ConfiglueEditorSaveResult>
+    {
+        public ConfiglueEditorSaveResult(bool Committed, Configlue.DevTools.ConfiglueEditorFailureCategory Category, System.Collections.Generic.IReadOnlyList<string> Errors, Configlue.DevTools.ConfiglueEditorWriteReceipt? Receipt, System.Collections.Generic.IReadOnlyList<string> CommittedPaths, bool HasUpstreamChanges) { }
+        public Configlue.DevTools.ConfiglueEditorFailureCategory Category { get; init; }
+        public bool Committed { get; init; }
+        public System.Collections.Generic.IReadOnlyList<string> CommittedPaths { get; init; }
+        public System.Collections.Generic.IReadOnlyList<string> Errors { get; init; }
+        public bool HasUpstreamChanges { get; init; }
+        public Configlue.DevTools.ConfiglueEditorWriteReceipt? Receipt { get; init; }
+        public static Configlue.DevTools.ConfiglueEditorSaveResult Fail(Configlue.DevTools.ConfiglueEditorFailureCategory category, System.Collections.Generic.IReadOnlyList<string> errors, bool hasUpstreamChanges) { }
+        public static Configlue.DevTools.ConfiglueEditorSaveResult Ok(Configlue.DevTools.ConfiglueEditorWriteReceipt receipt, System.Collections.Generic.IReadOnlyList<string> committedPaths, bool hasUpstreamChanges) { }
+    }
+    public sealed class ConfiglueEditorSourceWrite : System.IEquatable<Configlue.DevTools.ConfiglueEditorSourceWrite>
+    {
+        public ConfiglueEditorSourceWrite(string SourceId, string? ResourceId, string? Revision) { }
+        public string? ResourceId { get; init; }
+        public string? Revision { get; init; }
+        public string SourceId { get; init; }
+    }
+    public sealed class ConfiglueEditorSyncResult : System.IEquatable<Configlue.DevTools.ConfiglueEditorSyncResult>
+    {
+        public ConfiglueEditorSyncResult(bool Success, Configlue.DevTools.ConfiglueEditorFailureCategory Category, System.Collections.Generic.IReadOnlyList<string> Errors, System.Collections.Generic.IReadOnlyList<Configlue.DevTools.ConfiglueEditorChangedPath> ChangedPaths, int ModifiedCount, bool HasChanges, bool HasUpstreamChanges) { }
+        public Configlue.DevTools.ConfiglueEditorFailureCategory Category { get; init; }
+        public System.Collections.Generic.IReadOnlyList<Configlue.DevTools.ConfiglueEditorChangedPath> ChangedPaths { get; init; }
+        public System.Collections.Generic.IReadOnlyList<string> Errors { get; init; }
+        public bool HasChanges { get; init; }
+        public bool HasUpstreamChanges { get; init; }
+        public int ModifiedCount { get; init; }
+        public bool Success { get; init; }
+        public static Configlue.DevTools.ConfiglueEditorSyncResult Fail(Configlue.DevTools.ConfiglueEditorFailureCategory category, System.Collections.Generic.IReadOnlyList<string> errors, bool hasUpstreamChanges) { }
+        public static Configlue.DevTools.ConfiglueEditorSyncResult Ok(System.Collections.Generic.IReadOnlyList<Configlue.DevTools.ConfiglueEditorChangedPath> changedPaths, bool hasChanges, bool hasUpstreamChanges) { }
+    }
+    public sealed class ConfiglueEditorWriteReceipt : System.IEquatable<Configlue.DevTools.ConfiglueEditorWriteReceipt>
+    {
+        public ConfiglueEditorWriteReceipt(System.Collections.Generic.IReadOnlyList<Configlue.DevTools.ConfiglueEditorSourceWrite> Sources, int PhysicalWriteCount, bool IsAtomic, string StateName, string? Revision) { }
+        public bool IsAtomic { get; init; }
+        public int PhysicalWriteCount { get; init; }
+        public string? Revision { get; init; }
+        public System.Collections.Generic.IReadOnlyList<Configlue.DevTools.ConfiglueEditorSourceWrite> Sources { get; init; }
+        public string StateName { get; init; }
     }
     public sealed class ConfiglueViewerContribution : System.IEquatable<Configlue.DevTools.ConfiglueViewerContribution>
     {

@@ -34,6 +34,33 @@ namespace Configlue.DevTools.Web
         public int Port { get; set; }
         public string? SessionToken { get; set; }
     }
+    public sealed class ConfiglueEffectiveStateEditor<TModel> : Microsoft.AspNetCore.Components.ComponentBase, System.IDisposable
+        where TModel : Configlue.CompilerServices.IConfiglueFacadeModel<TModel>
+    {
+        public ConfiglueEffectiveStateEditor() { }
+        public System.Collections.Generic.IReadOnlyList<string> CurrentErrors { get; }
+        [Microsoft.AspNetCore.Components.Parameter]
+        public System.TimeSpan DebounceInterval { get; set; }
+        public bool HasUpstreamChanges { get; }
+        [Microsoft.AspNetCore.Components.Parameter]
+        public string Height { get; set; }
+        public bool IsLoaded { get; }
+        public bool IsSecretPanelOpen { get; }
+        [Microsoft.AspNetCore.Components.Inject]
+        public Microsoft.JSInterop.IJSRuntime Js { get; set; }
+        public int ModifiedCount { get; }
+        public Configlue.DevTools.ConfiglueDevToolsEditorSession<TModel>? Session { get; }
+        [Microsoft.AspNetCore.Components.EditorRequired]
+        [Microsoft.AspNetCore.Components.Parameter]
+        public Configlue.IWritableState<TModel> State { get; set; }
+        [Microsoft.AspNetCore.Components.Parameter]
+        public string StateName { get; set; }
+        [Microsoft.AspNetCore.Components.Parameter]
+        public Configlue.DevTools.ConfiglueDevToolsViewerOptions? ViewerOptions { get; set; }
+        protected override void BuildRenderTree(Microsoft.AspNetCore.Components.Rendering.RenderTreeBuilder @__builder) { }
+        public void Dispose() { }
+        protected override System.Threading.Tasks.Task OnInitializedAsync() { }
+    }
     public sealed class ConfiglueEffectiveStateViewer<TModel> : Microsoft.AspNetCore.Components.ComponentBase, System.IDisposable
     {
         public ConfiglueEffectiveStateViewer() { }

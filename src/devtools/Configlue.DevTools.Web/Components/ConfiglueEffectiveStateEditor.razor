@@ -1,0 +1,68 @@
+@namespace Configlue.DevTools.Web
+@typeparam TModel
+
+@using BlazorMonaco.Editor
+@using Microsoft.AspNetCore.Components.Web
+
+<div class="configlue-effective-state-editor" style="height: @Height; min-height: 240px;">
+    @if (_schemaMissing)
+    {
+        <p class="configlue-viewer-error">No generated Configlue schema is registered for model '@typeof(TModel).FullName'.</p>
+    }
+    else if (!_sessionReady)
+    {
+        <p class="configlue-editor-loading">Loading effective state…</p>
+    }
+    else
+    {
+        <div class="configlue-editor-toolbar">
+            <button @onclick="@(() => SaveAsync())" disabled="@_busy">Save</button>
+            <button @onclick="@(() => DiscardAsync())" disabled="@_busy">Discard</button>
+            <button @onclick="@(() => ValidateAsync())" disabled="@_busy">Validate</button>
+            <button @onclick="@(() => ToggleDiffAsync())" disabled="@_busy">@(_showDiff ? "Hide diff" : "Diff")</button>
+            <button @onclick="@(() => ToggleSecretPanel())" disabled="@_busy">@(_showSecret ? "Close secret" : "Change secret")</button>
+            @if (HasUpstreamChanges)
+            {
+                <button @onclick="@(() => RebaseAsync())" disabled="@_busy">Rebase</button>
+                <span class="configlue-editor-upstream">Upstream changed — rebase or discard.</span>
+            }
+            <span class="configlue-editor-modified">Modified: @ModifiedCount</span>
+        </div>
+        @if (_showDiff)
+        {
+            <StandaloneDiffEditor @ref="_diffEditor"
+                                  ConstructionOptions="BuildDiffOptions"
+                                  OnDidInit="HandleDiffInitAsync" />
+        }
+        else
+        {
+            <StandaloneCodeEditor @ref="_editor"
+                                  ConstructionOptions="BuildConstructionOptions"
+                                  OnDidInit="HandleEditorInitAsync"
+                                  OnDidChangeModelContent="HandleContentChanged" />
+        }
+        @if (_showSecret)
+        {
+            <div class="configlue-editor-secret">
+                <p>Secrets never enter the Monaco model. Empty means unchanged; the input is cleared after apply or cancel.</p>
+                <label>Member path <input @bind="_secretPath" placeholder="Database.Password" /></label>
+                <label>New value <input type="password" @bind="_secretValue" placeholder="(unchanged)" /></label>
+                <button @onclick="@(() => ApplySecretAsync())" disabled="@_busy">Apply secret</button>
+                <button @onclick="@(() => CancelSecret())" disabled="@_busy">Cancel</button>
+            </div>
+        }
+        @if (_errors.Count > 0)
+        {
+            <ul class="configlue-editor-errors">
+                @foreach (var error in _errors)
+                {
+                    <li>@error</li>
+                }
+            </ul>
+        }
+        @if (_notice is not null)
+        {
+            <p class="configlue-editor-notice">@_notice</p>
+        }
+    }
+</div>
