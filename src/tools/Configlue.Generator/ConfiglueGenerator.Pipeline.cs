@@ -372,6 +372,13 @@ public sealed partial class ConfiglueGenerator
             var jsonNames = new Dictionary<string, string>(StringComparer.Ordinal);
             foreach (var property in scopeMembers.Select(static member => member.Property))
             {
+                // [JsonIgnore(Condition = Always)] members are never part of the JSON
+                // payload, so they neither collide with nor shadow persisted names.
+                if (GetJsonIgnoreCondition(property, cancellationToken) == JsonIgnoreAlways)
+                {
+                    continue;
+                }
+
                 var wireName = GetJsonPropertyName(property, cancellationToken, out _);
                 if (jsonNames.TryGetValue(wireName, out var other))
                 {

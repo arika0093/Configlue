@@ -273,6 +273,50 @@ public sealed partial class ConfiglueGeneratorDiagnosticTests
     }
 
     [Test]
+    [Arguments("[System.Text.Json.Serialization.JsonIgnore]")]
+    [Arguments(
+        "[System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.Always)]"
+    )]
+    public void JsonIgnoreAlwaysMembersAreExcludedFromDuplicateJsonNameCheck(string ignore)
+    {
+        var result = RunGenerator(
+            $$"""
+            using Configlue;
+            [ConfiglueModel("json-ignore")]
+            public partial class Settings {
+                [System.Text.Json.Serialization.JsonPropertyName("B")]
+                public int A { get; set; }
+                {{ignore}}
+                [System.Text.Json.Serialization.JsonPropertyName("B")]
+                public int B { get; set; }
+            }
+            """
+        );
+        result.Diagnostics.ShouldNotContain(d => d.Id == "CFG012");
+        result.GeneratedTrees.Length.ShouldBe(1);
+    }
+
+    [Test]
+    public void JsonIgnoreNeverMembersStillParticipateInDuplicateJsonNameCheck()
+    {
+        var result = RunGenerator(
+            """
+            using Configlue;
+            [ConfiglueModel("json-ignore")]
+            public partial class Settings {
+                [System.Text.Json.Serialization.JsonPropertyName("B")]
+                public int A { get; set; }
+                [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.Never)]
+                [System.Text.Json.Serialization.JsonPropertyName("B")]
+                public int B { get; set; }
+            }
+            """
+        );
+        result.Diagnostics.ShouldContain(d => d.Id == "CFG012");
+        result.GeneratedTrees.ShouldBeEmpty();
+    }
+
+    [Test]
     [Arguments("SettingsDetailsExtensions")]
     [Arguments("SettingsPatchOptionsExtensions")]
     public void ExistingNamespaceTypesCannotCollideWithExtensionContainers(string name)

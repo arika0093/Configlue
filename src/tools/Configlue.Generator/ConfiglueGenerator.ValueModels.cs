@@ -44,7 +44,8 @@ public sealed partial class ConfiglueGenerator
             bool hasExplicitJsonPropertyName,
             string? environmentVariableName,
             bool isInitOnly = false,
-            bool isReadOnly = false
+            bool isReadOnly = false,
+            int jsonIgnoreCondition = 0
         )
         {
             Name = name;
@@ -55,6 +56,7 @@ public sealed partial class ConfiglueGenerator
             EnvironmentVariableName = environmentVariableName;
             IsInitOnly = isInitOnly;
             IsReadOnly = isReadOnly;
+            JsonIgnoreCondition = jsonIgnoreCondition;
         }
 
         public string Name { get; init; }
@@ -65,6 +67,13 @@ public sealed partial class ConfiglueGenerator
         public string? JsonPropertyName { get; init; }
         public bool HasExplicitJsonPropertyName { get; init; }
         public string? EnvironmentVariableName { get; init; }
+        public int JsonIgnoreCondition { get; init; }
+
+        public bool IsJsonIgnored => JsonIgnoreCondition == 1;
+
+        public bool IsJsonIgnoreWhenWritingNull => JsonIgnoreCondition == 3;
+
+        public bool IsJsonIgnoreWhenWritingDefault => JsonIgnoreCondition == 2;
     }
 
     private readonly record struct CollectionInfo
@@ -462,7 +471,8 @@ public sealed partial class ConfiglueGenerator
             hasExplicitJsonPropertyName,
             GetEnvironmentVariableName(member.Property, cancellationToken),
             member.Property.SetMethod?.IsInitOnly == true,
-            member.Property.SetMethod is null
+            member.Property.SetMethod is null,
+            GetJsonIgnoreCondition(member.Property, cancellationToken)
         );
         TypeModel? childModel = null;
         string? childFragmentType = null;

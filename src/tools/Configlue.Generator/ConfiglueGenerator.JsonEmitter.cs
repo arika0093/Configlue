@@ -23,6 +23,10 @@ public sealed partial class ConfiglueGenerator
         );
         code.AppendLineAt(
             2,
+            "/// <remarks>Members marked with <c>JsonIgnore(Condition = Always)</c> (including plain <c>[JsonIgnore]</c>) are never written and incoming values for those JSON names are skipped, even when strict unmapped-member handling is enabled. <c>Condition = Never</c> keeps the member in the payload. <c>WhenWritingNull</c>/<c>WhenWritingDefault</c> only suppress writing a present value that is null/default; a missing <c>Optional</c> stays missing and an explicit JSON value is still read.</remarks>"
+        );
+        code.AppendLineAt(
+            2,
             "public sealed class FragmentJsonConverter : global::System.Text.Json.Serialization.JsonConverter<Fragment>, global::Configlue.Provider.Json.IJsonObjectPayloadWriter"
         );
         code.AppendLineAt(2, "{");
@@ -73,10 +77,19 @@ public sealed partial class ConfiglueGenerator
             5,
             "if (!reader.Read()) { throw new global::System.Text.Json.JsonException(\"Unexpected end of fragment.\"); }"
         );
-        if (members.Length > 0)
+        // Only JSON-persisted members participate in read/write. Members with
+        // JsonIgnore(Condition = Always) stay in the fragment algebra (merge, patch,
+        // ToModel/From) but are skipped here on both directions.
+        var jsonMembers = members
+            .Where(static member => !member.Property.IsJsonIgnored)
+            .ToImmutableArray();
+        var ignoredMembers = members
+            .Where(static member => member.Property.IsJsonIgnored)
+            .ToImmutableArray();
+        if (jsonMembers.Length + ignoredMembers.Length > 0)
         {
             var first = true;
-            foreach (var member in members)
+            foreach (var member in jsonMembers)
             {
                 var property = EscapeIdentifier(member.Property.Name);
                 var wireName = member.Property.JsonPropertyName!;
@@ -122,6 +135,25 @@ public sealed partial class ConfiglueGenerator
                 first = false;
             }
 
+            // Ignored members are known JSON names that never populate the fragment.
+            // Skip their values instead of routing them to unknown-property handling so
+            // strict UnmappedMemberHandling.Disallow keeps accepting them, matching
+            // System.Text.Json's treatment of ignored properties.
+            foreach (var ignored in ignoredMembers.Select(static member => member.Property))
+            {
+                var ignoredWireName = ignored.JsonPropertyName!;
+                var ignoredExplicit = ignored.HasExplicitJsonPropertyName;
+                code.AppendIndent(5)
+                    .Append(first ? "if (" : "else if (")
+                    .Append("Matches(propertyName, ")
+                    .Append(SymbolDisplay.FormatLiteral(ignoredWireName, true))
+                    .Append(", ")
+                    .Append(ignoredExplicit ? "false" : "true")
+                    .AppendLine(", options))");
+                code.AppendLineAt(6, "{ reader.Skip(); }");
+                first = false;
+            }
+
             code.AppendLineAt(
                 5,
                 "else HandleUnknownFragmentProperty(ref reader, options, propertyName);"
@@ -162,7 +194,7 @@ public sealed partial class ConfiglueGenerator
             4,
             "if (value is not Fragment typedValue) { throw new global::System.ArgumentException(\"The JSON payload value must be a generated fragment.\", nameof(value)); }"
         );
-        foreach (var member in members)
+        foreach (var member in jsonMembers)
         {
             var property = EscapeIdentifier(member.Property.Name);
             var wireName = member.Property.JsonPropertyName!;
@@ -172,7 +204,33 @@ public sealed partial class ConfiglueGenerator
                 .Append(property)
                 .AppendLine(".IsPresent)");
             code.AppendLineAt(4, "{");
-            code.AppendIndent(5)
+            // Conditional ignores keep the Optional missing/present distinction: a
+            // missing member is already excluded by IsPresent above, while a present
+            // null/default value is omitted from JSON but still round-trips as missing.
+            var conditionalIndent = 5;
+            if (member.Property.IsJsonIgnoreWhenWritingNull)
+            {
+                code.AppendIndent(5)
+                    .Append("if (typedValue.")
+                    .Append(property)
+                    .AppendLine(".Value is not null)");
+                code.AppendLineAt(5, "{");
+                conditionalIndent = 6;
+            }
+            else if (member.Property.IsJsonIgnoreWhenWritingDefault)
+            {
+                code.AppendIndent(5)
+                    .Append(
+                        "if (!global::System.Collections.Generic.EqualityComparer<"
+                            + FragmentValueType(member)
+                            + ">.Default.Equals(typedValue."
+                    )
+                    .Append(property)
+                    .AppendLine(".Value, default))");
+                code.AppendLineAt(5, "{");
+                conditionalIndent = 6;
+            }
+            code.AppendIndent(conditionalIndent)
                 .Append("var jsonPropertyName = ")
                 .Append(
                     explicitName
@@ -183,11 +241,11 @@ public sealed partial class ConfiglueGenerator
                             + SymbolDisplay.FormatLiteral(wireName, true)
                 )
                 .AppendLine(";");
-            code.AppendLineAt(5, "writer.WritePropertyName(jsonPropertyName);");
+            code.AppendLineAt(conditionalIndent, "writer.WritePropertyName(jsonPropertyName);");
 
             if (member.ChildModel is null)
             {
-                code.AppendIndent(5)
+                code.AppendIndent(conditionalIndent)
                     .Append("global::System.Text.Json.JsonSerializer.Serialize<")
                     .Append(FragmentValueType(member))
                     .Append(">(writer, typedValue.")
@@ -199,18 +257,22 @@ public sealed partial class ConfiglueGenerator
             else
             {
                 var childFragment = member.ChildFragmentType!;
-                code.AppendIndent(5)
+                code.AppendIndent(conditionalIndent)
                     .Append("if (typedValue.")
                     .Append(property)
                     .AppendLine(".Value is null)");
-                code.AppendLineAt(5, "{ writer.WriteNullValue(); }");
-                code.AppendIndent(5).AppendLine("else");
-                code.AppendLineAt(5, "{");
-                code.AppendIndent(6)
+                code.AppendLineAt(conditionalIndent, "{ writer.WriteNullValue(); }");
+                code.AppendIndent(conditionalIndent).AppendLine("else");
+                code.AppendLineAt(conditionalIndent, "{");
+                code.AppendIndent(conditionalIndent + 1)
                     .Append(childFragment)
                     .Append(".JsonConverter.Write(writer, typedValue.")
                     .Append(property)
                     .AppendLine(".Value, options);");
+                code.AppendLineAt(conditionalIndent, "}");
+            }
+            if (conditionalIndent > 5)
+            {
                 code.AppendLineAt(5, "}");
             }
             code.AppendLineAt(4, "}");
@@ -254,7 +316,7 @@ public sealed partial class ConfiglueGenerator
             4,
             "var names = new global::System.Collections.Generic.HashSet<string>(options.PropertyNameCaseInsensitive ? global::System.StringComparer.OrdinalIgnoreCase : global::System.StringComparer.Ordinal);"
         );
-        foreach (var property in members.Select(static member => member.Property))
+        foreach (var property in jsonMembers.Select(static member => member.Property))
         {
             var literal = SymbolDisplay.FormatLiteral(property.JsonPropertyName!, true);
             var expression = property.HasExplicitJsonPropertyName
