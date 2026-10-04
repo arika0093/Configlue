@@ -156,7 +156,7 @@ public sealed partial class StateRuntimeTests
             new AppSettings.Fragment { RetryCount = Optional<int>.Present(4) },
             "fallback://settings"
         );
-        var primaryRuntime = new CompositeStateRuntime<AppSettings.Fragment>(
+        var primaryReader = new StateSourceResolver<AppSettings.Fragment>(
             new StateSourceSet<AppSettings.Fragment>([
                 new(
                     "database",
@@ -167,33 +167,35 @@ public sealed partial class StateRuntimeTests
                 ),
             ])
         );
-        var runtime = new CompositeStateRuntime<AppSettings.Fragment>(
-            new StateSourceSet<AppSettings.Fragment>([
-                new(
-                    "remote",
-                    primaryRuntime.Reader,
-                    priority: 100,
-                    fallbackCondition: StateFallbackCondition.Unavailable,
-                    watcher: primaryRuntime.Watcher,
-                    physicalOrigin: "logical://remote"
-                ),
-                new(
-                    "local",
-                    fallback,
-                    priority: 0,
-                    writer: new NoOpSourceWriter<AppSettings.Fragment>(),
-                    watcher: fallback,
-                    physicalOrigin: "fallback://settings"
-                ),
-            ])
-        );
+        var primaryWatcher = new StateSourceWatcher<AppSettings.Fragment>(primaryReader);
+        var outerSources = new StateSourceSet<AppSettings.Fragment>([
+            new(
+                "remote",
+                primaryReader,
+                priority: 100,
+                fallbackCondition: StateFallbackCondition.Unavailable,
+                watcher: primaryWatcher,
+                physicalOrigin: "logical://remote"
+            ),
+            new(
+                "local",
+                fallback,
+                priority: 0,
+                writer: new NoOpSourceWriter<AppSettings.Fragment>(),
+                watcher: fallback,
+                physicalOrigin: "fallback://settings"
+            ),
+        ]);
+        var outerReader = new StateSourceResolver<AppSettings.Fragment>(outerSources);
+        var outerWriter = new StateSourceWriter<AppSettings.Fragment>(outerSources);
+        var outerWatcher = new StateSourceWatcher<AppSettings.Fragment>(outerReader);
         await using var options = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
             new StateSourceSet<AppSettings.Fragment>([
                 new(
                     "composite",
-                    runtime.Reader,
-                    writer: runtime.Writer,
-                    watcher: runtime.Watcher,
+                    outerReader,
+                    writer: outerWriter,
+                    watcher: outerWatcher,
                     physicalOrigin: "logical://settings"
                 ),
             ]),

@@ -352,20 +352,22 @@ public sealed partial class StateRuntimeTests
                 watcher: fallback
             ),
         ]);
-        var runtime = new CompositeStateRuntime<string>(sources, SourceId.From("local"));
+        var reader = new StateSourceResolver<string>(sources);
+        var writer = new StateSourceWriter<string>(sources, SourceId.From("local"));
+        var watcher = new StateSourceWatcher<string>(reader);
 
-        var resolved = await runtime.Reader.ReadAsync();
-        await runtime.Writer.WriteAsync(
+        var resolved = await reader.ReadAsync();
+        await writer.WriteAsync(
             new StateWriteRequest<string>(
                 "edited locally",
                 Condition: RevisionCondition.FromRevision(resolved.Revision)
             )
         );
         var localAfterWrite = await fallback.ReadAsync();
-        var failbackWait = runtime.Watcher.WaitForChangeAsync(localAfterWrite.Revision).AsTask();
+        var failbackWait = watcher.WaitForChangeAsync(localAfterWrite.Revision).AsTask();
         primary.Set("remote");
         await failbackWait;
-        var recovered = await runtime.Reader.ReadAsync();
+        var recovered = await reader.ReadAsync();
 
         (resolved.Value).ShouldBe("local");
         resolved.SourceId.ShouldBe(SourceId.From("local"));
@@ -373,7 +375,7 @@ public sealed partial class StateRuntimeTests
         (localAfterWrite.Value).ShouldBe("edited locally");
         (recovered.Value).ShouldBe("remote");
         recovered.SourceId.ShouldBe(SourceId.From("remote"));
-        runtime.Reader.ActiveSource!.Id.ShouldBe(SourceId.From("remote"));
+        reader.ActiveSource!.Id.ShouldBe(SourceId.From("remote"));
     }
 
     [Test]

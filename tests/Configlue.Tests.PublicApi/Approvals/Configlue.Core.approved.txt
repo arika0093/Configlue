@@ -250,13 +250,6 @@ namespace Configlue.Source.Presets
 }
 namespace Configlue.State
 {
-    public sealed class CompositeStateRuntime<T>
-    {
-        public CompositeStateRuntime(Configlue.Sources.StateSourceSet<T> sourceSet, Configlue.SourceId? defaultWriteSourceId = default) { }
-        public Configlue.State.StateSourceResolver<T> Reader { get; }
-        public Configlue.Sources.ISourceWatcher Watcher { get; }
-        public Configlue.Sources.ISourceWriter<T> Writer { get; }
-    }
     public sealed class CompositeStateSource<TFragment> : Configlue.Sources.ISourceReader<TFragment>, Configlue.Sources.ISourceWatcher, Configlue.Sources.ISourceWriter<TFragment>
         where TFragment :  class, Configlue.IConfiglueFragment<TFragment>
     {
