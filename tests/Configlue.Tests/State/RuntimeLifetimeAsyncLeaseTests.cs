@@ -18,7 +18,7 @@ public sealed class RuntimeLifetimeAsyncLeaseTests
             await Should.ThrowAsync<InvalidOperationException>(() => work);
         else
             await work;
-        drained.IsCompletedSuccessfully.ShouldBeTrue();
+        drained.Status.ShouldBe(TaskStatus.RanToCompletion);
 
         async Task WorkAsync()
         {
