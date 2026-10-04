@@ -7,5 +7,6 @@
   <ItemGroup>
     <PackageReference Include="Microsoft.Maui.Essentials" Version="10.0.110" />
     <ProjectReference Include="../../extensions/Configlue.Extensions.ComponentModel/Configlue.Extensions.ComponentModel.csproj" />
+    <ProjectReference Include="../../devtools/Configlue.DevTools/Configlue.DevTools.csproj" />
   </ItemGroup>
 </Project>

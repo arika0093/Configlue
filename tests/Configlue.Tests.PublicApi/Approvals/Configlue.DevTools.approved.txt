@@ -1,6 +1,18 @@
 [assembly: System.Reflection.AssemblyMetadata("RepositoryUrl", "https://github.com/arika0093/Configlue")]
 namespace Configlue.DevTools
 {
+    public static class ConfiglueDevTools
+    {
+        public static string? CurrentLaunchUrl { get; }
+        public static bool IsEnabled { get; }
+        public static void Clear() { }
+        public static void Disable() { }
+        public static void Enable(string launchUrl) { }
+        public static System.Threading.Tasks.Task<bool> OpenBrowserAsync(Configlue.DevTools.IConfiglueDevToolsBrowserLauncher launcher, System.Threading.CancellationToken cancellationToken = default) { }
+        public static System.Threading.Tasks.Task<bool> OpenBrowserAsync(System.Func<string, System.Threading.CancellationToken, System.Threading.Tasks.Task> openAsync, System.Threading.CancellationToken cancellationToken = default) { }
+        public static System.Threading.Tasks.Task<bool> OpenBrowserAsync(string? launchUrl, Configlue.DevTools.IConfiglueDevToolsBrowserLauncher launcher, System.Threading.CancellationToken cancellationToken = default) { }
+        public static System.Threading.Tasks.Task<bool> OpenBrowserAsync(string? launchUrl, System.Func<string, System.Threading.CancellationToken, System.Threading.Tasks.Task> openAsync, System.Threading.CancellationToken cancellationToken = default) { }
+    }
     public sealed class ConfiglueDevToolsRegistry
     {
         public ConfiglueDevToolsRegistry() { }
@@ -148,5 +160,8 @@ namespace Configlue.DevTools
         public ConfiglueViewerTextEdit(Configlue.DevTools.ConfiglueViewerRange Range, string Text) { }
         public Configlue.DevTools.ConfiglueViewerRange Range { get; init; }
         public string Text { get; init; }
+    public interface IConfiglueDevToolsBrowserLauncher
+    {
+        System.Threading.Tasks.Task OpenAsync(string url, System.Threading.CancellationToken cancellationToken = default);
     }
 }

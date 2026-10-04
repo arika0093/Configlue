@@ -5,6 +5,13 @@ namespace Configlue.Hosting.Maui
     {
         public static Configlue.ConfiglueBuilder UseMaui(this Configlue.ConfiglueBuilder builder, Microsoft.Maui.Storage.IFileSystem? fileSystem = null) { }
     }
+    public static class MauiConfiglueDevTools
+    {
+        public static System.Threading.Tasks.Task<bool> OpenBrowserAsync(System.Threading.CancellationToken cancellationToken = default) { }
+        public static System.Threading.Tasks.Task<bool> OpenBrowserAsync(Configlue.DevTools.IConfiglueDevToolsBrowserLauncher launcher, System.Threading.CancellationToken cancellationToken = default) { }
+        public static System.Threading.Tasks.Task<bool> OpenBrowserAsync(string? launchUrl, System.Threading.CancellationToken cancellationToken = default) { }
+        public static System.Threading.Tasks.Task<bool> OpenBrowserAsync(string? launchUrl, Configlue.DevTools.IConfiglueDevToolsBrowserLauncher launcher, System.Threading.CancellationToken cancellationToken = default) { }
+    }
     public sealed class MauiConfiglueDispatcher : Configlue.Extensions.ComponentModel.IConfiglueDispatcher
     {
         public MauiConfiglueDispatcher() { }

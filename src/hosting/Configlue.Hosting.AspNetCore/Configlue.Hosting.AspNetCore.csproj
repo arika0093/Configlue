@@ -12,5 +12,6 @@
     <ProjectReference Include="../../extensions/Configlue.Extensions.DI/Configlue.Extensions.DI.csproj" />
     <ProjectReference Include="../../fragments/SparseFragments.JsonPatch/SparseFragments.JsonPatch.csproj" />
     <ProjectReference Include="../../providers/Configlue.Provider.Json/Configlue.Provider.Json.csproj" />
+    <ProjectReference Include="../../devtools/Configlue.DevTools/Configlue.DevTools.csproj" />
   </ItemGroup>
 </Project>

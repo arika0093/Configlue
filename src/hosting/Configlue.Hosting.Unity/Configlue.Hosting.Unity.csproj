@@ -6,6 +6,7 @@
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="../../extensions/Configlue.Extensions.ComponentModel/Configlue.Extensions.ComponentModel.csproj" />
+    <ProjectReference Include="../../devtools/Configlue.DevTools/Configlue.DevTools.csproj" />
     <Reference Include="UnityEngine.CoreModule">
       <HintPath>$(UnityEditorManagedPath)/UnityEngine/UnityEngine.CoreModule.dll</HintPath>
       <Private>false</Private>

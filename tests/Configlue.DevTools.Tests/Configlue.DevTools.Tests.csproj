@@ -13,6 +13,10 @@
     <ProjectReference Include="../../src/devtools/Configlue.DevTools/Configlue.DevTools.csproj" />
     <ProjectReference Include="../../src/devtools/Configlue.DevTools.Web/Configlue.DevTools.Web.csproj" />
     <ProjectReference Include="../../src/extensions/Configlue.Extensions.DI/Configlue.Extensions.DI.csproj" />
+    <ProjectReference Include="../../src/hosting/Configlue.Hosting.AspNetCore/Configlue.Hosting.AspNetCore.csproj" />
+    <ProjectReference Include="../../src/hosting/Configlue.Hosting.Blazor/Configlue.Hosting.Blazor.csproj" />
+    <ProjectReference Include="../../src/hosting/Configlue.Hosting.Avalonia/Configlue.Hosting.Avalonia.csproj" />
+    <ProjectReference Include="../../src/hosting/Configlue.Hosting.Godot/Configlue.Hosting.Godot.csproj" />
     <ProjectReference
       Include="../../src/tools/Configlue.Generator/Configlue.Generator.csproj"
       OutputItemType="Analyzer"

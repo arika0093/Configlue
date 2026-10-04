@@ -217,3 +217,66 @@ reads from cached diagnostics/events endpoints, bounded recent events,
 refresh after writes, and redaction across diagnostics/stats/events/check
 payloads.
 Fakes only; no real browser is required.
+
+## Browser-launch hooks (`#250`)
+
+Thin, optional helpers open the **same** shared browser UI from each host.
+The pattern is always:
+
+```text
+host action/menu/debug hook -> ensure/get DevTools session URL -> open system browser
+```
+
+No WebView2/BlazorWebView/embedded controls, no BlazorMonaco assets in hosting
+packages, and no native inspector duplication. Launch helpers never start
+servers, so repeated opens reuse the same URL and never start duplicates.
+Referencing a hosting package never enables DevTools: `ConfiglueDevTools`
+starts disabled and an explicit loopback launch URL must be published.
+
+The DevTools host runs on its own loopback endpoint (never mapped into a
+public application host). Every request still requires the per-host session
+token; launch URLs carry the token verbatim and are never logged.
+
+### Plain .NET / ASP.NET Core / Blazor
+
+```csharp
+#if DEBUG
+var registry = new ConfiglueDevToolsRegistry();
+registry.Add(context.GetState<AppSettings>());
+await using var devtools = ConfiglueDevToolsWebHost.Create(registry);
+await devtools.StartAsync();
+ConfiglueDevTools.Enable(devtools.LaunchUrl);
+await AspNetCoreConfiglueDevTools.OpenBrowserAsync();
+// Blazor apps use BlazorConfiglueDevTools the same way; there is no second UI.
+#endif
+```
+
+### WPF / WinForms / WinUI / Avalonia / MAUI
+
+```csharp
+#if DEBUG
+ConfiglueDevTools.Enable(devtools.LaunchUrl);
+await WpfConfiglueDevTools.OpenBrowserAsync(); // WinForms/WinUI/Avalonia/MAUI equivalents
+#endif
+```
+
+### Unity (Editor only)
+
+```csharp
+// Runtime/play mode:
+ConfiglueDevTools.Enable(launchUrlFromEditorHost);
+await UnityConfiglueDevTools.OpenBrowserAsync();
+```
+
+Editor menu `Tools > Configlue > Open DevTools` opens the active session.
+Menu code is `#if UNITY_EDITOR` only and never ships in player builds.
+
+### Godot (editor only)
+
+```csharp
+ConfiglueDevTools.Enable(launchUrlFromDevHost);
+await GodotConfiglueDevTools.OpenBrowserAsync(); // uses OS.ShellOpen
+```
+
+The `ConfiglueDevToolsEditorPlugin` tool menu (`#if TOOLS` only) opens the
+active session and is excluded from exported games.
