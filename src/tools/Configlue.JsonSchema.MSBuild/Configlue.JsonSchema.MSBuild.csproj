@@ -1,6 +1,12 @@
 <Project Sdk="Microsoft.NET.Sdk">
-  <Import Project="DependencyPolicy.props" />
-
+  <!--
+    Dependency policy: exact PackageReference versions below are the single
+    source of truth, pinned to the approved pre-OSMF JsonSchema.Net stack.
+    Reproducibility comes from the checked-in packages.lock.json (locked
+    restore). Dependabot ignore rules in .github/dependabot.yml keep automated
+    updates off this family; any version change is therefore an explicit human
+    decision reviewed like any other dependency bump.
+  -->
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
     <AssemblyName>Configlue.JsonSchema.MSBuild</AssemblyName>
@@ -13,21 +19,18 @@
     <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
     <GenerateDocumentationFile>false</GenerateDocumentationFile>
     <!--
-      Locked restore pins the approved dependency graph for the default RID-less
-      restore. Referencing projects can trigger runtime-specific restores (the
-      runtime arrives as RuntimeIdentifiers) that cannot satisfy a RID-less
-      packages.lock.json. Those restores opt out of the lock file and redirect it
-      to obj so the checked-in lock file stays untouched.
+      Locked restore pins the dependency graph for the default RID-less
+      restore. Runtime-specific restores (RuntimeIdentifier/RuntimeIdentifiers)
+      regenerate the lock file with RID-specific sections, so point them at a
+      throwaway obj lock instead of the checked-in RID-less packages.lock.json.
     -->
-    <ConfiglueRuntimeRestore
-      Condition="'$(RuntimeIdentifier)' != '' or '$(RuntimeIdentifiers)' != ''"
-      >true</ConfiglueRuntimeRestore>
-    <RestorePackagesWithLockFile Condition="'$(ConfiglueRuntimeRestore)' != 'true'"
+    <RestorePackagesWithLockFile
+      Condition="'$(RuntimeIdentifier)' == '' and '$(RuntimeIdentifiers)' == ''"
       >true</RestorePackagesWithLockFile>
     <RestoreLockedMode
-      Condition="'$(RestoreLockedMode)' == '' and '$(ConfiglueRuntimeRestore)' != 'true'"
+      Condition="'$(RestoreLockedMode)' == '' and '$(RuntimeIdentifier)' == '' and '$(RuntimeIdentifiers)' == ''"
       >true</RestoreLockedMode>
-    <NuGetLockFilePath Condition="'$(ConfiglueRuntimeRestore)' == 'true'"
+    <NuGetLockFilePath Condition="'$(RuntimeIdentifier)' != '' or '$(RuntimeIdentifiers)' != ''"
       >$(BaseIntermediateOutputPath)packages.runtime.lock.json</NuGetLockFilePath>
     <!-- MSBuild task assemblies belong under tasks/net10.0, not the runtime lib directory. -->
     <NoWarn>$(NoWarn);NU5100</NoWarn>
@@ -44,15 +47,9 @@
       PrivateAssets="all"
       ExcludeAssets="runtime"
     />
-    <PackageReference Include="JsonSchema.Net" Version="$(JsonSchemaNetVersion)" />
-    <PackageReference
-      Include="JsonSchema.Net.Generation"
-      Version="$(JsonSchemaNetGenerationVersion)"
-    />
-    <PackageReference
-      Include="JsonSchema.Net.Generation.DataAnnotations"
-      Version="$(JsonSchemaNetDataAnnotationsVersion)"
-    />
+    <PackageReference Include="JsonSchema.Net" Version="8.0.4" />
+    <PackageReference Include="JsonSchema.Net.Generation" Version="6.0.0" />
+    <PackageReference Include="JsonSchema.Net.Generation.DataAnnotations" Version="2.0.0" />
   </ItemGroup>
 
   <ItemGroup>
@@ -69,8 +66,6 @@
       Visible="false"
     />
   </ItemGroup>
-
-  <Import Project="DependencyPolicy.targets" />
 
   <PropertyGroup>
     <TargetsForTfmSpecificContentInPackage>$(TargetsForTfmSpecificContentInPackage);ConfigluePackTaskAssemblies</TargetsForTfmSpecificContentInPackage>

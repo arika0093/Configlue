@@ -444,41 +444,30 @@ public static class ConfiglueSchemaGenerator
         // assembly discovery and atomic writes can still run concurrently.
         lock (SchemaGenerationGate)
         {
-            return GenerateDocumentCore(model, fileName, versionProperty, schemaBaseUri, layout);
-        }
-    }
+            var configuration = new SchemaGeneratorConfiguration();
+            var schema = new JsonSchemaBuilder().FromType(model.Type, configuration).Build();
+            var payload =
+                JsonSerializer.SerializeToNode(schema) as JsonObject
+                ?? throw new InvalidOperationException(
+                    $"The generated schema for '{model.Type.FullName}' was not a JSON object."
+                );
 
-    private static JsonObject GenerateDocumentCore(
-        ConfiglueModelInfo model,
-        string fileName,
-        string versionProperty,
-        string? schemaBaseUri,
-        DocumentLayout layout
-    )
-    {
-        var configuration = new SchemaGeneratorConfiguration();
-        var schema = new JsonSchemaBuilder().FromType(model.Type, configuration).Build();
-        var payload =
-            JsonSerializer.SerializeToNode(schema) as JsonObject
-            ?? throw new InvalidOperationException(
-                $"The generated schema for '{model.Type.FullName}' was not a JSON object."
+            ApplySecretExtensions(payload, model.Type);
+
+            var schemaId = schemaBaseUri is null
+                ? fileName
+                : new Uri(new Uri(schemaBaseUri, UriKind.Absolute), fileName).AbsoluteUri;
+
+            return ConfiglueSchemaDocumentLayout.Apply(
+                payload,
+                model.Id,
+                model.Version,
+                schemaId,
+                includeSchemaProperty: schemaBaseUri is not null,
+                layout,
+                versionProperty
             );
-
-        ApplySecretExtensions(payload, model.Type);
-
-        var schemaId = schemaBaseUri is null
-            ? fileName
-            : new Uri(new Uri(schemaBaseUri, UriKind.Absolute), fileName).AbsoluteUri;
-
-        return ConfiglueSchemaDocumentLayout.Apply(
-            payload,
-            model.Id,
-            model.Version,
-            schemaId,
-            includeSchemaProperty: schemaBaseUri is not null,
-            layout,
-            versionProperty
-        );
+        }
     }
 
     private static List<ConfiglueModelInfo> DiscoverModels(
@@ -487,7 +476,10 @@ public static class ConfiglueSchemaGenerator
     )
     {
         var models = new List<ConfiglueModelInfo>();
-        foreach (var type in GetLoadableTypes(assembly))
+        // Do not swallow ReflectionTypeLoadException here. A partially loadable type list
+        // would silently omit models whose dependencies are missing and report success
+        // with partial output. Let Generate surface CWSC108 instead.
+        foreach (var type in assembly.GetTypes())
         {
             if (type.IsAbstract || type.IsGenericTypeDefinition || type.IsInterface)
             {
@@ -557,14 +549,6 @@ public static class ConfiglueSchemaGenerator
             .OrderBy(model => model.Id, StringComparer.Ordinal)
             .ThenBy(model => model.Version)
             .ToList();
-    }
-
-    private static IEnumerable<Type> GetLoadableTypes(Assembly assembly)
-    {
-        // Do not swallow ReflectionTypeLoadException here. A partially loadable type list
-        // would silently omit models whose dependencies are missing and report success
-        // with partial output. Let Generate surface CWSC108 instead.
-        return assembly.GetTypes();
     }
 
     private static string? NormalizeSchemaBaseUri(
@@ -724,7 +708,7 @@ public static class ConfiglueSchemaGenerator
 
             if (
                 properties[key] is JsonObject propertySchema
-                && TryResolveTargetSchema(schema, propertySchema, memberType, out var target)
+                && TryResolveTargetSchema(schema, propertySchema, out var target)
                 && target is not null
             )
             {
@@ -734,12 +718,7 @@ public static class ConfiglueSchemaGenerator
                 TryGetElementType(memberType, out var elementType)
                 && elementType is not null
                 && properties[key] is JsonObject collectionSchema
-                && TryResolveTargetSchema(
-                    schema,
-                    collectionSchema,
-                    elementType,
-                    out var elementTarget
-                )
+                && TryResolveTargetSchema(schema, collectionSchema, out var elementTarget)
                 && elementTarget is not null
                 && !IsScalarType(elementType)
             )
@@ -838,7 +817,6 @@ public static class ConfiglueSchemaGenerator
     private static bool TryResolveTargetSchema(
         JsonObject root,
         JsonObject propertySchema,
-        Type memberType,
         out JsonObject? target
     )
     {
@@ -882,12 +860,6 @@ public static class ConfiglueSchemaGenerator
         {
             target = propertySchema;
             return true;
-        }
-
-        // Unwrap the member type: collections resolve through items, objects inline.
-        if (TryGetElementType(memberType, out var elementType) && elementType is not null)
-        {
-            return TryResolveTargetSchema(root, propertySchema, elementType, out target);
         }
 
         return false;
@@ -1018,11 +990,7 @@ public static class ConfiglueSchemaGenerator
             {
                 return LoadFromStream(new MemoryStream(File.ReadAllBytes(path)));
             }
-            catch (BadImageFormatException)
-            {
-                return null;
-            }
-            catch (IOException)
+            catch (Exception exception) when (exception is BadImageFormatException or IOException)
             {
                 return null;
             }

@@ -14,7 +14,8 @@ updates:
       # --------
       # JsonSchema.Net family referenced by Configlue.JsonSchema.MSBuild.
       # Pinned to the approved pre-OSMF versions to avoid the Open Source
-      # Maintenance Fee (keep in sync with DependencyPolicy.props).
+      # Maintenance Fee (keep in sync with the exact versions and
+      # packages.lock.json in src/tools/Configlue.JsonSchema.MSBuild).
       - dependency-name: "JsonSchema.Net"
       - dependency-name: "JsonSchema.Net.Generation"
       - dependency-name: "JsonSchema.Net.Generation.DataAnnotations"
