@@ -398,6 +398,8 @@ public sealed class WebStorageConcurrencyTests
 
         public int MutateCount { get; private set; }
 
+        public int ImportCount { get; private set; }
+
         public int LastMutateArgumentCount { get; private set; }
 
         public int SetItemCount { get; private set; }
@@ -413,12 +415,15 @@ public sealed class WebStorageConcurrencyTests
         public void ResetCounters()
         {
             MutateCount = 0;
+            ImportCount = 0;
             LastMutateArgumentCount = 0;
             SetItemCount = 0;
             CommittedCount = 0;
         }
 
         public void RecordMutateArguments(int count) => LastMutateArgumentCount = count;
+
+        public void RecordImport() => ImportCount++;
 
         public void SetRaw(string key, string value)
         {
@@ -585,19 +590,20 @@ public sealed class WebStorageConcurrencyTests
             object?[]? args
         )
         {
-            if (string.Equals(identifier, "configlueWebStorage.mutate", StringComparison.Ordinal))
+            if (string.Equals(identifier, "import", StringComparison.Ordinal))
             {
-                _store.RecordMutateArguments(args!.Length);
-                var status = await _store
-                    .MutateAsync(
-                        (string)args[0]!,
-                        (string)args[1]!,
-                        (string)args[2]!,
-                        args[3] as string,
-                        (bool)args[4]!
-                    )
-                    .ConfigureAwait(false);
-                return (TValue)(object)status;
+                _store.RecordImport();
+                if (!_store.HelperAvailable)
+                {
+                    throw new JSException("The storage helper module could not be loaded.");
+                }
+
+                if (!_store.JavascriptAvailable)
+                {
+                    throw new InvalidOperationException("JavaScript is unavailable.");
+                }
+
+                return (TValue)(object)new BrowserStoreJsModule(_store);
             }
 
             if (identifier.EndsWith(".getItem", StringComparison.Ordinal))
@@ -615,5 +621,40 @@ public sealed class WebStorageConcurrencyTests
 
             throw new NotSupportedException(identifier);
         }
+    }
+
+    private sealed class BrowserStoreJsModule(BrowserStore store)
+        : IJSObjectReference
+    {
+        private readonly BrowserStore _store = store;
+
+        public ValueTask<TValue> InvokeAsync<TValue>(string identifier, object?[]? args) =>
+            InvokeAsync<TValue>(identifier, default, args);
+
+        public async ValueTask<TValue> InvokeAsync<TValue>(
+            string identifier,
+            CancellationToken cancellationToken,
+            object?[]? args
+        )
+        {
+            if (string.Equals(identifier, "mutate", StringComparison.Ordinal))
+            {
+                _store.RecordMutateArguments(args!.Length);
+                var status = await _store
+                    .MutateAsync(
+                        (string)args[0]!,
+                        (string)args[1]!,
+                        (string)args[2]!,
+                        args[3] as string,
+                        (bool)args[4]!
+                    )
+                    .ConfigureAwait(false);
+                return (TValue)(object)status;
+            }
+
+            throw new NotSupportedException(identifier);
+        }
+
+        ValueTask IAsyncDisposable.DisposeAsync() => ValueTask.CompletedTask;
     }
 }

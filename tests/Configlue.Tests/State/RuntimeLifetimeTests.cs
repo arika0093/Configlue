@@ -878,9 +878,9 @@ public sealed partial class RuntimeLifetimeTests
         )
         {
             EnsureAvailable();
-            if (string.Equals(identifier, "configlueWebStorage.mutate", StringComparison.Ordinal))
+            if (string.Equals(identifier, "import", StringComparison.Ordinal))
             {
-                return ValueTask.FromResult((TValue)(object)Mutate(args!));
+                return ValueTask.FromResult((TValue)(object)new FakeWebStorageModule(this));
             }
 
             var key = (string)args![0]!;
@@ -980,6 +980,43 @@ public sealed partial class RuntimeLifetimeTests
             {
                 throw new InvalidOperationException("JavaScript is unavailable.");
             }
+        }
+
+        private sealed class FakeWebStorageModule(FakeJsRuntime owner) : IJSObjectReference
+        {
+            public ValueTask<TValue> InvokeAsync<TValue>(string identifier, object?[]? args) =>
+                InvokeAsync<TValue>(identifier, default, args);
+
+            public ValueTask<TValue> InvokeAsync<TValue>(
+                string identifier,
+                CancellationToken cancellationToken,
+                object?[]? args
+            )
+            {
+                owner.EnsureAvailable();
+                if (string.Equals(identifier, "mutate", StringComparison.Ordinal))
+                {
+                    return ValueTask.FromResult((TValue)(object)owner.Mutate(args!));
+                }
+
+                if (
+                    string.Equals(identifier, "subscribeStorageChanges", StringComparison.Ordinal)
+                    || string.Equals(
+                        identifier,
+                        "unsubscribeStorageChanges",
+                        StringComparison.Ordinal
+                    )
+                )
+                {
+                    // No external browsing contexts exist in these tests; subscriptions are
+                    // accepted and released without delivering events.
+                    return ValueTask.FromResult(default(TValue)!);
+                }
+
+                throw new NotSupportedException(identifier);
+            }
+
+            ValueTask IAsyncDisposable.DisposeAsync() => ValueTask.CompletedTask;
         }
     }
 }

@@ -122,6 +122,8 @@ namespace Configlue.Hosting.Blazor
         public Microsoft.AspNetCore.Components.RenderFragment? LoadingContent { get; set; }
         [Microsoft.AspNetCore.Components.Parameter]
         public Microsoft.AspNetCore.Components.EventCallback<System.Exception> OnReloadFailed { get; set; }
+        [Microsoft.AspNetCore.Components.Parameter]
+        public bool PersistPrerenderedState { get; set; }
         [Microsoft.AspNetCore.Components.Inject]
         public System.IServiceProvider Services { get; set; }
         [Microsoft.AspNetCore.Components.Inject]
@@ -140,12 +142,15 @@ namespace Configlue.Hosting.Blazor
         Local = 0,
         Session = 1,
     }
-    public sealed class WebStorageResource : Configlue.Resources.IResourceReader, Configlue.Resources.IResourceWriter
+    public sealed class WebStorageResource : Configlue.Resources.IResourceReader, Configlue.Resources.IResourceWriter, Configlue.Sources.ISourceWatcher, System.IAsyncDisposable
     {
         public WebStorageResource(Microsoft.JSInterop.IJSRuntime jsRuntime, Configlue.Hosting.Blazor.WebStorageKind kind, string key, System.Func<Configlue.Resources.ConfiglueResourceContext, string>? keySelector = null) { }
+        public WebStorageResource(Microsoft.JSInterop.IJSRuntime jsRuntime, Configlue.Hosting.Blazor.WebStorageKind kind, string key, System.Func<Configlue.Resources.ConfiglueResourceContext, string>? keySelector, bool watchChanges) { }
         public string Key { get; }
         public Configlue.Hosting.Blazor.WebStorageKind Kind { get; }
+        public System.Threading.Tasks.ValueTask DisposeAsync() { }
         public System.Threading.Tasks.ValueTask<Configlue.Resources.ResourceReadResult> ReadAsync(Configlue.Resources.ConfiglueResourceContext context, System.Threading.CancellationToken cancellationToken = default) { }
+        public System.Threading.Tasks.ValueTask WaitForChangeAsync(Configlue.Resources.ConfiglueResourceContext context, string? observedRevision, System.Threading.CancellationToken cancellationToken = default) { }
         public System.Threading.Tasks.ValueTask<Configlue.State.StateWriteResult> WriteAsync(Configlue.Resources.ConfiglueResourceContext context, Configlue.Resources.ResourceWriteRequest request, System.Threading.CancellationToken cancellationToken = default) { }
     }
     public sealed class WebStorageSourceOptions
@@ -159,6 +164,7 @@ namespace Configlue.Hosting.Blazor
         public System.Func<Configlue.Resources.ConfiglueResourceContext, string>? KeySelector { get; set; }
         public Configlue.Hosting.Blazor.WebStorageKind Kind { get; set; }
         public int Priority { get; set; }
+        public bool WatchChanges { get; set; }
         public bool Writable { get; set; }
     }
     public static class WebStorageSourceRegistration

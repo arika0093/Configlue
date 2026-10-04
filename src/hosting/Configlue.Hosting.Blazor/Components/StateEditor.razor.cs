@@ -12,6 +12,11 @@ namespace Configlue.Hosting.Blazor;
 /// <remarks>
 /// The component does not render its own form. Child content is expected to supply an
 /// <c>EditForm</c> bound to <see cref="StateEditorContext{T}.EditContext"/>.
+/// <para>
+/// Edit sessions are never persisted across the prerender/interactive boundary: every interactive
+/// render opens a fresh session so a half-edited draft cannot leak from prerender into the
+/// browser session.
+/// </para>
 /// </remarks>
 public sealed partial class StateEditor<T> : ComponentBase, IDisposable
     where T : class

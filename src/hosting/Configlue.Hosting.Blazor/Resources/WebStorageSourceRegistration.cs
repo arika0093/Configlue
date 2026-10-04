@@ -30,6 +30,12 @@ public sealed class WebStorageSourceOptions
     /// <summary>Whether this source exposes a writer.</summary>
     public bool Writable { get; set; } = true;
 
+    /// <summary>
+    /// Whether browser <c>storage</c> events and same-context writes wake Configlue watchers.
+    /// Defaults to <c>true</c>. When <c>false</c>, no JavaScript change subscription is created.
+    /// </summary>
+    public bool WatchChanges { get; set; } = true;
+
     /// <summary>An optional source-specific key selector, for example for per-subject keys.</summary>
     public Func<ConfiglueResourceContext, string>? KeySelector { get; set; }
 
@@ -147,8 +153,10 @@ public static class WebStorageSourceRegistration
                 jsRuntime,
                 options.Kind,
                 options.Key,
-                options.KeySelector
+                options.KeySelector,
+                options.WatchChanges
             );
+            context.Own(resource);
 
             var codec =
                 options.Codec
@@ -161,7 +169,8 @@ public static class WebStorageSourceRegistration
                 resource,
                 codec,
                 options.CodecContext,
-                writer: options.Writable ? resource : null
+                writer: options.Writable ? resource : null,
+                watcher: options.WatchChanges ? resource : null
             );
             var physicalOrigin =
                 options.Kind == WebStorageKind.Local

@@ -10,12 +10,22 @@ namespace Configlue.Hosting.Blazor;
 /// <remarks>
 /// Subscribes to <see cref="IReadOnlyState{T}.OnChange"/> so effective upstream changes re-resolve the
 /// snapshot. Reload failures never replace the last successfully rendered value.
+/// <para>
+/// When <see cref="PersistPrerenderedState"/> is enabled (the default) and Blazor
+/// <see cref="PersistentComponentState"/> is available, the prerendered value is persisted at the
+/// end of prerender and restored immediately when the interactive renderer starts, so the first
+/// interactive render shows the prerendered value instead of a loading placeholder. The
+/// interactive source is always re-read afterwards, so a stale persisted value can only seed the
+/// first frame and never suppress a fresh read.
+/// </para>
 /// </remarks>
 public sealed partial class StateReader<T> : ComponentBase, IDisposable
 {
     private readonly StateReaderContext<T> _context;
     private IDisposable? _changeSubscription;
     private IDisposable? _reloadFailureSubscription;
+    private IDisposable? _persistSubscription;
+    private IPrerenderSnapshotStore? _prerenderStore;
     private int _disposed;
     private long _generation;
 
@@ -46,6 +56,14 @@ public sealed partial class StateReader<T> : ComponentBase, IDisposable
     [Parameter]
     public EventCallback<Exception> OnReloadFailed { get; set; }
 
+    /// <summary>
+    /// Whether the prerendered snapshot hands off to the interactive renderer through Blazor
+    /// <see cref="PersistentComponentState"/>. Defaults to <c>true</c>; automatically inert when
+    /// persistent component state is unavailable (for example in unit tests).
+    /// </summary>
+    [Parameter]
+    public bool PersistPrerenderedState { get; set; } = true;
+
     internal StateSnapshot<T>? Snapshot { get; private set; }
 
     internal bool IsLoading { get; private set; } = true;
@@ -66,7 +84,64 @@ public sealed partial class StateReader<T> : ComponentBase, IDisposable
             _reloadFailureSubscription = diagnostics.OnReloadFailed(OnReloadFailureReported);
         }
 
+        RestorePrerenderedSnapshot();
         await ReloadAsync(Interlocked.Increment(ref _generation)).ConfigureAwait(true);
+    }
+
+    internal static string PersistenceKeyFor<TModel>() =>
+        "configlue:state-reader:" + (typeof(TModel).FullName ?? typeof(TModel).Name);
+
+    private void RestorePrerenderedSnapshot()
+    {
+        if (!PersistPrerenderedState || Volatile.Read(ref _disposed) != 0)
+        {
+            return;
+        }
+
+        var store =
+            Services.GetService<IPrerenderSnapshotStore>()
+            ?? (
+                Services.GetService<PersistentComponentState>() is { } componentState
+                    ? new PersistentComponentStateStore(componentState)
+                    : null
+            );
+        if (store is null)
+        {
+            return;
+        }
+
+        _prerenderStore = store;
+        _persistSubscription = store.OnPersisting(PersistSnapshotAsync);
+
+        try
+        {
+            if (store.TryTake<T>(PersistenceKeyFor<T>(), out var restored) && restored is not null)
+            {
+                Snapshot = new StateSnapshot<T>(restored, details: null);
+                IsLoading = false;
+            }
+        }
+        catch (Exception)
+        {
+            // A stale or incompatible payload must fall through to a fresh read.
+        }
+    }
+
+    private Task PersistSnapshotAsync()
+    {
+        try
+        {
+            if (_prerenderStore is { } store && Snapshot is { } snapshot)
+            {
+                store.Persist(PersistenceKeyFor<T>(), snapshot.Value);
+            }
+        }
+        catch (Exception)
+        {
+            // Persistence must never fail rendering.
+        }
+
+        return Task.CompletedTask;
     }
 
     /// <inheritdoc />
@@ -79,6 +154,8 @@ public sealed partial class StateReader<T> : ComponentBase, IDisposable
 
         _changeSubscription?.Dispose();
         _reloadFailureSubscription?.Dispose();
+        _persistSubscription?.Dispose();
+        _prerenderStore = null;
         Interlocked.Increment(ref _generation);
         GC.SuppressFinalize(this);
     }
