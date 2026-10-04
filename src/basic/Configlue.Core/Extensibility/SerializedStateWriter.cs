@@ -6,7 +6,13 @@ using Configlue.State;
 namespace Configlue.Extensibility;
 
 /// <summary>Writes a typed state value by composing a codec and a resource.</summary>
-public sealed class SerializedStateWriter<T>
+/// <remarks>
+/// This writer is an internal implementation detail of <see cref="SerializedSource{T}"/>, which is
+/// the canonical provider-author composition object. Provider authors must not construct this
+/// writer directly; <see cref="SerializedSource{T}"/> builds the reader and writer together from
+/// one backing resource so a single Resource never needs manual separate construction.
+/// </remarks>
+internal sealed class SerializedStateWriter<T>
     : ISourceWriter<T>,
         IAsyncSourceWriteBatchParticipant<T>,
         ITryResourceIdentity

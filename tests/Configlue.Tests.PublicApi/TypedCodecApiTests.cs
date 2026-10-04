@@ -34,7 +34,6 @@ public sealed class TypedCodecApiTests
                 {
                     var arbitrary = new object();
                     _ = new SerializedSource<string>(resource, arbitrary);
-                    _ = SerializedStateSource.FromResource<string>("settings", resource, arbitrary);
                     _ = new RedisStateSourceOptions { ResourceNamespace = "settings", Codec = arbitrary };
                     _ = new S3ObjectSourceOptions { BucketName = "bucket", Key = "settings", Codec = arbitrary };
                     _ = new VaultKvSourceOptions { Mount = "secret", Path = "settings", Codec = arbitrary };

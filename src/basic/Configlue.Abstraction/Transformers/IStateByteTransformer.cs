@@ -19,8 +19,17 @@ public interface ISynchronousStateByteTransformer : IStateByteTransformer
 
 /// <summary>A synchronous transformer that can write directly into caller-provided output storage.</summary>
 /// <remarks>
-/// The transformer may retain neither the source span nor the destination. The destination owns the
-/// produced bytes; callers control its lifetime and may provide pooled storage.
+/// This is an advanced performance contract, not part of the canonical provider composition path
+/// (see <see cref="Codecs.StateCodecBinding"/> composition via the canonical serialized source).
+/// A transformer works fully without it via <see cref="ISynchronousStateByteTransformer"/>. Implement
+/// it only when writing into caller-provided pooled storage avoids an extra allocation for large
+/// payloads.
+/// <para>
+/// Lifetime and buffering: the transformer must retain neither the source span nor the destination.
+/// The destination owns the produced bytes; callers control its lifetime and may provide pooled
+/// storage. Implementations must append exactly the transformed output and must not complete or
+/// dispose the destination.
+/// </para>
 /// </remarks>
 public interface IDestinationStateByteTransformer : ISynchronousStateByteTransformer
 {

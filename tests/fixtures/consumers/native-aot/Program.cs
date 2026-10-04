@@ -22,11 +22,16 @@ var settingsPath = Path.Combine(directory, "settings.json");
 try
 {
     using var resource = new FileResource(settingsPath);
-    var modelSource = SerializedStateSource.FromResource<SampleAotSetting>(
-        "settings",
+    var serialized = new SerializedSource<SampleAotSetting>(
         resource,
         new JsonStateCodec<SampleAotSetting>(SampleAotJsonContext.Default.SampleAotSetting),
-        physicalOrigin: settingsPath
+        writer: resource,
+        watcher: resource
+    );
+    var modelSource = new StateSource<SampleAotSetting>(
+        "settings",
+        serialized,
+        new StateSourceOptions<SampleAotSetting> { PhysicalOrigin = settingsPath }
     );
     var settingsSource = StateSourceProjection.Project(
         modelSource,

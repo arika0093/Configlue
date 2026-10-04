@@ -1,7 +1,9 @@
 using Configlue;
+using Configlue.Extensibility;
 using Configlue.Extensions.ComponentModel;
 using Configlue.Hosting.Godot;
 using Configlue.Provider.Json;
+using Configlue.Sources;
 using G = global::Godot;
 
 public partial class SmokeRoot : G.Node
@@ -53,10 +55,16 @@ public partial class SmokeRoot : G.Node
                 null,
                 builder.HostPaths
             );
-            var source = SerializedStateSource.FromResource<SmokeSettings.Fragment>(
-                "file",
+            var serialized = new SerializedSource<SmokeSettings.Fragment>(
                 resource,
-                new JsonStateCodec<SmokeSettings.Fragment>()
+                new JsonStateCodec<SmokeSettings.Fragment>(),
+                writer: resource,
+                watcher: resource
+            );
+            var source = new StateSource<SmokeSettings.Fragment>(
+                "file",
+                serialized,
+                new StateSourceOptions<SmokeSettings.Fragment>()
             );
             var written = await source.WriteAsync(
                 ConfiglueResourceContext.Default,

@@ -5,7 +5,10 @@ namespace Configlue.Codecs;
 /// Use <see cref="Typed{T}(IStateCodec{T})"/> for a codec tied to one state type. Use
 /// <see cref="Dynamic(IStateCodec)"/> only when serialization intentionally dispatches on a runtime type.
 /// The explicit factories keep codecs implementing both contracts unambiguous and prevent arbitrary objects
-/// from entering serialized source configuration.
+/// from entering serialized source configuration. The binding is consumed by the canonical
+/// provider composition object (<c>Configlue.Extensibility.SerializedSource{T}</c>); provider
+/// options expose it so ordinary application code keeps passing codecs without touching
+/// composition types.
 /// </remarks>
 public sealed class StateCodecBinding
 {

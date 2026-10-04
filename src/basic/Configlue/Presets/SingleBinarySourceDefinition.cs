@@ -1,3 +1,4 @@
+using Configlue.Extensibility;
 using Configlue.Provider.Json;
 using Configlue.Resource.Zip;
 using Configlue.Sources;
@@ -46,12 +47,16 @@ internal sealed class SingleBinarySourceDefinition(
                 $"Generated JSON metadata is unavailable for fragment '{typeof(TFragment)}'."
             );
         var sourceId = SingleBinarySourceFactory.GetSourceId(entryName);
-        return SerializedStateSource.FromResource<TFragment>(
-            sourceId,
+        var serialized = new SerializedSource<TFragment>(
             resource,
             JsonStateCodec<TFragment>.FromConverter(converter),
-            priority,
-            physicalOrigin: path
+            writer: resource,
+            watcher: resource
+        );
+        return new StateSource<TFragment>(
+            sourceId,
+            serialized,
+            new StateSourceOptions<TFragment> { Priority = priority, PhysicalOrigin = path }
         );
     }
 }
@@ -126,12 +131,20 @@ internal static class SingleBinarySourceFactory
         var codec = new JsonStateCodec<ConfiglueProfileCatalog>(
             SingleBinaryJsonContext.Default.ConfiglueProfileCatalog
         );
-        return SerializedStateSource.FromResource<ConfiglueProfileCatalog>(
-            GetSourceId(entryName),
+        var serialized = new SerializedSource<ConfiglueProfileCatalog>(
             resource,
             codec,
-            priority,
-            physicalOrigin: path
+            writer: resource,
+            watcher: resource
+        );
+        return new StateSource<ConfiglueProfileCatalog>(
+            GetSourceId(entryName),
+            serialized,
+            new StateSourceOptions<ConfiglueProfileCatalog>
+            {
+                Priority = priority,
+                PhysicalOrigin = path,
+            }
         );
     }
 

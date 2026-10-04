@@ -3,8 +3,14 @@ using Configlue.Sources;
 
 namespace Configlue.Extensibility;
 
-/// <summary>Creates typed state sources by composing a resource, byte transformers, a codec, and middleware.</summary>
-public static class SerializedStateSource
+/// <summary>Composes typed state sources from a resource, byte transformers, a codec, and middleware.</summary>
+/// <remarks>
+/// This factory is an internal composition helper. Provider authors must use
+/// <see cref="SerializedSource{T}"/> as the canonical Resource + Codec composition object and
+/// register the resulting descriptor through the source-registration SPI
+/// (<see cref="IConfiglueSourceDefinition"/> via <see cref="IConfiglueSourceRegistrationSink.Add"/>).
+/// </remarks>
+internal static class SerializedStateSource
 {
     /// <summary>
     /// Creates a source whose state is serialized by the typed <paramref name="codec"/>.

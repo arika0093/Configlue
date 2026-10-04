@@ -169,7 +169,7 @@ public sealed class PublicApiCheckTest
 
     [Test]
     public void Extensibility() =>
-        PublicApiCheck.Check<SerializedStateReader<object>>(
+        PublicApiCheck.Check<SerializedSource<object>>(
             "Configlue.Extensibility",
             static type => type.Namespace == "Configlue.Extensibility"
         );

@@ -6,7 +6,12 @@ using Configlue.Sources;
 namespace Configlue.Extensibility;
 
 /// <summary>Reads a typed state value by composing a resource and a codec.</summary>
-public sealed class SerializedStateReader<T> : ISourceReader<T>, ITryResourceIdentity
+/// <remarks>
+/// This reader is an internal implementation detail of <see cref="SerializedSource{T}"/>, which is
+/// the canonical provider-author composition object. Provider authors must not construct this
+/// reader directly.
+/// </remarks>
+internal sealed class SerializedStateReader<T> : ISourceReader<T>, ITryResourceIdentity
 {
     private readonly IResourceReader _resource;
     private readonly StateCodecBinding _codecBinding;

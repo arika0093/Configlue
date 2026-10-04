@@ -67,26 +67,6 @@ namespace Configlue.Extensibility
         public System.Threading.Tasks.ValueTask WaitForChangeAsync(Configlue.Resources.ConfiglueResourceContext context, string? observedRevision, System.Threading.CancellationToken cancellationToken = default) { }
         public System.Threading.Tasks.ValueTask<Configlue.State.StateWriteResult> WriteAsync(Configlue.Resources.ConfiglueResourceContext context, Configlue.State.StateWriteRequest<T> request, System.Threading.CancellationToken cancellationToken = default) { }
     }
-    public sealed class SerializedStateReader<T> : Configlue.Resources.ITryResourceIdentity, Configlue.Sources.ISourceReader<T>
-    {
-        public SerializedStateReader(Configlue.Resources.IResourceReader resource, Configlue.Codecs.IStateCodec<T> codec, Configlue.Codecs.StateCodecContext context = default, Configlue.Migrations.StateSchemaDispatcher<T>? schemaDispatcher = null, System.Collections.Generic.IEnumerable<Configlue.Transformers.IStateByteTransformer>? transformers = null) { }
-        public SerializedStateReader(Configlue.Resources.IResourceReader resource, Configlue.Codecs.StateCodecBinding codec, Configlue.Codecs.StateCodecContext context = default, Configlue.Migrations.StateSchemaDispatcher<T>? schemaDispatcher = null, System.Collections.Generic.IEnumerable<Configlue.Transformers.IStateByteTransformer>? transformers = null) { }
-        public System.Threading.Tasks.ValueTask<Configlue.State.StateReadResult<T>> ReadAsync(Configlue.Resources.ConfiglueResourceContext context, System.Threading.CancellationToken cancellationToken = default) { }
-        public bool TryGetResourceId(Configlue.Resources.ConfiglueResourceContext context, out Configlue.Resources.ResourceId resourceId) { }
-    }
-    public static class SerializedStateSource
-    {
-        public static Configlue.Sources.StateSource<T> FromResource<T>(string id, Configlue.Resources.IResourceReader resource, Configlue.Codecs.IStateCodec<T> codec, int priority = 0, Configlue.Sources.StateFallbackCondition fallbackCondition = 1, Configlue.Resources.IResourceWriter? writer = null, Configlue.Sources.ISourceWatcher? watcher = null, string? physicalOrigin = null, Configlue.Codecs.StateCodecContext context = default, Configlue.Resources.ResourceId? fixedResourceId = default, Configlue.Migrations.StateSchemaDispatcher<T>? schemaDispatcher = null, System.Collections.Generic.IEnumerable<Configlue.Transformers.IStateByteTransformer>? transformers = null, System.Collections.Generic.IEnumerable<object>? middlewares = null) { }
-        public static Configlue.Sources.StateSource<T> FromResource<T>(string id, Configlue.Resources.IResourceReader resource, Configlue.Codecs.StateCodecBinding codec, int priority = 0, Configlue.Sources.StateFallbackCondition fallbackCondition = 1, Configlue.Resources.IResourceWriter? writer = null, Configlue.Sources.ISourceWatcher? watcher = null, string? physicalOrigin = null, Configlue.Codecs.StateCodecContext context = default, Configlue.Resources.ResourceId? fixedResourceId = default, Configlue.Migrations.StateSchemaDispatcher<T>? schemaDispatcher = null, System.Collections.Generic.IEnumerable<Configlue.Transformers.IStateByteTransformer>? transformers = null, System.Collections.Generic.IEnumerable<object>? middlewares = null) { }
-    }
-    public sealed class SerializedStateWriter<T> : Configlue.Resources.ITryResourceIdentity, Configlue.Sources.IAsyncSourceWriteBatchParticipant<T>, Configlue.Sources.ISourceWriter<T>
-    {
-        public SerializedStateWriter(Configlue.Resources.IResourceWriter resource, Configlue.Codecs.IStateCodec<T> codec, Configlue.Codecs.StateCodecContext context = default, System.Collections.Generic.IEnumerable<Configlue.Transformers.IStateByteTransformer>? transformers = null) { }
-        public SerializedStateWriter(Configlue.Resources.IResourceWriter resource, Configlue.Codecs.StateCodecBinding codec, Configlue.Codecs.StateCodecContext context = default, System.Collections.Generic.IEnumerable<Configlue.Transformers.IStateByteTransformer>? transformers = null) { }
-        public System.Threading.Tasks.ValueTask<Configlue.State.StateWriteBatchPlan?> TryCreateBatchWriteAsync(Configlue.Resources.ConfiglueResourceContext context, Configlue.State.StateWriteRequest<T> request, System.Threading.CancellationToken cancellationToken = default) { }
-        public bool TryGetResourceId(Configlue.Resources.ConfiglueResourceContext context, out Configlue.Resources.ResourceId resourceId) { }
-        public System.Threading.Tasks.ValueTask<Configlue.State.StateWriteResult> WriteAsync(Configlue.Resources.ConfiglueResourceContext context, Configlue.State.StateWriteRequest<T> request, System.Threading.CancellationToken cancellationToken = default) { }
-    }
     public sealed class TransformingResource : Configlue.Resources.IContextualResourceBackupRecovery, Configlue.Resources.IResourceBackupRecovery, Configlue.Resources.IResourceReader, Configlue.Resources.ITryResourceIdentity
     {
         public TransformingResource(Configlue.Resources.IResourceReader resource, System.Collections.Generic.IEnumerable<Configlue.Transformers.IStateByteTransformer> transformers, Configlue.Resources.ResourceId? fixedResourceId = default) { }

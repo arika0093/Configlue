@@ -31,6 +31,12 @@ public interface IStateCodec<T>
 public readonly record struct StateCodecDecodeResult<T>(T? Value, StateSchemaMetadata? Schema);
 
 /// <summary>Optional single-pass decode capability for codecs with embedded schema metadata.</summary>
+/// <remarks>
+/// This is an advanced performance contract: a codec works fully without it via the two-step
+/// metadata-then-decode path used by the canonical serialized source. Implement it only when the
+/// payload already carries schema metadata that can be reported in the same pass, avoiding a second
+/// parse. The returned schema is advisory; resource-supplied metadata still takes precedence.
+/// </remarks>
 public interface IStateCodecWithMetadata<T>
 {
     /// <summary>Decodes the value and embedded schema metadata without independently parsing the payload twice.</summary>
