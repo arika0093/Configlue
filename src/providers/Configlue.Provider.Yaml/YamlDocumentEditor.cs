@@ -643,7 +643,7 @@ internal static class YamlDocumentEditor
             }
 
             var hasSeparator =
-                retainedCount > 0 && FindFlowComma(document.Source, lastEnd, close) >= 0;
+                retainedCount > 0 && FindRetainedFlowComma(document.Source, lastEnd, close) >= 0;
             var prefix = !hasSeparator && retainedCount > 0 ? ", " : "";
             _edits.Add(
                 new TextEdit(
@@ -652,6 +652,28 @@ internal static class YamlDocumentEditor
                     prefix + string.Join(", ", additions.Select(static item => item.Trim()))
                 )
             );
+        }
+
+        private int FindRetainedFlowComma(string source, int start, int end)
+        {
+            var position = start;
+            while (position < end)
+            {
+                var comma = FindFlowComma(source, position, end);
+                if (comma < 0)
+                {
+                    return -1;
+                }
+
+                if (!_removedFlowCommas.Contains(comma))
+                {
+                    return comma;
+                }
+
+                position = comma + 1;
+            }
+
+            return -1;
         }
 
         private static int FindFlowComma(string source, int start, int end)
