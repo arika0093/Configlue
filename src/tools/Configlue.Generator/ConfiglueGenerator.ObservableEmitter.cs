@@ -115,7 +115,7 @@ public sealed partial class ConfiglueGenerator
                     + valueType
                     + ">.Default.Equals(__value."
                     + name
-                    + ", value))"
+                    + "!, value!))"
             );
             code.AppendLineAt(4, "{");
             code.AppendLineAt(5, "__value." + name + " = value;");
@@ -239,7 +239,7 @@ public sealed partial class ConfiglueGenerator
                 + valueType
                 + ">.Default.Equals(__value."
                 + name
-                + ", value))"
+                + "!, value!))"
         );
         code.AppendLineAt(3, "{");
         code.AppendLineAt(4, "return;");

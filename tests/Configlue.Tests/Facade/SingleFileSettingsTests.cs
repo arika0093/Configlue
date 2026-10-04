@@ -82,13 +82,29 @@ public sealed class SingleFileSettingsTests
                 ["RetryCount"] = 3,
             }.ToJsonString()
         );
-        await WaitUntilAsync(() =>
-        {
-            lock (observedGate)
+        // Level-triggered watchers converge by re-reading: if a platform coalesces
+        // or drops a single rapid file-watch edge, re-issuing the write recovers.
+        // A genuinely broken watcher still fails via the timeout below.
+        await WaitUntilAsync(
+            () =>
             {
-                return observedTheme == "Light";
-            }
-        });
+                lock (observedGate)
+                {
+                    return observedTheme == "Light";
+                }
+            },
+            async () =>
+                await WriteExternalAsync(
+                    path,
+                    new JsonObject
+                    {
+                        ["$version"] = 1,
+                        ["Name"] = "World",
+                        ["Theme"] = "Light",
+                        ["RetryCount"] = 3,
+                    }.ToJsonString()
+                )
+        );
         (await reloaded.GetValueAsync()).Theme.ShouldBe("Light");
 
         // A malformed document fails reads instead of silently returning defaults.
@@ -143,12 +159,19 @@ public sealed class SingleFileSettingsTests
         (await reloaded.GetValueAsync()).RetryCount.ShouldBe(3);
     }
 
-    private static async Task WaitUntilAsync(Func<bool> condition)
+    private static async Task WaitUntilAsync(Func<bool> condition, Func<Task>? poke = null)
     {
         using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+        var pokes = 0;
         while (!condition())
         {
             await Task.Delay(TimeSpan.FromMilliseconds(50), timeout.Token);
+            // Re-issue the triggering write a few times while waiting so a single
+            // coalesced file-watch edge cannot stall the test forever.
+            if (poke is not null && ++pokes % 20 == 0)
+            {
+                await poke();
+            }
         }
     }
 

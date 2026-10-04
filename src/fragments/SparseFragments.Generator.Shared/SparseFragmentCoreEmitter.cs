@@ -1469,7 +1469,7 @@ internal sealed class SparseFragmentCoreEmitter(
                 code.AppendIndent(3)
                     .Append("if (global::System.Collections.Generic.EqualityComparer<")
                     .Append(type)
-                    .AppendLine(">.Default.Equals(before, after)) { return default; }");
+                    .AppendLine(">.Default.Equals(before!, after!)) { return default; }");
                 code.AppendIndent(3)
                     .Append("return ")
                     .Append(Optional)

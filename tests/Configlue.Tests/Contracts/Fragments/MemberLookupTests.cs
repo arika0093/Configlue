@@ -124,11 +124,15 @@ public sealed class MemberLookupTests
         var output = new ArrayBufferWriter<byte>();
         codec.Serialize(fragment, output, default);
         var xml = Encoding.UTF8.GetString(output.WrittenMemory.ToArray());
+#if NETFRAMEWORK
+        xml = xml.Replace("</configlue>", "<member id=\"999\" name=\"Bogus\" /></configlue>");
+#else
         xml = xml.Replace(
             "</configlue>",
             "<member id=\"999\" name=\"Bogus\" /></configlue>",
             StringComparison.Ordinal
         );
+#endif
 
         var restored = codec.Deserialize(
             new ReadOnlySequence<byte>(Encoding.UTF8.GetBytes(xml)),

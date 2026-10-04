@@ -226,7 +226,7 @@ public sealed partial class ConfiglueGenerator
                             + ">.Default.Equals(typedValue."
                     )
                     .Append(property)
-                    .AppendLine(".Value, default))");
+                    .AppendLine(".Value!, default))");
                 code.AppendLineAt(5, "{");
                 conditionalIndent = 6;
             }

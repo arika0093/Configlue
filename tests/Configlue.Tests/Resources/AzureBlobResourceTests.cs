@@ -615,7 +615,7 @@ public sealed class AzureBlobResourceTests
         await using var pipeline = await resource.ReadPipelineAsync();
         var sequence = await pipeline.ReadAllAsync();
         sequence.Length.ShouldBe(payload.Length);
-        sequence.FirstSpan[0].ShouldBe(payload[0]);
+        sequence.First.Span[0].ShouldBe(payload[0]);
         var streamed = sequence.ToArray();
         pipeline.Content!.AdvanceTo(sequence.End);
         streamed.ShouldBe(payload);

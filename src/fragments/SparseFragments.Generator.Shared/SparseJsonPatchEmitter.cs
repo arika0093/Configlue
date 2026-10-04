@@ -222,7 +222,7 @@ internal static class SparseJsonPatchEmitter
                             + ">.Default.Equals(value."
                     )
                     .Append(property)
-                    .AppendLine(".Value, default))");
+                    .AppendLine(".Value!, default))");
                 code.AppendLineAt(5, "{");
                 conditionalIndent = 6;
             }
@@ -645,7 +645,7 @@ internal static class SparseJsonPatchEmitter
                 );
                 code.AppendLineAt(
                     3,
-                    "else if (!global::System.Collections.Generic.EqualityComparer<" + valueType(member) + ">.Default.Equals(beforeFragment." + name + ".Value, afterFragment." + name + ".Value))"
+                    "else if (!global::System.Collections.Generic.EqualityComparer<" + valueType(member) + ">.Default.Equals(beforeFragment." + name + ".Value!, afterFragment." + name + ".Value!))"
                 );
                 code.AppendLineAt(
                     4,
