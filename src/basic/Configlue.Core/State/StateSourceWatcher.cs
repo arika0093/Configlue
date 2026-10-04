@@ -4,7 +4,13 @@ using Configlue.Sources;
 namespace Configlue.State;
 
 /// <summary>Watches the active source and higher-priority sources that may become active again.</summary>
-public sealed class StateSourceWatcher<T> : ISourceWatcher
+/// <remarks>
+/// Internal composition implementation (see issue #225). The supported extension surface is
+/// <c>ISourceWatcher</c>; watch composition is exposed through source registration
+/// (<c>StateSourceSetBuilder{T}</c>, <c>StateSource{T}</c>) rather than by constructing this
+/// type directly.
+/// </remarks>
+internal sealed class StateSourceWatcher<T> : ISourceWatcher
 {
     private readonly StateSourceResolver<T> _resolver;
 

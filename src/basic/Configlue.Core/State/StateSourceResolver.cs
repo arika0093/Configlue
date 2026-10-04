@@ -9,12 +9,21 @@ namespace Configlue.State;
 
 /// <summary>Reads the first successful state from a priority-ordered set of sources.</summary>
 /// <remarks>
+/// <para>
+/// Internal composition implementation (see issue #225). The supported extension surface is
+/// <c>ISourceReader{T}</c>, <c>ISourceWriter{T}</c>, <c>ISourceWatcher</c>, and
+/// <c>ISourceCapabilities{T}</c>; composition is exposed through source registration
+/// (<c>StateSourceSetBuilder{T}</c>, <c>StateSource{T}</c>, <c>FallbackStateSource{T}</c>,
+/// <c>CompositeStateSource{TFragment}</c>) rather than by constructing this type directly.
+/// </para>
+/// <para>
 /// Per-subject resolutions are cached so routing and watcher fan-out stay stable across reads. The cache is
 /// bounded: entries are evicted once they have been idle for <see cref="SubjectResolutionIdleTimeout"/> and no
 /// active watch still references them. Eviction is opportunistic and performed on access, so the resolver does
 /// not run a timer or task per subject.
+/// </para>
 /// </remarks>
-public sealed class StateSourceResolver<T> : ISourceReader<T>
+internal sealed class StateSourceResolver<T> : ISourceReader<T>
 {
     private static readonly EventId ReadEvent = new(1050, "ResolverSourceRead");
     private static readonly EventId FallbackEvent = new(1051, "ResolverSourceFallback");

@@ -278,22 +278,4 @@ namespace Configlue.State
         bool IsPipelineDecodePreferred { get; }
         System.Threading.Tasks.ValueTask<Configlue.State.StateReadResult<T>> DeserializeAsync(System.IO.Pipelines.PipeReader content, Configlue.Codecs.StateCodecContext context, Configlue.State.StateSchemaMetadata? resourceSchema, System.Threading.CancellationToken cancellationToken = default);
     }
-    public sealed class StateSourceResolver<T> : Configlue.Sources.ISourceReader<T>
-    {
-        public const int SubjectResolutionSweepThreshold = 256;
-        public static readonly System.TimeSpan SubjectResolutionIdleTimeout;
-        public StateSourceResolver(Configlue.Sources.StateSourceSet<T> sourceSet, Microsoft.Extensions.Logging.ILogger? logger = null, System.TimeSpan? subjectResolutionIdleTimeout = default, int subjectResolutionSweepThreshold = 256) { }
-        public Configlue.Sources.StateSource<T>? ActiveSource { get; }
-        public System.Threading.Tasks.ValueTask<Configlue.State.StateReadResult<T>> ReadAsync(Configlue.Resources.ConfiglueResourceContext context, System.Threading.CancellationToken cancellationToken = default) { }
-    }
-    public sealed class StateSourceWatcher<T> : Configlue.Sources.ISourceWatcher
-    {
-        public StateSourceWatcher(Configlue.State.StateSourceResolver<T> resolver) { }
-        public System.Threading.Tasks.ValueTask WaitForChangeAsync(Configlue.Resources.ConfiglueResourceContext context, string? observedRevision, System.Threading.CancellationToken cancellationToken = default) { }
-    }
-    public sealed class StateSourceWriter<T> : Configlue.Sources.ISourceWriter<T>
-    {
-        public StateSourceWriter(Configlue.Sources.StateSourceSet<T> sourceSet, Configlue.SourceId? defaultSourceId = default) { }
-        public System.Threading.Tasks.ValueTask<Configlue.State.StateWriteResult> WriteAsync(Configlue.Resources.ConfiglueResourceContext context, Configlue.State.StateWriteRequest<T> request, System.Threading.CancellationToken cancellationToken = default) { }
-    }
 }

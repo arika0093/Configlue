@@ -4,7 +4,13 @@ using Configlue.Sources;
 namespace Configlue.State;
 
 /// <summary>Routes writes independently from read-source selection using deterministic ownership.</summary>
-public sealed class StateSourceWriter<T> : ISourceWriter<T>
+/// <remarks>
+/// Internal composition implementation (see issue #225). The supported extension surface is
+/// <c>ISourceWriter{T}</c>; write ownership is exposed through source registration
+/// (<c>StateSourceSetBuilder{T}</c>, <c>StateSource{T}</c>) rather than by constructing this
+/// type directly.
+/// </remarks>
+internal sealed class StateSourceWriter<T> : ISourceWriter<T>
 {
     private readonly StateSource<T> _writeSource;
 
