@@ -16,6 +16,8 @@ public class ConfiglueSourceSetBuilder : IConfiglueSourceRegistrationSink
     /// <summary>Whether this source set has been built or its model registration has been sealed.</summary>
     public bool IsSealed => _sealed;
 
+    internal bool HasRegistrations => _sources.Count > 0;
+
     /// <summary>Adds an already-created source. Its resource instances remain caller-owned.</summary>
     public void Add<TFragment>(StateSource<TFragment> source)
         where TFragment : class, IConfiglueFragment<TFragment>

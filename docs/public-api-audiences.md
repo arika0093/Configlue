@@ -98,7 +98,8 @@ with buffering/lifetime requirements, and unnecessary for the canonical
 | `ConfiglueNamedState<TModel>`, `ConfiglueRuntimeDiagnosticOptions`, `ConfiglueTelemetry`, `ConfiglueSourceRegistrationContext<TModel>`, `ConfiglueSourceSetBuilder`, `ConfiglueSourceSetBuilder<TModel>`, `StateSourceSetBuilder<T>`, `StateSourceBuilder<T>`, `StateStorageMigrationExtensions` | advanced-application / provider | C |
 | `ConfiglueHostPathProfile`, `ConfiglueStandardPaths`, `FileResource`, `FileResourceOptions`, `FileBackupDirectoryMode`, `FileChangeDetectionMode`, `CommonFileSourceSettings` | provider (advanced resource) | C |
 | `PipelineResourceReadResult`, `PipelineResourceReader` | provider (advanced perf) | C |
-| `CompositeStateSource<TFragment>`, `FallbackStateSource<T>` | provider (advanced composition) | C |
+| `CompositeStateSource<TFragment>` | provider (advanced composition) | C |
+| `ConfiglueStorageMigrationBuilder<TModel>` | advanced-application (migration-only definitions) | C |
 | `IPipelineResourceReader`, `IPipelineStateCodec<T>` | provider (advanced perf) | I |
 
 ## `Configlue.Extensibility` snapshot (lives in Core)

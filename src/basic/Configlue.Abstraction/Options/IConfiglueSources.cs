@@ -25,6 +25,20 @@ public interface IConfiglueSources<T>
     );
 
     /// <summary>
+    /// Adopts a legacy representation into its canonical target without registering the legacy
+    /// representation as an active runtime source. When the canonical target already holds state,
+    /// no write occurs and the result is null. Otherwise the first readable legacy representation
+    /// (in enumeration order) is decoded, schema-migrated, written to the canonical target with
+    /// revision protection, and re-read for verification. Returns null when no legacy
+    /// representation holds migratable state.
+    /// </summary>
+    ValueTask<StateSourceMigrationResult?> AdoptLegacyAsync(
+        SourceId canonicalTargetId,
+        IEnumerable<SourceId> legacySourceIds,
+        CancellationToken cancellationToken = default
+    );
+
+    /// <summary>
     /// Migrates selected source contributions into projected targets. Implementations verify each write and
     /// skip targets already holding the requested fragment, so a partially completed operation can be retried.
     /// When <paramref name="retireSources"/> is true, selected sources are removed from this state instance

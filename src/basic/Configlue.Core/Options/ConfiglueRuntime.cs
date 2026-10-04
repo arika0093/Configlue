@@ -74,7 +74,8 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
         ReadValidationMode readValidationMode = ReadValidationMode.EffectiveThrow,
         WriteConflictResolution writeConflictResolution = WriteConflictResolution.FailOnConflict,
         ConfiglueRuntimeDiagnosticOptions? diagnostics = null,
-        TimeProvider? timeProvider = null
+        TimeProvider? timeProvider = null,
+        StateSourceSet<TFragment>? migrationSources = null
     )
         : this(
             sourceSet,
@@ -89,7 +90,8 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
             readValidationMode: readValidationMode,
             writeConflictResolution: writeConflictResolution,
             diagnostics: diagnostics,
-            timeProvider: timeProvider
+            timeProvider: timeProvider,
+            migrationSources: migrationSources
         ) { }
 
     /// <summary>Creates state with a custom model clone strategy.</summary>
@@ -106,7 +108,8 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
         ReadValidationMode readValidationMode = ReadValidationMode.EffectiveThrow,
         WriteConflictResolution writeConflictResolution = WriteConflictResolution.FailOnConflict,
         ConfiglueRuntimeDiagnosticOptions? diagnostics = null,
-        TimeProvider? timeProvider = null
+        TimeProvider? timeProvider = null,
+        StateSourceSet<TFragment>? migrationSources = null
     )
     {
         ArgumentNullException.ThrowIfNull(sourceSet);
@@ -229,7 +232,8 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
             _writes,
             _validation,
             _diagnostics,
-            _lifetime
+            _lifetime,
+            migrationSources: migrationSources?.Sources
         );
     }
 

@@ -160,6 +160,7 @@ public sealed class ConfiglueModelBuilder<TModel>
 {
     internal IConfiglueHostPaths HostPaths { get; set; } = ConfiglueHostPathProfile.Default;
     private readonly ConfiglueSourceSetBuilder<TModel> _sources = new();
+    private ConfiglueStorageMigrationBuilder<TModel>? _storageMigrations;
     private readonly List<IConfiglueValidator<TModel>> _validators = [];
     private readonly List<object> _migrations = [];
     private readonly List<
@@ -347,6 +348,35 @@ public sealed class ConfiglueModelBuilder<TModel>
         configure(_sources);
     }
 
+    /// <summary>
+    /// Registers migration-only sources with the same provider helpers used for active sources.
+    /// Definitions added here never participate in normal runtime resolution, watching,
+    /// provenance, or inferred writes; migration operations resolve them by logical source ID
+    /// alongside the active sources. Use <c>From</c> for legacy inputs and <c>To</c> for
+    /// migration-only targets.
+    /// </summary>
+    /// <example>
+    /// <code>
+    /// model.Sources(sources =>
+    /// {
+    ///     sources.FromJsonFile(new JsonFileSourceOptions { Id = "canonical", Path = "settings.json" });
+    /// });
+    /// model.StorageMigrations(migrations =>
+    /// {
+    ///     migrations.From(sources =>
+    ///         sources.FromYamlFile(new YamlFileSourceOptions { Id = "legacy", Path = "settings.yaml" })
+    ///     );
+    /// });
+    /// </code>
+    /// </example>
+    public void StorageMigrations(Action<ConfiglueStorageMigrationBuilder<TModel>> configure)
+    {
+        EnsureMutable();
+        ArgumentNullException.ThrowIfNull(configure);
+        _storageMigrations ??= new ConfiglueStorageMigrationBuilder<TModel>();
+        configure(_storageMigrations);
+    }
+
     /// <summary>Resolves the current subject from a scoped dependency-injection accessor.</summary>
     /// <remarks>
     /// The accessor type must be registered with the application's service provider. State
@@ -497,6 +527,40 @@ public sealed class ConfiglueModelBuilder<TModel>
         return sources.Build<TFragment>(modelSchema, serviceProvider, ownResource, HostPaths);
     }
 
+    /// <summary>Builds the migration-only source set, or null when none was declared.</summary>
+    internal StateSourceSet<TFragment>? BuildMigrationSources<TFragment>(
+        ConfiglueModelSchema modelSchema,
+        IServiceProvider? serviceProvider,
+        Action<object> ownResource
+    )
+        where TFragment : class, IConfiglueFragment<TFragment>
+    {
+        ArgumentNullException.ThrowIfNull(ownResource);
+        if (_storageMigrations is null)
+        {
+            return null;
+        }
+
+        if (_sourceConfigurations.Count == 0)
+        {
+            return _storageMigrations.Build<TFragment>(
+                modelSchema,
+                serviceProvider,
+                ownResource,
+                HostPaths
+            );
+        }
+
+        // Dynamic source configurations only extend the active runtime topology. Migration-only
+        // definitions are static by design so legacy inputs stay out of inferred configuration.
+        return _storageMigrations.Build<TFragment>(
+            modelSchema,
+            serviceProvider,
+            ownResource,
+            HostPaths
+        );
+    }
+
     /// <summary>Gets explicit and dependency-injected migrations for the generated fragment type.</summary>
     internal IReadOnlyList<IStateSchemaMigration<TFragment>> GetMigrations<TFragment>(
         IServiceProvider? serviceProvider
@@ -584,6 +648,11 @@ public sealed class ConfiglueModelBuilder<TModel>
             HostPaths = HostPaths,
         };
         clone._sources.CopyFrom(_sources);
+        if (_storageMigrations is not null)
+        {
+            clone._storageMigrations = new ConfiglueStorageMigrationBuilder<TModel>();
+            clone._storageMigrations.CopyFrom(_storageMigrations);
+        }
         clone._cloneStrategy = _cloneStrategy;
         clone._validators.AddRange(_validators);
         clone._migrations.AddRange(_migrations);
@@ -598,6 +667,7 @@ public sealed class ConfiglueModelBuilder<TModel>
     {
         _sealed = true;
         _sources.Seal();
+        _storageMigrations?.Seal();
     }
 
     private void EnsureMutable()

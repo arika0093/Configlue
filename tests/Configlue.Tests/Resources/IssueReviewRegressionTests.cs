@@ -6,7 +6,7 @@ namespace Configlue.Tests;
 public sealed class IssueReviewRegressionTests
 {
     [Test]
-    public async Task DefaultContextsPassThroughSourceResolverWriterWatcherCompositeAndFallback()
+    public async Task DefaultContextsPassThroughSourceResolverWriterWatcherAndComposite()
     {
         var backend = new ReviewSource();
         var source = new StateSource<ExplicitReviewSettings.Fragment>(SourceId.From("review"), backend, new StateSourceOptions<ExplicitReviewSettings.Fragment> { Writer = backend, Watcher = backend });
@@ -18,7 +18,6 @@ public sealed class IssueReviewRegressionTests
             set,
             SourceId.From("review")
         );
-        var fallback = new FallbackStateSource<ExplicitReviewSettings.Fragment>(set);
         foreach (
             var context in new[]
             {
@@ -38,13 +37,6 @@ public sealed class IssueReviewRegressionTests
             await watcher.WaitForChangeAsync(context, null);
             await composite.ReadAsync(context);
             await composite.WaitForChangeAsync(context, null);
-            await fallback.ReadAsync(context);
-            await fallback.WriteAsync(
-                context,
-                new StateWriteRequest<ExplicitReviewSettings.Fragment>(
-                    ExplicitReviewSettings.Fragment.Empty
-                )
-            );
             backend.LastContext.ShouldBe(ConfiglueResourceContext.Default);
             backend.LastContext.Subject.ShouldNotBeNull();
         }

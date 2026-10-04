@@ -456,7 +456,10 @@ public sealed partial class StateRuntimeTests
                 status switch
                 {
                     StateReadStatus.Success => StateReadResult<T>.Success(value!, Revision),
-                    StateReadStatus.InvalidPayload => StateReadResult<T>.InvalidPayload(value, Revision),
+                    StateReadStatus.InvalidPayload => StateReadResult<T>.InvalidPayload(
+                        value,
+                        Revision
+                    ),
                     StateReadStatus.Unavailable => StateReadResult<T>.Unavailable(Revision),
                     _ => StateReadResult<T>.NotFound(Revision),
                 }

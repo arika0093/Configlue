@@ -13,7 +13,7 @@ namespace Configlue.State;
 /// Internal composition implementation (see issue #225). The supported extension surface is
 /// <c>ISourceReader{T}</c>, <c>ISourceWriter{T}</c>, <c>ISourceWatcher</c>, and
 /// <c>ISourceCapabilities{T}</c>; composition is exposed through source registration
-/// (<c>StateSourceSetBuilder{T}</c>, <c>StateSource{T}</c>, <c>FallbackStateSource{T}</c>,
+/// (<c>StateSourceSetBuilder{T}</c>, <c>StateSource{T}</c>,
 /// <c>CompositeStateSource{TFragment}</c>) rather than by constructing this type directly.
 /// </para>
 /// <para>

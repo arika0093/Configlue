@@ -132,7 +132,12 @@ public static class ConfiglueRuntime
                     configuration.CloneStrategy,
                     configuration.ReadValidationMode,
                     configuration.WriteConflictResolution,
-                    configuration.Diagnostics
+                    configuration.Diagnostics,
+                    migrationSources: configuration.BuildMigrationSources<TFragment>(
+                        schema,
+                        services,
+                        ownResource
+                    )
                 ),
             static (registry, catalog, name) =>
                 new ConfiglueProfiledState<TModel, TFragment>(registry, catalog, name),

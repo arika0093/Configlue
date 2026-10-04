@@ -41,9 +41,7 @@ public sealed class SubjectRoutingTests
                     routed
                         .Add("routed", store)
                         .RouteBy<RoutingSubject>(subject =>
-                            subject.DataStrict
-                                ? RouteKey.From(subject.Region)
-                                : RouteKey.Default
+                            subject.DataStrict ? RouteKey.From(subject.Region) : RouteKey.Default
                         );
                     sources.Add(routed.Build().Sources[0]);
                 });
@@ -114,7 +112,10 @@ public sealed class SubjectRoutingTests
             );
         });
 
-        var value = await context.GetSubjectState<AppSettings>().ForSubject(subject).GetValueAsync();
+        var value = await context
+            .GetSubjectState<AppSettings>()
+            .ForSubject(subject)
+            .GetValueAsync();
 
         value.Label.ShouldBe("japan");
         value.RetryCount.ShouldBe(7);
@@ -277,6 +278,24 @@ public sealed class SubjectRoutingTests
         activeStore.Set(oldRoute, oldResourceKey, Fragment("japan"));
         var fallbackSource = new StateSource<AppSettings.Fragment>("fallback", fallbackStore, new StateSourceOptions<AppSettings.Fragment> { Priority = 10, FallbackCondition = StateFallbackCondition.NotFound, Watcher = fallbackStore, ResourceKeySelector = candidate => ResourceKey.From(((MutableRoutingSubject)candidate).Resource), RouteSelector = candidate => RouteKey.From(((MutableRoutingSubject)candidate).Region) });
         var source = new StateSource<AppSettings.Fragment>("mutable-route", activeStore, new StateSourceOptions<AppSettings.Fragment> { Watcher = activeStore, ResourceKeySelector = candidate => ResourceKey.From(((MutableRoutingSubject)candidate).Resource), RouteSelector = candidate => RouteKey.From(((MutableRoutingSubject)candidate).Region) });
+        var fallbackSource = new StateSource<AppSettings.Fragment>(
+            "fallback",
+            fallbackStore,
+            priority: 10,
+            fallbackCondition: StateFallbackCondition.NotFound,
+            watcher: fallbackStore,
+            resourceKeySelector: candidate =>
+                ResourceKey.From(((MutableRoutingSubject)candidate).Resource),
+            routeSelector: candidate => RouteKey.From(((MutableRoutingSubject)candidate).Region)
+        );
+        var source = new StateSource<AppSettings.Fragment>(
+            "mutable-route",
+            activeStore,
+            watcher: activeStore,
+            resourceKeySelector: candidate =>
+                ResourceKey.From(((MutableRoutingSubject)candidate).Resource),
+            routeSelector: candidate => RouteKey.From(((MutableRoutingSubject)candidate).Region)
+        );
         var resolver = new StateSourceResolver<AppSettings.Fragment>(
             new StateSourceSet<AppSettings.Fragment>([fallbackSource, source])
         );
@@ -315,12 +334,25 @@ public sealed class SubjectRoutingTests
         var retryStore = new RoutedStateStore();
         var label = new StateSource<AppSettings.Fragment>("label", labelStore, new StateSourceOptions<AppSettings.Fragment> { Watcher = labelStore, ResourceKeySelector = candidate => ResourceKey.From(((MutableRoutingSubject)candidate).Resource), RouteSelector = candidate => RouteKey.From(((MutableRoutingSubject)candidate).Region) });
         var retry = new StateSource<AppSettings.Fragment>("retry", retryStore, new StateSourceOptions<AppSettings.Fragment> { Watcher = retryStore, ResourceKeySelector = candidate => ResourceKey.From(((MutableRoutingSubject)candidate).SecondaryResource), RouteSelector = candidate => RouteKey.From(((MutableRoutingSubject)candidate).SecondaryRegion) });
-        labelStore.Set(RouteKey.From("jp"), ResourceKey.From("label-key"), Fragment("japan"));
-        retryStore.Set(
-            RouteKey.From("us"),
-            ResourceKey.From("retry-key"),
-            FragmentWithRetry(4)
+        var label = new StateSource<AppSettings.Fragment>(
+            "label",
+            labelStore,
+            watcher: labelStore,
+            resourceKeySelector: candidate =>
+                ResourceKey.From(((MutableRoutingSubject)candidate).Resource),
+            routeSelector: candidate => RouteKey.From(((MutableRoutingSubject)candidate).Region)
         );
+        var retry = new StateSource<AppSettings.Fragment>(
+            "retry",
+            retryStore,
+            watcher: retryStore,
+            resourceKeySelector: candidate =>
+                ResourceKey.From(((MutableRoutingSubject)candidate).SecondaryResource),
+            routeSelector: candidate =>
+                RouteKey.From(((MutableRoutingSubject)candidate).SecondaryRegion)
+        );
+        labelStore.Set(RouteKey.From("jp"), ResourceKey.From("label-key"), Fragment("japan"));
+        retryStore.Set(RouteKey.From("us"), ResourceKey.From("retry-key"), FragmentWithRetry(4));
         var composite = new CompositeStateSource<AppSettings.Fragment>(
             new StateSourceSet<AppSettings.Fragment>([label, retry])
         );
@@ -347,36 +379,10 @@ public sealed class SubjectRoutingTests
     }
 
     [Test]
-    public async Task CompositeAndFallbackSourcesForwardRouteToComponentOperations()
+    public async Task CompositeSourcesForwardRouteToComponentOperations()
     {
         var subject = new RoutingSubject("strict-jp", true);
         var route = RouteKey.From("strict-jp");
-
-        var fallbackStore = new RoutedStateStore();
-        fallbackStore.Set(route, subject.Key, Fragment("fallback-before"));
-        var fallbackBuilder = new StateSourceSetBuilder<AppSettings.Fragment>();
-        fallbackBuilder
-            .Add("fallback-candidate", fallbackStore)
-            .RouteBy<RoutingSubject>(candidate =>
-                candidate.DataStrict ? RouteKey.From(candidate.Region) : RouteKey.Default
-            );
-        var fallbackCandidate = fallbackBuilder.Build().Sources[0];
-        var fallback = new FallbackStateSource<AppSettings.Fragment>(
-            new StateSourceSet<AppSettings.Fragment>([fallbackCandidate])
-        );
-        var fallbackContext = fallbackCandidate.GetResourceContext(subject);
-        var fallbackRead = await fallback.ReadAsync(fallbackContext);
-        fallbackRead.Value!.Label.Value.ShouldBe("fallback-before");
-        await fallback.WriteAsync(
-            fallbackContext,
-            new StateWriteRequest<AppSettings.Fragment>(
-                Fragment("fallback-after"),
-                RevisionCondition.FromRevision(fallbackRead.Revision)
-            )
-        );
-        await fallback.WaitForChangeAsync(fallbackContext, fallbackRead.Revision);
-        fallbackStore.LastWriteContext!.Value.Route.ShouldBe(route);
-        fallbackStore.LastWatchContext!.Value.Route.ShouldBe(route);
 
         var compositeStore = new RoutedStateStore();
         compositeStore.Set(route, subject.Key, Fragment("composite"));
@@ -395,60 +401,6 @@ public sealed class SubjectRoutingTests
         await composite.WaitForChangeAsync(compositeContext, "revision");
         compositeStore.LastReadContext!.Value.Route.ShouldBe(route);
         compositeStore.LastWatchContext!.Value.Route.ShouldBe(route);
-    }
-
-    [Test]
-    public async Task FallbackStateSource_RoutesConcurrentSubjectsToTheirResolvedCandidates()
-    {
-        var japan = new RoutingSubject("strict-jp", true);
-        var europe = new RoutingSubject("strict-eu", true);
-        var canonicalStore = new RoutedStateStore();
-        var legacyStore = new RoutedStateStore();
-        var canonicalBuilder = new StateSourceSetBuilder<AppSettings.Fragment>();
-        canonicalBuilder
-            .Add("canonical", canonicalStore)
-            .RouteBy<RoutingSubject>(subject => RouteKey.From(subject.Region));
-        var legacyBuilder = new StateSourceSetBuilder<AppSettings.Fragment>();
-        legacyBuilder
-            .Add("legacy", legacyStore)
-            .RouteBy<RoutingSubject>(subject => RouteKey.From(subject.Region));
-        var canonical = canonicalBuilder.Build().Sources[0];
-        var legacy = legacyBuilder.Build().Sources[0];
-        var japanContext = canonical.GetResourceContext(japan);
-        var europeContext = canonical.GetResourceContext(europe);
-        canonicalStore.SetNotFound(japanContext.Route, japanContext.ResourceKey);
-        canonicalStore.Set(europeContext.Route, europeContext.ResourceKey, Fragment("europe-before"));
-        legacyStore.Set(japanContext.Route, japanContext.ResourceKey, Fragment("japan-before"));
-        legacyStore.SetNotFound(europeContext.Route, europeContext.ResourceKey);
-
-        var fallback = new FallbackStateSource<AppSettings.Fragment>(
-            new StateSourceSet<AppSettings.Fragment>([canonical, legacy])
-        );
-
-        var japanRead = await fallback.ReadAsync(japanContext);
-        var europeRead = await fallback.ReadAsync(europeContext);
-        japanRead.SourceId.ShouldBe(SourceId.From("legacy"));
-        europeRead.SourceId.ShouldBe(SourceId.From("canonical"));
-
-        await fallback.WriteAsync(
-            japanContext,
-            new StateWriteRequest<AppSettings.Fragment>(
-                Fragment("japan-after"),
-                RevisionCondition.FromRevision(japanRead.Revision)
-            )
-        );
-        await fallback.WriteAsync(
-            europeContext,
-            new StateWriteRequest<AppSettings.Fragment>(
-                Fragment("europe-after"),
-                RevisionCondition.FromRevision(europeRead.Revision)
-            )
-        );
-
-        (await legacyStore.ReadAsync(japanContext)).Value!.Label.Value.ShouldBe("japan-after");
-        (await canonicalStore.ReadAsync(europeContext)).Value!.Label.Value.ShouldBe("europe-after");
-        (await canonicalStore.ReadAsync(japanContext)).Status.ShouldBe(StateReadStatus.NotFound);
-        (await legacyStore.ReadAsync(europeContext)).Status.ShouldBe(StateReadStatus.NotFound);
     }
 
     private static AppSettings.Fragment Fragment(string? label) =>
@@ -548,10 +500,8 @@ public sealed class SubjectRoutingTests
             cancellationToken.ThrowIfCancellationRequested();
             LastWriteContext = context;
             var revision = $"revision:{context.Route.Value}:{Guid.NewGuid():N}";
-            _states[(context.ResourceKey, context.Route)] = StateReadResult<AppSettings.Fragment>.Success(
-                request.Value,
-                revision
-            );
+            _states[(context.ResourceKey, context.Route)] =
+                StateReadResult<AppSettings.Fragment>.Success(request.Value, revision);
             return ValueTaskCompat.FromResult(new StateWriteResult(revision));
         }
 

@@ -621,6 +621,7 @@ namespace Configlue
     }
     public interface IConfiglueSources<T>
     {
+        System.Threading.Tasks.ValueTask<Configlue.Migrations.StateSourceMigrationResult?> AdoptLegacyAsync(Configlue.SourceId canonicalTargetId, System.Collections.Generic.IEnumerable<Configlue.SourceId> legacySourceIds, System.Threading.CancellationToken cancellationToken = default);
         System.Threading.Tasks.ValueTask<Configlue.StateWriteReceipt> ApplyPatchesAsync(System.Collections.Generic.IEnumerable<Configlue.StateSourcePatch> patches, System.Threading.CancellationToken cancellationToken = default);
         System.Threading.Tasks.ValueTask<Configlue.Migrations.StateSourceMigrationResult> MigrateSourceAsync(Configlue.SourceId sourceId, Configlue.SourceId targetId, System.Threading.CancellationToken cancellationToken = default);
         System.Threading.Tasks.ValueTask<Configlue.Migrations.StateSourceMigrationResult> MigrateSourceAsync(Configlue.SourceKey<T> sourceKey, Configlue.SourceKey<T> targetKey, System.Threading.CancellationToken cancellationToken = default);

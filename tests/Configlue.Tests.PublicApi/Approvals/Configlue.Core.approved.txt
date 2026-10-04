@@ -63,6 +63,7 @@ namespace Configlue
         public void PerSubject<TAccessor>()
             where TAccessor :  class, Configlue.IConfiglueSubjectAccessor { }
         public void Sources(System.Action<Configlue.ConfiglueSourceSetBuilder<TModel>> configure) { }
+        public void StorageMigrations(System.Action<Configlue.ConfiglueStorageMigrationBuilder<TModel>> configure) { }
         public void UseCloneStrategy(System.Func<TModel, TModel> cloneStrategy) { }
         public void UseScopedRuntime() { }
         public void UseSharedRuntime() { }
@@ -103,6 +104,13 @@ namespace Configlue
     {
         public ConfiglueSourceSetBuilder() { }
         public System.Type ModelType { get; }
+    }
+    public sealed class ConfiglueStorageMigrationBuilder<TModel>
+        where TModel : Configlue.CompilerServices.IConfiglueFacadeModel<TModel>
+    {
+        public ConfiglueStorageMigrationBuilder() { }
+        public Configlue.ConfiglueStorageMigrationBuilder<TModel> From(System.Action<Configlue.ConfiglueSourceSetBuilder<TModel>> configure) { }
+        public Configlue.ConfiglueStorageMigrationBuilder<TModel> To(System.Action<Configlue.ConfiglueSourceSetBuilder<TModel>> configure) { }
     }
     public static class ConfiglueTelemetry
     {
@@ -261,14 +269,6 @@ namespace Configlue.State
         public System.Threading.Tasks.ValueTask<Configlue.State.StateReadResult<TFragment>> ReadAsync(Configlue.Resources.ConfiglueResourceContext context, System.Threading.CancellationToken cancellationToken = default) { }
         public System.Threading.Tasks.ValueTask WaitForChangeAsync(Configlue.Resources.ConfiglueResourceContext context, string? observedRevision, System.Threading.CancellationToken cancellationToken = default) { }
         public System.Threading.Tasks.ValueTask<Configlue.State.StateWriteResult> WriteAsync(Configlue.Resources.ConfiglueResourceContext context, Configlue.State.StateWriteRequest<TFragment> request, System.Threading.CancellationToken cancellationToken = default) { }
-    }
-    public sealed class FallbackStateSource<T> : Configlue.Sources.ISourceReader<T>, Configlue.Sources.ISourceWatcher, Configlue.Sources.ISourceWriter<T>
-    {
-        public FallbackStateSource(Configlue.Sources.StateSourceSet<T> candidates, Configlue.SourceId? writeSourceId = default) { }
-        public Configlue.Sources.StateSource<T> CreateSource(string id, int priority = 0, Configlue.Sources.StateFallbackCondition fallbackCondition = 1, string? physicalOrigin = null) { }
-        public System.Threading.Tasks.ValueTask<Configlue.State.StateReadResult<T>> ReadAsync(Configlue.Resources.ConfiglueResourceContext context, System.Threading.CancellationToken cancellationToken = default) { }
-        public System.Threading.Tasks.ValueTask WaitForChangeAsync(Configlue.Resources.ConfiglueResourceContext context, string? observedRevision, System.Threading.CancellationToken cancellationToken = default) { }
-        public System.Threading.Tasks.ValueTask<Configlue.State.StateWriteResult> WriteAsync(Configlue.Resources.ConfiglueResourceContext context, Configlue.State.StateWriteRequest<T> request, System.Threading.CancellationToken cancellationToken = default) { }
     }
     public interface IPipelineResourceReader
     {

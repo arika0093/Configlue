@@ -21,6 +21,13 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
     ) => _migrations.MigrateSourceAsync(sourceKey, targetKey, cancellationToken);
 
     /// <inheritdoc />
+    public ValueTask<StateSourceMigrationResult?> AdoptLegacyAsync(
+        SourceId canonicalTargetId,
+        IEnumerable<SourceId> legacySourceIds,
+        CancellationToken cancellationToken = default
+    ) => _migrations.AdoptLegacyAsync(canonicalTargetId, legacySourceIds, cancellationToken);
+
+    /// <inheritdoc />
     public ValueTask<StateStorageMigrationResult> MigrateSourcesToTargetsAsync(
         IEnumerable<SourceId> sourceIds,
         IReadOnlyDictionary<

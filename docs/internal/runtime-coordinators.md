@@ -17,7 +17,7 @@ reviewable and testable in isolation.
 | `RuntimeSourceTopology<TFragment>` | Registered set, active (non-retired) snapshot, retired IDs + gate, topology-change signal, details source keys, single-source fast-path snapshot. | Read/merge logic, write plans. |
 | `RuntimeResolutionEngine<TModel, TFragment>` | Model-defaults contribution, schema-migration chain, read-validation mode, layered read/merge, revision vectors. | Writes, watchers, sessions. |
 | `RuntimeValidationPipeline<TModel, TFragment>` | Validators, data-annotations opt-in, member/model validation caches. Pure in/out; takes fragments explicitly. | Resolution or routing state. |
-| `RuntimeMigrationCoordinator<TModel, TFragment>` | Storage-migration orchestration (source-to-source, sources-to-targets, retirement verification). No mutable state of its own. | Fragment migration (that is the engine's `MigrateFragmentAsync`). |
+| `RuntimeMigrationCoordinator<TModel, TFragment>` | Storage-migration orchestration over active topology sources plus migration-only definitions (source-to-source, sources-to-targets, legacy adoption, same-physical-resource representation replacement, retirement verification). No mutable state of its own. | Fragment migration (that is the engine's `MigrateFragmentAsync`). |
 | `RuntimeWriteCoordinator<TModel, TFragment>` | Bound `StateWritePlan`, default-source inference, routing/merge-aware planning, patch application, previews, write diagnostics. | Resolution snapshots (passed in as `ResolvedState<TModel, TFragment>`). |
 | `RuntimeWatchCoordinator<TModel, TFragment>` | Listener lists, shared watch loop, per-subject watcher table + barrier, debounce, wait-task scratch. | Operation counting (lifetime's). |
 | `RuntimeInspectionCoordinator<TModel, TFragment>` | Check, details/snapshot building, static diagnostics. Composes others; owns no mutable state. | Any new stored state. |
@@ -32,6 +32,7 @@ Cross-coordinator data uses narrow internal types: `ResolvedState<TModel, TFragm
 ## Where new behavior belongs
 
 - New read/merge/fallback semantics → `RuntimeResolutionEngine`.
+- New representation/storage migration, adoption, or migration-only source behavior → `RuntimeMigrationCoordinator`.
 - New validation rules or modes → `RuntimeValidationPipeline`.
 - New write routing, batching, or preview behavior → `RuntimeWriteCoordinator`.
 - New watcher, debounce, or notification behavior → `RuntimeWatchCoordinator`.
