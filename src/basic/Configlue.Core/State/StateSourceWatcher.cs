@@ -92,21 +92,44 @@ internal sealed class StateSourceWatcher<T> : ISourceWatcher
         var watchers = new Task[watchableCount];
         var position = 0;
         var targets = watchTargets.Targets;
-        for (var index = 0; index < targets.Count; index++)
+        try
         {
-            var target = targets[index];
-            if (target.Source.Watcher is null)
+            for (var index = 0; index < targets.Count; index++)
             {
-                continue;
+                var target = targets[index];
+                if (target.Source.Watcher is null)
+                {
+                    continue;
+                }
+
+                var task = target
+                    .Source.WaitForChangeAsync(
+                        target.EffectiveContext,
+                        target.ObservedRevision,
+                        watchCancellation.Token
+                    )
+                    .AsTask();
+                watchers[position++] = task;
+            }
+        }
+        catch
+        {
+            // A synchronously-throwing watcher must not strand already-started siblings.
+            if (position > 0)
+            {
+                if (!watchCancellation.IsCancellationRequested)
+                {
+                    await watchCancellation.CancelAsync().ConfigureAwait(false);
+                }
+
+                await AwaitWatchersAsync(
+                        new ArraySegment<Task>(watchers, 0, position),
+                        cancellationToken
+                    )
+                    .ConfigureAwait(false);
             }
 
-            watchers[position++] = target
-                .Source.WaitForChangeAsync(
-                    target.EffectiveContext,
-                    target.ObservedRevision,
-                    watchCancellation.Token
-                )
-                .AsTask();
+            throw;
         }
 
         try
