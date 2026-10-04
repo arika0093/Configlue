@@ -51,6 +51,8 @@ Every source is still read on every operation. Only the immutable resolution, re
 
 Eight new semantic cases cover fresh values, all-source reads, changed/nested/removed revisions, nested metadata from missing sources, failover, status changes, and retained watch immutability. Three exact allocation budgets cover stable reads.
 
+Round 2 final verification: Release net10.0 passes 1,653 tests, zero failures, 17 external-service skips. Core builds all three target frameworks with zero warnings/errors. Formatting and whitespace checks pass.
+
 ## Round 3: subject identity
 
 Reports are retained in `artifacts/perf-round3/before` and `after`. Resolver before values are round 2 after values (same code and inputs).
@@ -97,6 +99,10 @@ A ConditionalWeakTable keyed by immutable JsonTypeInfo retains eligible sorted p
 
 Three new tests verify repeated cached writes with changed values and ShouldSerialize outcomes, mutable property order/name/eligibility changes, and repeated fallback for frozen ineligible metadata. Existing JSON callback, converter, AOT metadata, and layout tests pass. Release net10.0 passes 1,674 tests, zero failures, 17 external-service skips. The JSON provider builds all three target frameworks with zero warnings/errors. Formatting/whitespace checks pass. Six existing layout benchmarks also executed successfully; their candidate-only reports establish coverage, not before/after performance claims.
 
+## Integrated checkpoint
+
+All five verified rounds have been committed and cherry-picked into local main, preserving unrelated CI and timer-test fixes. Integrated main at `f1728ab3` passes the full Release net10.0 suite: 1,674 passed, zero failed, 17 skipped external-service tests. Its log is retained in the main worktree's ignored `artifacts/perf-integrated/tests.log`. No remote push has been performed. The working tree is clean after the audit documentation commit. The optimization goal remains active; the following coverage gaps are still outstanding.
+
 ## Remaining audit
 
 These are outstanding, not claims of saturation:
@@ -109,4 +115,3 @@ These are outstanding, not claims of saturation:
 - Sources and codecs: audit environment, command line, JSON/JSONC sections, YAML, XML, MessagePack, and schema metadata decode.
 - Resources and transformers: audit file reads/writes, stream fingerprinting, S3 streaming, Redis identities/reads/writes, AES, compression, mixed transformer pipelines, and large payloads. Separate storage/network/OS-cache variability from managed hot-path costs.
 - Final audit: establish coverage with actual report/test evidence, identify remaining costs as necessary work or unresolved candidates, integrate the verified changes with current main, and rerun relevant checks. Keep the goal active while any candidate or material coverage gap remains.
-Round 2 final verification: Release net10.0 passes 1,653 tests, zero failures, 17 external-service skips. Core builds all three target frameworks with zero warnings/errors. Formatting and whitespace checks pass.
