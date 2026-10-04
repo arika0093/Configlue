@@ -1,4 +1,5 @@
 using System.Buffers;
+using System.Diagnostics.CodeAnalysis;
 using System.Text;
 using MessagePack;
 using MessagePack.Formatters;
@@ -37,6 +38,9 @@ internal static class MessagePackStateCodecOperations
         WritePayload(ref writer, value, options, formatter);
     }
 
+    [RequiresDynamicCode(
+        "Resolving a formatter from a runtime type may generate code through runtime reflection."
+    )]
     internal static void WriteEnvelope(
         ref MessagePackWriter writer,
         Type type,
@@ -180,6 +184,9 @@ internal static class MessagePackStateCodecOperations
         }
     }
 
+    [RequiresDynamicCode(
+        "Resolving a formatter from a runtime type may generate code through runtime reflection."
+    )]
     internal static object? ReadDynamicValue(
         Type type,
         in ReadOnlySequence<byte> source,
@@ -286,6 +293,9 @@ internal static class MessagePackStateCodecOperations
         }
     }
 
+    [RequiresDynamicCode(
+        "Resolving a formatter from a runtime type may generate code through runtime reflection."
+    )]
     internal static object? ReadDynamicPayload(
         Type type,
         ref MessagePackReader reader,

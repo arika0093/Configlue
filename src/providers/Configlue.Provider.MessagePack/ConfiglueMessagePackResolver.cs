@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using MessagePack;
 using MessagePack.Formatters;
 using MessagePack.Resolvers;
@@ -18,6 +19,15 @@ public sealed class ConfiglueMessagePackResolver : IFormatterResolver
     private readonly IFormatterResolver _fallback;
 
     /// <summary>Creates a resolver using the standard resolver for types without a generated fragment formatter.</summary>
+    /// <remarks>
+    /// The standard resolver can generate formatters through runtime reflection and keeps
+    /// MessagePack's dynamic fallback reachable for trimming and NativeAOT. NativeAOT hosts
+    /// must use <see cref="ConfiglueMessagePackResolver(IFormatterResolver)"/> with an
+    /// AOT-safe fallback instead.
+    /// </remarks>
+    [RequiresDynamicCode(
+        "The standard resolver may generate formatters through runtime reflection. Use an explicit AOT-safe fallback resolver for NativeAOT."
+    )]
     public ConfiglueMessagePackResolver()
         : this(StandardResolver.Instance) { }
 
@@ -28,7 +38,13 @@ public sealed class ConfiglueMessagePackResolver : IFormatterResolver
     }
 
     /// <summary>A shared resolver over the standard resolver, which may use runtime reflection for leaf types.</summary>
-    public static ConfiglueMessagePackResolver Instance { get; } = new();
+    public static ConfiglueMessagePackResolver Instance
+    {
+        [RequiresDynamicCode(
+            "The standard resolver may generate formatters through runtime reflection. Use an explicit AOT-safe fallback resolver for NativeAOT."
+        )]
+        get;
+    } = new();
 
     /// <inheritdoc />
     public IMessagePackFormatter<T>? GetFormatter<T>() =>

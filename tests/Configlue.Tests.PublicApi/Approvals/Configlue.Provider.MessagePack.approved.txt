@@ -20,8 +20,12 @@ namespace Configlue.Provider.MessagePack
     }
     public sealed class ConfiglueMessagePackResolver : MessagePack.IFormatterResolver
     {
+        [System.Diagnostics.CodeAnalysis.RequiresDynamicCode("The standard resolver may generate formatters through runtime reflection. Use an " +
+            "explicit AOT-safe fallback resolver for NativeAOT.")]
         public ConfiglueMessagePackResolver() { }
         public ConfiglueMessagePackResolver(MessagePack.IFormatterResolver? fallback) { }
+        [get: System.Diagnostics.CodeAnalysis.RequiresDynamicCode("The standard resolver may generate formatters through runtime reflection. Use an " +
+            "explicit AOT-safe fallback resolver for NativeAOT.")]
         public static Configlue.Provider.MessagePack.ConfiglueMessagePackResolver Instance { get; }
         public MessagePack.Formatters.IMessagePackFormatter<T>? GetFormatter<T>() { }
     }
@@ -52,10 +56,15 @@ namespace Configlue.Provider.MessagePack
     }
     public sealed class MessagePackStateCodec : Configlue.Codecs.IStateCodec, Configlue.Codecs.IStateCodecRecoveryPolicy, Configlue.Codecs.IStateSchemaMetadataReader
     {
+        [System.Diagnostics.CodeAnalysis.RequiresDynamicCode("The default resolver may generate formatters through runtime reflection.")]
         public MessagePackStateCodec(MessagePack.MessagePackSerializerOptions? options = null) { }
+        [System.Diagnostics.CodeAnalysis.RequiresDynamicCode("Resolving a formatter from a runtime type may generate code through runtime refle" +
+            "ction.")]
         public object? Deserialize(System.Type type, in System.Buffers.ReadOnlySequence<byte> source, in Configlue.Codecs.StateCodecContext context) { }
         public bool IsRecoverableReadException(System.Exception exception) { }
         public Configlue.State.StateSchemaMetadata? ReadSchemaMetadata(in System.Buffers.ReadOnlySequence<byte> source) { }
+        [System.Diagnostics.CodeAnalysis.RequiresDynamicCode("Resolving a formatter from a runtime type may generate code through runtime refle" +
+            "ction.")]
         public void Serialize(System.Type type, object? value, System.Buffers.IBufferWriter<byte> destination, in Configlue.Codecs.StateCodecContext context) { }
     }
     public sealed class MessagePackStateCodec<T> : Configlue.Codecs.IStateCodecRecoveryPolicy, Configlue.Codecs.IStateCodecWithMetadata<T>, Configlue.Codecs.IStateCodec<T>, Configlue.Codecs.IStateSchemaMetadataReader

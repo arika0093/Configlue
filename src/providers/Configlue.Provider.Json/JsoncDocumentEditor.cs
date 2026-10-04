@@ -976,11 +976,18 @@ internal sealed class JsonSchemaShape
     )
     {
         var fragment = CreateShallowFragment(schema);
+        var fragmentType = fragment.GetType();
+        var writerDelegate =
+            ConfiglueJsonFragmentConverters.GetWriterOrNull(fragmentType)
+            ?? throw new InvalidOperationException(
+                $"Generated JSON converter for fragment '{fragmentType}' has not been registered. "
+                    + "NativeAOT hosts must initialize the generated model so its fragment converter is registered."
+            );
         byte[] bytes;
         using (var stream = new MemoryStream())
         {
             using var writer = new Utf8JsonWriter(stream);
-            JsonSerializer.Serialize(writer, fragment, fragment.GetType(), bareOptions);
+            writerDelegate(writer, fragment, bareOptions);
             writer.Flush();
             bytes = stream.ToArray();
         }

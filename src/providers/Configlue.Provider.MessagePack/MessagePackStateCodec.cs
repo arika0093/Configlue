@@ -8,8 +8,13 @@ namespace Configlue.Provider.MessagePack;
 /// <summary>Default options used by MessagePack codecs when the caller supplies none.</summary>
 internal static class MessagePackStateCodecDefaults
 {
-    public static MessagePackSerializerOptions Options { get; } =
-        MessagePackSerializerOptions.Standard.WithResolver(ConfiglueMessagePackResolver.Instance);
+    public static MessagePackSerializerOptions Options
+    {
+        [RequiresDynamicCode(
+            "The default resolver may generate formatters through runtime reflection."
+        )]
+        get;
+    } = MessagePackSerializerOptions.Standard.WithResolver(ConfiglueMessagePackResolver.Instance);
 }
 
 /// <summary>A MessagePack state codec for values discovered through a configured resolver.</summary>
@@ -26,12 +31,24 @@ public sealed class MessagePackStateCodec
     private readonly MessagePackSerializerOptions _options;
 
     /// <summary>Creates a codec with the supplied MessagePack options.</summary>
+    /// <remarks>
+    /// A <see langword="null"/> options value selects the default resolver, which can generate
+    /// formatters through runtime reflection and keeps MessagePack's dynamic fallback reachable
+    /// for trimming and NativeAOT. NativeAOT hosts must pass explicit options built over a
+    /// closed-world resolver.
+    /// </remarks>
+    [RequiresDynamicCode(
+        "The default resolver may generate formatters through runtime reflection."
+    )]
     public MessagePackStateCodec(MessagePackSerializerOptions? options = null)
     {
         _options = options ?? MessagePackStateCodecDefaults.Options;
     }
 
     /// <inheritdoc />
+    [RequiresDynamicCode(
+        "Resolving a formatter from a runtime type may generate code through runtime reflection."
+    )]
     public object? Deserialize(
         Type type,
         in ReadOnlySequence<byte> source,
@@ -39,6 +56,9 @@ public sealed class MessagePackStateCodec
     ) => MessagePackStateCodecOperations.ReadDynamicValue(type, in source, _options);
 
     /// <inheritdoc />
+    [RequiresDynamicCode(
+        "Resolving a formatter from a runtime type may generate code through runtime reflection."
+    )]
     public void Serialize(
         Type type,
         object? value,

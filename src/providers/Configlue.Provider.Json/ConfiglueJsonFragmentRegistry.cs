@@ -40,5 +40,7 @@ public static class ConfiglueJsonFragmentRegistry<TFragment>
                 $"Generated JSON converter for fragment '{typeof(TFragment)}' is already registered."
             );
         }
+
+        ConfiglueJsonFragmentConverters.Register(converter);
     }
 }

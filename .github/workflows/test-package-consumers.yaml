@@ -103,6 +103,115 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
+  native-aot-supported:
+    timeout-minutes: 30
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Pack Configlue packages
+        run: dotnet pack Configlue.slnx --configuration Release --output artifacts/packages
+
+      - name: Resolve local feed and package version
+        shell: bash
+        run: |
+          set -euo pipefail
+          package="$(ls artifacts/packages/SparseFragments.*.nupkg | head -n 1)"
+          version="$(basename "$package" | sed -E 's/^SparseFragments\.(.+)\.nupkg$/\1/')"
+          echo "CONFIGLUE_PACKAGE_VERSION=$version" >> "$GITHUB_ENV"
+          echo "CONFIGLUE_PACKAGE_FEED=$(realpath artifacts/packages)" >> "$GITHUB_ENV"
+
+      - name: Publish warning-clean NativeAOT consumer
+        shell: bash
+        run: |
+          set -euo pipefail
+          publish_log="$(mktemp)"
+          trap 'rm -f "$publish_log"' EXIT
+          # Release gate (#208): the supported JSON surface (facade over
+          # source-generated metadata plus generated fragment converters) must
+          # publish with zero IL trim/AOT diagnostics. No warning-code or
+          # namespace allowlist is applied here; any diagnostic fails the gate.
+          dotnet publish tests/fixtures/consumers/native-aot-supported/NativeAot.Supported.Consumer.csproj \
+            --configuration Release --runtime linux-x64 --self-contained \
+            -p:ConfigluePackageVersion="$CONFIGLUE_PACKAGE_VERSION" \
+            -p:RestoreAdditionalProjectSources="$CONFIGLUE_PACKAGE_FEED" \
+            -p:IlcTreatWarningsAsErrors=true 2>&1 | tee "$publish_log"
+
+          unexpected_diagnostics="$(
+            grep -E '(warning|error) IL[0-9]{4}:' "$publish_log" || true
+          )"
+          if [[ -n "$unexpected_diagnostics" ]]; then
+            echo "Unexpected NativeAOT or trimming diagnostics:" >&2
+            echo "$unexpected_diagnostics" >&2
+            exit 1
+          fi
+
+      - name: Run warning-clean NativeAOT consumer
+        run: |
+          set -euo pipefail
+          output="$(tests/fixtures/consumers/native-aot-supported/bin/Release/net10.0/linux-x64/publish/NativeAot.Supported.Consumer)"
+          echo "$output"
+          if [[ "$output" != *"CONFIGLUE_NATIVE_AOT_SUPPORTED_PASS"* ]]; then
+            echo "The warning-clean NativeAOT consumer did not reach its success marker." >&2
+            exit 1
+          fi
+
+      - name: Prove RequiresDynamicCode fails the gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          consumer_dir="tests/fixtures/consumers/native-aot-supported"
+          probe_file="$consumer_dir/RdcProbe.regression.cs"
+          # Inject a RequiresDynamicCode call into the supported consumer. The
+          # gate must reject it; a successful publish means the gate is blind.
+          cat > "$probe_file" <<'EOF'
+          using System.Diagnostics.CodeAnalysis;
+          using System.Runtime.CompilerServices;
+
+          internal static class RdcProbeRegression
+          {
+              [ModuleInitializer]
+              public static void Init() => Touch();
+
+              [RequiresDynamicCode("Regression probe: intentional dynamic-code injection.")]
+              public static void Touch() { }
+          }
+          EOF
+          trap 'rm -f "$probe_file"' EXIT
+          if dotnet publish "$consumer_dir/NativeAot.Supported.Consumer.csproj" \
+            --configuration Release --runtime linux-x64 --self-contained \
+            -p:ConfigluePackageVersion="$CONFIGLUE_PACKAGE_VERSION" \
+            -p:RestoreAdditionalProjectSources="$CONFIGLUE_PACKAGE_FEED" \
+            -p:IlcTreatWarningsAsErrors=true > /tmp/rdc-probe.log 2>&1; then
+            echo "The gate accepted injected RequiresDynamicCode; it should have failed." >&2
+            exit 1
+          fi
+          if ! grep -qE '(warning|error) IL3050:' /tmp/rdc-probe.log; then
+            echo "The probe publish failed without the expected IL3050 diagnostic:" >&2
+            cat /tmp/rdc-probe.log >&2
+            exit 1
+          fi
+          echo "RequiresDynamicCode injection was rejected as expected."
+
+      - name: Upload failure artifacts
+        if: failure() || cancelled()
+        uses: actions/upload-artifact@v7
+        with:
+          name: native-aot-supported-results
+          path: |
+            artifacts/packages/*.nupkg
+            tests/fixtures/consumers/native-aot-supported/**/*.binlog
+          if-no-files-found: ignore
+          retention-days: 7
+
   native-aot:
     timeout-minutes: 30
     runs-on: ubuntu-latest
@@ -135,8 +244,11 @@ jobs:
           set -euo pipefail
           publish_log="$(mktemp)"
           trap 'rm -f "$publish_log"' EXIT
-          # Keep ILC diagnostics as errors. MessagePack 3.1.10 still reports trim/AOT
-          # diagnostics from its dynamic/contractless resolver fallback
+          # Diagnostic broad consumer (#208): keeps executing the generated
+          # MessagePack fragment path (custom POCO / generic collections through
+          # an explicit closed-world resolver) under NativeAOT. MessagePack 3.1.11
+          # still reports trim/AOT diagnostics from its dynamic/contractless
+          # resolver fallback
           # (DynamicObjectResolver, DynamicUnionResolver, AttributeFormatterResolver,
           # ResolverUtilities and DynamicGenericResolver/BuiltinResolver helpers,
           # ImmutableCollection helpers, ObjectSerializationInfo/DynamicObjectTypeBuilder
@@ -146,6 +258,8 @@ jobs:
           # source-generated POCO formatting and a closed-world leaf resolver. Only
           # ILC diagnostics for those upstream codes on MessagePack members are allowed;
           # any diagnostic pointing at Configlue sources (or any other code) fails.
+          # The warning-clean release gate is the native-aot-supported job above,
+          # which carries no allowlist at all.
           dotnet publish tests/fixtures/consumers/native-aot/NativeAot.Consumer.csproj \
             --configuration Release --runtime linux-x64 --self-contained \
             -p:ConfigluePackageVersion="$CONFIGLUE_PACKAGE_VERSION" \
