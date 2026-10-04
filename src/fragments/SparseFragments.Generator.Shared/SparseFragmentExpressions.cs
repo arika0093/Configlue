@@ -185,7 +185,11 @@ internal sealed class SparseFragmentExpressions(
         var combined = $"global::System.Linq.Enumerable.Concat({lower}, {higher})";
         if (member.MergeMode == 3)
         {
-            combined = $"global::System.Linq.Enumerable.Distinct({combined})";
+            var method =
+                member.Collection.Kind == SparseCollectionKind.List
+                    ? "MergeDistinctList"
+                    : "MergeDistinctArray";
+            return $"{CollectionMerger}.{method}<{elementType}>({lower}, {higher})";
         }
 
         return member.Collection.Kind switch
