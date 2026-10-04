@@ -1,16 +1,5 @@
 name: Packed package consumers
 
-# Tier 2 / main + release gate with a packaging-surface PR filter (#273).
-# Pack + consumer + NativeAOT verification is expensive, so on pull
-# requests it runs only when packaging inputs, consumer fixtures, or this
-# workflow change. Source-only PRs intentionally defer NativeAOT to the
-# main/release gate. Main pushes always run it (the push trigger below has
-# no paths filter, and release.yaml also invokes it via workflow_call
-# alongside strict-test), so a merge cannot slip through unverified even
-# though strict-test no longer nests a NativeAOT check (#275). The weekly
-# schedule is inherited from the removed test-nativeaot.yaml to keep
-# push-independent drift detection (SDK / upstream MessagePack updates).
-
 on:
   workflow_call:
     inputs:

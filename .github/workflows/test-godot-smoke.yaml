@@ -1,11 +1,5 @@
 name: Godot smoke tests
 
-# Tier 2 / main + release gate with a narrow PR filter (#273). Also invoked
-# through test-strict.yaml, so the bare pull_request trigger was removed:
-# on PRs this runs only when Godot hosting sources, the Godot smoke
-# project, or this workflow change. Main pushes, release.yaml and manual
-# dispatch always run it.
-
 on:
   workflow_call:
     inputs:
