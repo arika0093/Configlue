@@ -16,6 +16,13 @@ public sealed class ConfiglueStateEndpointOptions
     /// <summary>Whether to map the PUT state endpoint.</summary>
     public bool MapWrite { get; init; } = true;
 
+    /// <summary>
+    /// Whether to map the RFC 6902 JSON Patch endpoint (<c>application/json-patch+json</c>).
+    /// The patch endpoint shares the write path and requires a strong effective-state
+    /// <c>If-Match</c> ETag.
+    /// </summary>
+    public bool MapPatch { get; init; } = true;
+
     /// <summary>Whether to map the SSE invalidation endpoint.</summary>
     public bool MapEvents { get; init; } = true;
 
@@ -35,6 +42,6 @@ public sealed class ConfiglueStateEndpointOptions
     /// </summary>
     public JsonSerializerOptions? SerializerOptions { get; init; }
 
-    /// <summary>The maximum accepted PUT request body size in bytes. Null disables the limit.</summary>
+    /// <summary>The maximum accepted PUT/PATCH request body size in bytes. Null disables the limit.</summary>
     public long? MaximumRequestBodySize { get; init; } = 30_000_000;
 }

@@ -6,6 +6,7 @@ namespace Configlue.Hosting.AspNetCore
         public ConfiglueStateEndpointOptions() { }
         public string EventsPath { get; init; }
         public bool MapEvents { get; init; }
+        public bool MapPatch { get; init; }
         public bool MapRead { get; init; }
         public bool MapWrite { get; init; }
         public long? MaximumRequestBodySize { get; init; }

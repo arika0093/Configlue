@@ -3,10 +3,12 @@ using System.Net;
 using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using Configlue.Provider.Json;
 using Configlue.Resources;
 using Configlue.Sources;
 using Configlue.State;
+using SparseFragments.JsonPatch;
 
 namespace Configlue.Source.Http;
 
@@ -47,6 +49,7 @@ public sealed class HttpStateReader<TFragment>
     private CancellationTokenSource? _sharedWatchCancellation;
     private Task? _sharedWatchTask;
     private string? _lastRevision;
+    private byte[]? _baselineJson;
 
     /// <summary>Creates a State HTTP reader for the supplied endpoint.</summary>
     public HttpStateReader(
@@ -144,8 +147,34 @@ public sealed class HttpStateReader<TFragment>
     )
     {
         var response = await SendGetAsync(null, cancellationToken).ConfigureAwait(false);
-        SetLastRevision(response.Revision);
+        CacheGetResult(response);
         return response.Result;
+    }
+
+    /// <summary>
+    /// Applies an RFC 6902 JSON Patch document to the State HTTP endpoint.
+    /// </summary>
+    /// <param name="patch">The patch document, using the <c>#201</c> JSON Patch type.</param>
+    /// <param name="etag">The baseline effective-state ETag (quoted or hex).</param>
+    /// <param name="cancellationToken">Cancels the request.</param>
+    /// <returns>The canonical state observed after the patch and its new revision.</returns>
+    /// <exception cref="HttpStateStaleException">The baseline ETag is stale (HTTP 412).</exception>
+    /// <exception cref="HttpStateWriteConflictException">
+    /// The patch cannot be applied or conflicts with a concurrent change (HTTP 409).
+    /// </exception>
+    /// <exception cref="HttpStateValidationException">The server rejected the value (HTTP 422).</exception>
+    /// <exception cref="HttpStateRequestException">The patch is malformed (HTTP 400).</exception>
+    public async ValueTask<HttpStatePatchResult<TFragment>> PatchAsync(
+        JsonPatchDocument patch,
+        string etag,
+        CancellationToken cancellationToken = default
+    )
+    {
+        ArgumentNullException.ThrowIfNull(patch);
+        var revision = NormalizeEtagArgument(etag);
+        var body = SparseJsonPatch.Serialize(patch);
+        var result = await SendPatchAsync(body, revision, cancellationToken).ConfigureAwait(false);
+        return result;
     }
 
     /// <inheritdoc />
@@ -184,6 +213,71 @@ public sealed class HttpStateReader<TFragment>
             );
         }
 
+        // PATCH is an optimization over a trustworthy baseline: when the write carries a
+        // revision matching the cached baseline, derive a JSON Patch from baseline to
+        // desired state and send it with If-Match. Without a baseline, or when the server
+        // does not map PATCH, fall back to the PUT path rather than inventing a patch
+        // against an unknown base or forcing a preliminary GET.
+        if (TryGetPatchBaseline(request, out var patchRevision, out var baselineJson))
+        {
+            try
+            {
+                return await SendPatchWriteAsync(
+                        baselineJson,
+                        body,
+                        patchRevision,
+                        cancellationToken
+                    )
+                    .ConfigureAwait(false);
+            }
+            catch (PatchUnsupportedException)
+            {
+                // The server does not map PATCH: fall through to PUT.
+            }
+        }
+
+        return await SendPutAsync(body, request, cancellationToken).ConfigureAwait(false);
+    }
+
+    private async ValueTask<StateWriteResult> SendPatchWriteAsync(
+        byte[] baselineJson,
+        byte[] desiredBody,
+        string revision,
+        CancellationToken cancellationToken
+    )
+    {
+        JsonNode? before;
+        JsonNode? after;
+        try
+        {
+            before = JsonNode.Parse(Encoding.UTF8.GetString(baselineJson));
+            after = JsonNode.Parse(Encoding.UTF8.GetString(desiredBody));
+        }
+        catch (Exception exception)
+        {
+            throw new HttpStateRequestException(
+                "Failed to derive a JSON Patch baseline: " + exception.Message
+            );
+        }
+
+        var document = SparseJsonPatch.Diff(
+            before,
+            beforeIsAbsent: false,
+            after,
+            afterIsAbsent: false
+        );
+        var patchBody = SparseJsonPatch.Serialize(document);
+        var result = await SendPatchAsync(patchBody, revision, cancellationToken)
+            .ConfigureAwait(false);
+        return new StateWriteResult(result.Revision);
+    }
+
+    private async ValueTask<StateWriteResult> SendPutAsync(
+        byte[] body,
+        StateWriteRequest<TFragment> request,
+        CancellationToken cancellationToken
+    )
+    {
         using var message = new HttpRequestMessage(HttpMethod.Put, _endpoint)
         {
             Content = new ByteArrayContent(body),
@@ -233,7 +327,8 @@ public sealed class HttpStateReader<TFragment>
                 || httpResponse.StatusCode == HttpStatusCode.NoContent
             )
             {
-                SetLastRevision(revision);
+                await CacheSuccessBaselineAsync(httpResponse, revision, timeout.Token)
+                    .ConfigureAwait(false);
                 return new StateWriteResult(revision);
             }
 
@@ -257,6 +352,131 @@ public sealed class HttpStateReader<TFragment>
                 case HttpStatusCode.Conflict:
                     throw new HttpStateWriteConflictException(
                         "The state write conflicts with a concurrent change: " + detail
+                    );
+                case HttpStatusCode.Unauthorized:
+                    throw new HttpStateUnauthorizedException(
+                        "The State HTTP endpoint requires authentication."
+                    );
+                case HttpStatusCode.Forbidden:
+                    throw new HttpStateForbiddenException(
+                        "The State HTTP endpoint denied the request."
+                    );
+                default:
+                    if (IsTemporarilyUnavailable(httpResponse.StatusCode))
+                    {
+                        throw new HttpStateUnavailableException(
+                            $"The State HTTP endpoint returned {(int)httpResponse.StatusCode}: {detail}"
+                        );
+                    }
+
+                    httpResponse.EnsureSuccessStatusCode();
+                    throw new HttpStateException(
+                        $"Unexpected State HTTP status {(int)httpResponse.StatusCode}: {detail}"
+                    );
+            }
+        }
+    }
+
+    private async ValueTask<HttpStatePatchResult<TFragment>> SendPatchAsync(
+        byte[] patchBody,
+        string revision,
+        CancellationToken cancellationToken
+    )
+    {
+        using var message = new HttpRequestMessage(new HttpMethod("PATCH"), _endpoint)
+        {
+            Content = new ByteArrayContent(patchBody),
+        };
+        message.Content.Headers.ContentType = new MediaTypeHeaderValue(
+            "application/json-patch+json"
+        );
+        message.Headers.IfMatch.Add(new EntityTagHeaderValue($"\"{revision}\""));
+
+        using var timeout = CreateRequestCancellation(cancellationToken);
+        HttpResponseMessage httpResponse;
+        try
+        {
+            httpResponse = await _httpClient
+                .SendAsync(message, HttpCompletionOption.ResponseHeadersRead, timeout.Token)
+                .ConfigureAwait(false);
+        }
+#if NETSTANDARD
+        catch (HttpRequestException exception)
+#else
+        catch (HttpRequestException exception) when (exception.StatusCode is null)
+#endif
+        {
+            throw new HttpStateUnavailableException(
+                "The State HTTP endpoint is unavailable.",
+                exception
+            );
+        }
+        catch (OperationCanceledException exception)
+            when (!cancellationToken.IsCancellationRequested)
+        {
+            throw new HttpStateUnavailableException("The State HTTP request timed out.", exception);
+        }
+
+        using (httpResponse)
+        {
+            var responseRevision = ParseEtagToRevision(httpResponse.Headers.ETag?.ToString());
+            if (httpResponse.StatusCode == HttpStatusCode.OK)
+            {
+                var content = await ReadContentAsync(httpResponse, timeout.Token)
+                    .ConfigureAwait(false);
+                if (content.Length == 0 || !TryParseFragment(content, out var fragment))
+                {
+                    SetLastRevision(responseRevision);
+                    throw new HttpStateException(
+                        "The State HTTP PATCH endpoint returned an empty state payload."
+                    );
+                }
+
+                SetBaseline(content, responseRevision);
+                return new HttpStatePatchResult<TFragment>(fragment, responseRevision);
+            }
+
+            if (httpResponse.StatusCode == HttpStatusCode.NoContent)
+            {
+                SetLastRevision(responseRevision);
+                return new HttpStatePatchResult<TFragment>(default, responseRevision);
+            }
+
+            if (
+                httpResponse.StatusCode == HttpStatusCode.NotFound
+                || httpResponse.StatusCode == HttpStatusCode.MethodNotAllowed
+            )
+            {
+                throw new PatchUnsupportedException(
+                    "The State HTTP endpoint does not support PATCH."
+                );
+            }
+
+            var detail = await ReadProblemDetailAsync(httpResponse, timeout.Token)
+                .ConfigureAwait(false);
+            switch (httpResponse.StatusCode)
+            {
+                case HttpStatusCode.BadRequest:
+                    throw new HttpStateRequestException(
+                        "The server rejected the JSON Patch document: " + detail
+                    );
+                case (HttpStatusCode)428:
+                    throw new HttpStateRequestException(
+                        "The State HTTP PATCH endpoint requires an If-Match ETag: " + detail
+                    );
+                case (HttpStatusCode)422:
+                    throw new HttpStateValidationException(
+                        "The server rejected the patched state value: " + detail,
+                        SplitFailures(detail)
+                    );
+                case HttpStatusCode.PreconditionFailed:
+                    ClearBaselineJson();
+                    throw new HttpStateStaleException(
+                        "The effective state changed after it was read (stale If-Match)."
+                    );
+                case HttpStatusCode.Conflict:
+                    throw new HttpStateWriteConflictException(
+                        "The state patch conflicts with the current state: " + detail
                     );
                 case HttpStatusCode.Unauthorized:
                     throw new HttpStateUnauthorizedException(
@@ -379,7 +599,7 @@ public sealed class HttpStateReader<TFragment>
                         .ConfigureAwait(false);
                     if (!string.Equals(baseline, preCheck.Revision, StringComparison.Ordinal))
                     {
-                        SetLastRevision(preCheck.Revision);
+                        CacheGetResult(preCheck);
                         lock (_watchGate)
                         {
                             CompleteChangedWaitersLocked(preCheck.Revision);
@@ -405,7 +625,7 @@ public sealed class HttpStateReader<TFragment>
                             .ConfigureAwait(false);
                         if (!string.Equals(baseline, converged.Revision, StringComparison.Ordinal))
                         {
-                            SetLastRevision(converged.Revision);
+                            CacheGetResult(converged);
                             lock (_watchGate)
                             {
                                 CompleteChangedWaitersLocked(converged.Revision);
@@ -472,7 +692,7 @@ public sealed class HttpStateReader<TFragment>
                 var newRevision = convergedResult.Revision ?? eventRevision;
                 if (!string.Equals(baseline, newRevision, StringComparison.Ordinal))
                 {
-                    SetLastRevision(newRevision);
+                    CacheGetResult(convergedResult);
                     lock (_watchGate)
                     {
                         CompleteChangedWaitersLocked(newRevision);
@@ -705,57 +925,24 @@ public sealed class HttpStateReader<TFragment>
             }
 
             response.EnsureSuccessStatusCode();
-            byte[] content;
-            try
-            {
-#if NETSTANDARD2_0
-                content = await response.Content.ReadAsByteArrayAsync().ConfigureAwait(false);
-#else
-                content = await response
-                    .Content.ReadAsByteArrayAsync(timeout.Token)
-                    .ConfigureAwait(false);
-#endif
-            }
-            catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
-            {
-                return new HttpGetResult(
-                    StateReadResult<TFragment>.Unavailable(revision),
-                    revision
-                );
-            }
-
-            TFragment fragment;
-            try
-            {
-                var converter = ConfiglueJsonFragmentRegistry<TFragment>.Converter;
-                var options = ConfiglueFragmentJson.CreateOptions(_serializerOptions);
-                var jsonReader = new Utf8JsonReader(content);
-                if (!jsonReader.Read())
-                {
-                    throw new JsonException("The State HTTP payload is empty.");
-                }
-
-                fragment = converter.Read(ref jsonReader, typeof(TFragment), options)!;
-            }
-            catch (JsonException)
+            var content = await ReadContentAsync(response, timeout.Token).ConfigureAwait(false);
+            if (
+                content.Length == 0
+                || !TryParseFragment(content, out var fragment)
+                || fragment is null
+            )
             {
                 return new HttpGetResult(
                     StateReadResult<TFragment>.InvalidPayload(default, revision),
-                    revision
-                );
-            }
-
-            if (fragment is null)
-            {
-                return new HttpGetResult(
-                    StateReadResult<TFragment>.InvalidPayload(default, revision),
-                    revision
+                    revision,
+                    null
                 );
             }
 
             return new HttpGetResult(
                 StateReadResult<TFragment>.Success(fragment, revision),
-                revision
+                revision,
+                content
             );
         }
     }
@@ -786,6 +973,152 @@ public sealed class HttpStateReader<TFragment>
         lock (_snapshotGate)
         {
             _lastRevision = revision;
+            _baselineJson = null;
+        }
+    }
+
+    private void SetBaseline(byte[] json, string? revision)
+    {
+        ArgumentNullException.ThrowIfNull(json);
+        lock (_snapshotGate)
+        {
+            _lastRevision = revision;
+            _baselineJson = json;
+        }
+    }
+
+    private void ClearBaselineJson()
+    {
+        lock (_snapshotGate)
+        {
+            _baselineJson = null;
+        }
+    }
+
+    private void CacheGetResult(HttpGetResult result)
+    {
+        if (result is { Content: { Length: > 0 } content, Revision: not null })
+        {
+            SetBaseline(content, result.Revision);
+        }
+        else
+        {
+            SetLastRevision(result.Revision);
+        }
+    }
+
+    private bool TryGetPatchBaseline(
+        StateWriteRequest<TFragment> request,
+        out string revision,
+        out byte[] baselineJson
+    )
+    {
+        lock (_snapshotGate)
+        {
+            if (
+                request.Condition.IsMatch
+                && request.Condition.Revision is not null
+                && _baselineJson is not null
+                && string.Equals(
+                    _lastRevision,
+                    request.Condition.Revision,
+                    StringComparison.Ordinal
+                )
+            )
+            {
+                revision = request.Condition.Revision;
+                baselineJson = _baselineJson;
+                return true;
+            }
+        }
+
+        revision = "";
+        baselineJson = [];
+        return false;
+    }
+
+    private static string NormalizeEtagArgument(string etag)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(etag);
+        var trimmed = etag.Trim();
+        if (IsBareRevision(trimmed))
+        {
+            return trimmed.ToLowerInvariant();
+        }
+
+        var normalized = ParseEtagToRevision(trimmed);
+        if (normalized is null)
+        {
+            throw new ArgumentException(
+                "The ETag must be a 64-character hex state revision, quoted or unquoted.",
+                nameof(etag)
+            );
+        }
+
+        return normalized;
+    }
+
+    private static bool IsBareRevision(string value) =>
+        value.Length == 64 && value.All(static c => Uri.IsHexDigit(c));
+
+    private bool TryParseFragment(byte[] content, out TFragment? fragment)
+    {
+        fragment = null;
+        try
+        {
+            var converter = ConfiglueJsonFragmentRegistry<TFragment>.Converter;
+            var options = ConfiglueFragmentJson.CreateOptions(_serializerOptions);
+            var jsonReader = new Utf8JsonReader(content);
+            if (!jsonReader.Read())
+            {
+                return false;
+            }
+
+            fragment = converter.Read(ref jsonReader, typeof(TFragment), options);
+            return fragment is not null;
+        }
+        catch (JsonException)
+        {
+            fragment = null;
+            return false;
+        }
+    }
+
+    private async ValueTask CacheSuccessBaselineAsync(
+        HttpResponseMessage response,
+        string? revision,
+        CancellationToken cancellationToken
+    )
+    {
+        var content = await ReadContentAsync(response, cancellationToken).ConfigureAwait(false);
+        if (content.Length > 0 && TryParseFragment(content, out _))
+        {
+            SetBaseline(content, revision);
+        }
+        else
+        {
+            SetLastRevision(revision);
+        }
+    }
+
+    private static async ValueTask<byte[]> ReadContentAsync(
+        HttpResponseMessage response,
+        CancellationToken cancellationToken
+    )
+    {
+        try
+        {
+#if NETSTANDARD2_0
+            return await response.Content.ReadAsByteArrayAsync().ConfigureAwait(false);
+#else
+            return await response
+                .Content.ReadAsByteArrayAsync(cancellationToken)
+                .ConfigureAwait(false);
+#endif
+        }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+        {
+            return [];
         }
     }
 
@@ -897,8 +1230,12 @@ public sealed class HttpStateReader<TFragment>
 
     private readonly record struct HttpGetResult(
         StateReadResult<TFragment> Result,
-        string? Revision
+        string? Revision,
+        byte[]? Content = null
     );
+
+    /// <summary>Signals a PATCH fallback to PUT when the server does not map the patch endpoint.</summary>
+    private sealed class PatchUnsupportedException(string message) : HttpStateException(message);
 
     private sealed class ChangeWaiter(string? baseline)
     {

@@ -11,7 +11,8 @@ internal sealed class CurrentSubjectState<TModel>(
         IConfiglueDetailsRuntime,
         IConfiglueStateSnapshotRuntime<TModel>,
         IConfiglueInspection<TModel>,
-        IConfiglueEditSessions<TModel>
+        IConfiglueEditSessions<TModel>,
+        IConfiglueWritePreview<TModel>
 {
     public ConfiglueCheckOperation Check(CancellationToken cancellationToken = default) =>
         new(
@@ -158,6 +159,25 @@ internal sealed class CurrentSubjectState<TModel>(
         }
 
         return sessions;
+    }
+
+    public async ValueTask<StateWritePreview> PreviewWriteAsync(
+        TModel desired,
+        CancellationToken cancellationToken = default
+    )
+    {
+        var subject = await subjectAccessor
+            .GetCurrentSubjectAsync(cancellationToken)
+            .ConfigureAwait(false);
+        var options = subjectOptions.ForSubject(subject);
+        if (options is not IConfiglueWritePreview<TModel> preview)
+        {
+            throw new NotSupportedException(
+                "This options implementation does not expose write previews."
+            );
+        }
+
+        return await preview.PreviewWriteAsync(desired, cancellationToken).ConfigureAwait(false);
     }
 }
 

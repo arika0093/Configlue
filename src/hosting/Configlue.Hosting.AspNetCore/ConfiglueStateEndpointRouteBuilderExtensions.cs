@@ -3,6 +3,8 @@ using System.Net.Http.Headers;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Nodes;
+using System.Text.Json.Serialization;
 using Configlue.CompilerServices;
 using Configlue.Provider.Json;
 using Microsoft.AspNetCore.Builder;
@@ -10,6 +12,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.AspNetCore.Routing.Patterns;
 using Microsoft.Extensions.DependencyInjection;
+using SparseFragments.JsonPatch;
 
 namespace Configlue.Hosting.AspNetCore;
 
@@ -19,16 +22,33 @@ namespace Configlue.Hosting.AspNetCore;
 /// <list type="bullet">
 /// <item><description><c>GET pattern</c> returns the current effective state as generated fragment JSON with a state ETag.</description></item>
 /// <item><description><c>PUT pattern</c> replaces the caller's desired effective state through Core edit sessions.</description></item>
+/// <item><description><c>PATCH pattern</c> applies an RFC 6902 <c>application/json-patch+json</c> document against the canonical effective representation. A strong effective-state <c>If-Match</c> ETag is required.</description></item>
 /// <item><description><c>GET pattern/events</c> emits <c>event: changed</c> SSE invalidations with the state ETag as the event ID.</description></item>
 /// </list>
+/// <para>
+/// GET, PUT, and PATCH responses advertise <c>Accept-Patch: application/json-patch+json</c>.
+/// PATCH paths address the exact JSON shape returned by GET: all three verbs share the
+/// generated fragment converter, naming policy, null handling, and ETag canonicalization.
+/// </para>
+/// <para>
+/// The patched document is canonicalized through the generated model before commit: the
+/// sparse RFC 6902 result is converted to <c>TModel</c> with normal model/default semantics
+/// and committed through a Core edit session, so a removed fixed-schema property may reappear
+/// on the next GET with its model/default value. Removal at the document level never means
+/// "remove this source's contribution".
+/// </para>
 /// <para>Status mapping:</para>
 /// <list type="table">
 /// <listheader><term>Condition</term><term>HTTP status</term></listheader>
 /// <item><term>Success</term><term>200 OK (304 Not Modified when If-None-Match matches on GET)</term></item>
 /// <item><term>Malformed JSON</term><term>400 Bad Request</term></item>
+/// <item><term>Malformed JSON Patch / JSON Pointer</term><term>400 Bad Request</term></item>
+/// <item><term>Inapplicable patch operation, failed test</term><term>409 Conflict</term></item>
+/// <item><term>Missing If-Match on PATCH</term><term>428 Precondition Required</term></item>
 /// <item><term>Validation failure</term><term>422 Unprocessable Entity</term></item>
 /// <item><term>Stale If-Match</term><term>412 Precondition Failed</term></item>
 /// <item><term>Core write conflict</term><term>409 Conflict</term></item>
+/// <item><term>Non-atomic multi-resource write plan</term><term>409 Conflict before any write</term></item>
 /// <item><term>Authorization</term><term>Normal ASP.NET Core 401/403 behavior</term></item>
 /// <item><term>Unexpected failure</term><term>ProblemDetails 5xx</term></item>
 /// </list>
@@ -77,6 +97,38 @@ public static class ConfiglueStateEndpointRouteBuilderExtensions
             );
         }
 
+        if (validated.MapPatch)
+        {
+            group.MapPatch(
+                ToRoutePath(validated.WritePath),
+                (HttpContext context) => HandlePatchAsync<TModel>(context, validated)
+            );
+        }
+
+        foreach (var statePath in CollectStatePaths(validated))
+        {
+            var allowed = string.Join(
+                ", ",
+                CollectAllowedMethods(validated, statePath).Append("OPTIONS")
+            );
+            var advertisePatch = validated.MapPatch;
+            group.MapMethods(
+                statePath,
+                ["OPTIONS"],
+                (HttpContext context) =>
+                {
+                    context.Response.Headers["Allow"] = allowed;
+                    if (advertisePatch)
+                    {
+                        SetAcceptPatch(context);
+                    }
+
+                    context.Response.StatusCode = StatusCodes.Status204NoContent;
+                    return Task.CompletedTask;
+                }
+            );
+        }
+
         if (validated.MapEvents)
         {
             group.MapGet(
@@ -91,9 +143,59 @@ public static class ConfiglueStateEndpointRouteBuilderExtensions
     private static string ToRoutePath(string relativePath) =>
         relativePath.Length == 0 ? "/" : relativePath;
 
+    private static IEnumerable<string> CollectStatePaths(ValidatedOptions options)
+    {
+        var paths = new HashSet<string>(StringComparer.Ordinal);
+        if (options.MapRead)
+        {
+            paths.Add(ToRoutePath(options.ReadPath));
+        }
+
+        if (options.MapWrite || options.MapPatch)
+        {
+            paths.Add(ToRoutePath(options.WritePath));
+        }
+
+        return paths;
+    }
+
+    private static IEnumerable<string> CollectAllowedMethods(
+        ValidatedOptions options,
+        string statePath
+    )
+    {
+        if (
+            options.MapRead
+            && string.Equals(ToRoutePath(options.ReadPath), statePath, StringComparison.Ordinal)
+        )
+        {
+            yield return "GET";
+        }
+
+        if (
+            options.MapWrite
+            && string.Equals(ToRoutePath(options.WritePath), statePath, StringComparison.Ordinal)
+        )
+        {
+            yield return "PUT";
+        }
+
+        if (
+            options.MapPatch
+            && string.Equals(ToRoutePath(options.WritePath), statePath, StringComparison.Ordinal)
+        )
+        {
+            yield return "PATCH";
+        }
+    }
+
+    private static void SetAcceptPatch(HttpContext context) =>
+        context.Response.Headers["Accept-Patch"] = "application/json-patch+json";
+
     private static async Task HandleGetAsync<TModel>(HttpContext context, ValidatedOptions options)
         where TModel : IConfiglueFacadeModel<TModel>
     {
+        SetAcceptPatch(context);
         var descriptor = ConfiglueModelDescriptor<TModel>.Current;
         TModel value;
         try
@@ -157,6 +259,7 @@ public static class ConfiglueStateEndpointRouteBuilderExtensions
     private static async Task HandlePutAsync<TModel>(HttpContext context, ValidatedOptions options)
         where TModel : IConfiglueFacadeModel<TModel>
     {
+        SetAcceptPatch(context);
         if (!HasJsonContentType(context.Request))
         {
             context.Response.StatusCode = StatusCodes.Status415UnsupportedMediaType;
@@ -199,52 +302,11 @@ public static class ConfiglueStateEndpointRouteBuilderExtensions
             return;
         }
 
-        if (
-            options.MaximumRequestBodySize is { } maximumSize
-            && context.Request.ContentLength is { } contentLength
-            && contentLength > maximumSize
-        )
+        byte[]? body = await ReadRequestBodyAsync(context, options).ConfigureAwait(false);
+        if (body is null)
         {
             context.Response.StatusCode = StatusCodes.Status413PayloadTooLarge;
             return;
-        }
-
-        byte[] body;
-        using (var content = new MemoryStream())
-        {
-            var buffer = ArrayPool<byte>.Shared.Rent(81920);
-            try
-            {
-                while (true)
-                {
-                    var bytesRead = await context
-                        .Request.Body.ReadAsync(buffer, context.RequestAborted)
-                        .ConfigureAwait(false);
-                    if (bytesRead == 0)
-                    {
-                        break;
-                    }
-
-                    if (
-                        options.MaximumRequestBodySize is { } limit
-                        && content.Length > limit - bytesRead
-                    )
-                    {
-                        context.Response.StatusCode = StatusCodes.Status413PayloadTooLarge;
-                        return;
-                    }
-
-                    await content
-                        .WriteAsync(buffer.AsMemory(0, bytesRead), context.RequestAborted)
-                        .ConfigureAwait(false);
-                }
-            }
-            finally
-            {
-                ArrayPool<byte>.Shared.Return(buffer, clearArray: true);
-            }
-
-            body = content.ToArray();
         }
 
         var descriptor = ConfiglueModelDescriptor<TModel>.Current;
@@ -393,6 +455,509 @@ public static class ConfiglueStateEndpointRouteBuilderExtensions
         try
         {
             responseJson = EncodeModel(descriptor, committed, options.SerializerOptions);
+        }
+        catch (Exception exception)
+        {
+            await WriteProblemAsync(
+                    context,
+                    StatusCodes.Status500InternalServerError,
+                    "State serialization failed.",
+                    exception.Message
+                )
+                .ConfigureAwait(false);
+            return;
+        }
+
+        var newEtag = ComputeEtagHex(responseJson);
+        context.Response.Headers.ETag = FormatEtag(newEtag);
+        context.Response.StatusCode = StatusCodes.Status200OK;
+        context.Response.ContentType = "application/json";
+        context.Response.ContentLength = responseJson.Length;
+        if (responseJson.Length > 0)
+        {
+            await context
+                .Response.Body.WriteAsync(responseJson, context.RequestAborted)
+                .ConfigureAwait(false);
+        }
+    }
+
+    /// <summary>Reads the request body, enforcing the configured size limit.</summary>
+    /// <returns>The body bytes, or null when the body exceeds the configured limit.</returns>
+    private static async Task<byte[]?> ReadRequestBodyAsync(
+        HttpContext context,
+        ValidatedOptions options
+    )
+    {
+        if (
+            options.MaximumRequestBodySize is { } maximumSize
+            && context.Request.ContentLength is { } contentLength
+            && contentLength > maximumSize
+        )
+        {
+            return null;
+        }
+
+        using var content = new MemoryStream();
+        var buffer = ArrayPool<byte>.Shared.Rent(81920);
+        try
+        {
+            while (true)
+            {
+                var bytesRead = await context
+                    .Request.Body.ReadAsync(buffer, context.RequestAborted)
+                    .ConfigureAwait(false);
+                if (bytesRead == 0)
+                {
+                    break;
+                }
+
+                if (
+                    options.MaximumRequestBodySize is { } limit
+                    && content.Length > limit - bytesRead
+                )
+                {
+                    return null;
+                }
+
+                await content
+                    .WriteAsync(buffer.AsMemory(0, bytesRead), context.RequestAborted)
+                    .ConfigureAwait(false);
+            }
+        }
+        finally
+        {
+            ArrayPool<byte>.Shared.Return(buffer, clearArray: true);
+        }
+
+        return content.ToArray();
+    }
+
+    private static async Task HandlePatchAsync<TModel>(
+        HttpContext context,
+        ValidatedOptions options
+    )
+        where TModel : IConfiglueFacadeModel<TModel>
+    {
+        SetAcceptPatch(context);
+        if (!HasJsonPatchContentType(context.Request))
+        {
+            context.Response.StatusCode = StatusCodes.Status415UnsupportedMediaType;
+            return;
+        }
+
+        if (context.Request.Headers.IfMatch.Count == 0)
+        {
+            await WriteProblemAsync(
+                    context,
+                    StatusCodes.Status428PreconditionRequired,
+                    "Precondition required.",
+                    "PATCH requires a strong effective-state If-Match ETag. Read the current state with GET first."
+                )
+                .ConfigureAwait(false);
+            return;
+        }
+
+        if (!TryReadIfMatch(context.Request, out var ifMatch, out var preconditionMalformed))
+        {
+            await WriteProblemAsync(
+                    context,
+                    StatusCodes.Status400BadRequest,
+                    "Invalid precondition.",
+                    "The If-Match header must be a single strong Configlue state ETag, and must not be combined with If-None-Match."
+                )
+                .ConfigureAwait(false);
+            return;
+        }
+
+        if (
+            preconditionMalformed
+            || string.Equals(ifMatch, "*", StringComparison.Ordinal)
+            || context.Request.Headers.ContainsKey("If-None-Match")
+        )
+        {
+            await WriteProblemAsync(
+                    context,
+                    StatusCodes.Status400BadRequest,
+                    "Invalid precondition.",
+                    "PATCH requires a single strong Configlue state ETag. Weak ETags, '*' and If-None-Match are not accepted as a patch baseline."
+                )
+                .ConfigureAwait(false);
+            return;
+        }
+
+        byte[]? body = await ReadRequestBodyAsync(context, options).ConfigureAwait(false);
+        if (body is null)
+        {
+            context.Response.StatusCode = StatusCodes.Status413PayloadTooLarge;
+            return;
+        }
+
+        JsonPatchDocument document;
+        try
+        {
+            document = SparseJsonPatch.Parse(body);
+        }
+        catch (JsonPatchException exception)
+        {
+            await WriteProblemAsync(
+                    context,
+                    StatusCodes.Status400BadRequest,
+                    "Malformed JSON Patch document.",
+                    exception.Message
+                )
+                .ConfigureAwait(false);
+            return;
+        }
+
+        IReadOnlyState<TModel> readState;
+        IConfiglueEditSessions<TModel> editSessions;
+        try
+        {
+            readState = context.RequestServices.GetRequiredService<IReadOnlyState<TModel>>();
+            editSessions = context.RequestServices.GetRequiredService<
+                IConfiglueEditSessions<TModel>
+            >();
+        }
+        catch (InvalidOperationException exception)
+        {
+            await WriteProblemAsync(
+                    context,
+                    StatusCodes.Status500InternalServerError,
+                    "State services are not registered.",
+                    exception.Message
+                )
+                .ConfigureAwait(false);
+            return;
+        }
+
+        TModel current;
+        try
+        {
+            current = await readState.GetValueAsync(context.RequestAborted).ConfigureAwait(false);
+        }
+        catch (ConfiglueValidationException exception)
+        {
+            await WriteValidationProblemAsync(context, exception).ConfigureAwait(false);
+            return;
+        }
+        catch (InvalidOperationException exception)
+        {
+            await WriteProblemAsync(
+                    context,
+                    StatusCodes.Status500InternalServerError,
+                    "State read failed.",
+                    exception.Message
+                )
+                .ConfigureAwait(false);
+            return;
+        }
+
+        var descriptor = ConfiglueModelDescriptor<TModel>.Current;
+        byte[] canonicalJson;
+        try
+        {
+            canonicalJson = EncodeModel(descriptor, current, options.SerializerOptions);
+        }
+        catch (Exception exception)
+        {
+            await WriteProblemAsync(
+                    context,
+                    StatusCodes.Status500InternalServerError,
+                    "State serialization failed.",
+                    exception.Message
+                )
+                .ConfigureAwait(false);
+            return;
+        }
+
+        var currentEtag = ComputeEtagHex(canonicalJson);
+        if (!string.Equals(ifMatch, currentEtag, StringComparison.Ordinal))
+        {
+            await WriteProblemAsync(
+                    context,
+                    StatusCodes.Status412PreconditionFailed,
+                    "The effective state changed after it was read.",
+                    "The If-Match ETag does not match the current effective state."
+                )
+                .ConfigureAwait(false);
+            return;
+        }
+
+        // PATCH paths address the exact GET JSON shape: the baseline is the canonical
+        // fragment JSON and the same serializer options (naming, null handling) apply.
+        JsonNode? baselineNode;
+        try
+        {
+            baselineNode = JsonNode.Parse(canonicalJson);
+        }
+        catch (Exception exception)
+        {
+            await WriteProblemAsync(
+                    context,
+                    StatusCodes.Status500InternalServerError,
+                    "State serialization failed.",
+                    exception.Message
+                )
+                .ConfigureAwait(false);
+            return;
+        }
+
+        var effectiveOptions = ConfiglueFragmentJson.CreateOptions(options.SerializerOptions);
+        var comparison = effectiveOptions.PropertyNameCaseInsensitive
+            ? StringComparison.OrdinalIgnoreCase
+            : StringComparison.Ordinal;
+        JsonPatchEngine.ApplyResult applied;
+        try
+        {
+            applied = SparseJsonPatch.Apply(baselineNode, false, document, comparison);
+        }
+        catch (JsonPatchException exception)
+            when (exception.Kind
+                    is JsonPatchErrorKind.MalformedDocument
+                        or JsonPatchErrorKind.MalformedPointer
+                        or JsonPatchErrorKind.UnknownOperation
+            )
+        {
+            await WriteProblemAsync(
+                    context,
+                    StatusCodes.Status400BadRequest,
+                    "Malformed JSON Patch document.",
+                    exception.Message
+                )
+                .ConfigureAwait(false);
+            return;
+        }
+        catch (JsonPatchException exception)
+        {
+            await WriteProblemAsync(
+                    context,
+                    StatusCodes.Status409Conflict,
+                    "The JSON Patch cannot be applied to the current state.",
+                    exception.Message
+                )
+                .ConfigureAwait(false);
+            return;
+        }
+
+        if (
+            applied is { IsAbsent: false, Node: not null }
+            && JsonNode.DeepEquals(applied.Node, baselineNode)
+        )
+        {
+            // No-op (including the empty document): validate If-Match, then succeed
+            // without physical writes and without emitting a state-change event.
+            await WriteStateResponseAsync(context, descriptor, current, options)
+                .ConfigureAwait(false);
+            return;
+        }
+
+        byte[] patchedJson;
+        if (applied is { IsAbsent: true } or { Node: null })
+        {
+            // A removed document root, or a root replaced with JSON null, cannot remain a
+            // typed state object. Normalize through the model defaults, exactly like a
+            // removed fixed-schema property reappearing with its default on the next GET.
+            patchedJson = "{}"u8.ToArray();
+        }
+        else
+        {
+            patchedJson = Encoding.UTF8.GetBytes(applied.Node.ToJsonString());
+        }
+
+        object patchedFragment;
+        try
+        {
+            var strict = ConfiglueFragmentJson.CreateOptions(options.SerializerOptions);
+            strict.UnmappedMemberHandling = JsonUnmappedMemberHandling.Disallow;
+            patchedFragment = ConfiglueFragmentJson.Deserialize(
+                descriptor.FragmentType,
+                patchedJson,
+                strict
+            );
+        }
+        catch (JsonException exception)
+        {
+            await WriteProblemAsync(
+                    context,
+                    StatusCodes.Status409Conflict,
+                    "The JSON Patch cannot be applied to the current state.",
+                    exception.Message
+                )
+                .ConfigureAwait(false);
+            return;
+        }
+        catch (InvalidOperationException exception)
+        {
+            await WriteProblemAsync(
+                    context,
+                    StatusCodes.Status500InternalServerError,
+                    "State services are not registered.",
+                    exception.Message
+                )
+                .ConfigureAwait(false);
+            return;
+        }
+
+        TModel desired;
+        try
+        {
+            desired = (TModel)descriptor.FromFragmentBoxed(patchedFragment);
+        }
+        catch (Exception exception)
+        {
+            await WriteProblemAsync(
+                    context,
+                    StatusCodes.Status500InternalServerError,
+                    "State normalization failed.",
+                    exception.Message
+                )
+                .ConfigureAwait(false);
+            return;
+        }
+
+        // RFC 5789 atomicity gate: determine executability before the first physical write.
+        if (editSessions is not IConfiglueWritePreview<TModel> preview)
+        {
+            await WriteProblemAsync(
+                    context,
+                    StatusCodes.Status500InternalServerError,
+                    "State services are not registered.",
+                    "The state does not expose an atomic PATCH write preview."
+                )
+                .ConfigureAwait(false);
+            return;
+        }
+
+        StateWritePreview? writePreview;
+        try
+        {
+            writePreview = await preview
+                .PreviewWriteAsync(desired, context.RequestAborted)
+                .ConfigureAwait(false);
+        }
+        catch (ConfiglueValidationException exception)
+        {
+            await WriteValidationProblemAsync(context, exception).ConfigureAwait(false);
+            return;
+        }
+        catch (StateConflictException exception)
+        {
+            await WriteProblemAsync(
+                    context,
+                    StatusCodes.Status409Conflict,
+                    "The state write conflicts with a concurrent change.",
+                    exception.Message
+                )
+                .ConfigureAwait(false);
+            return;
+        }
+        catch (NotSupportedException exception)
+        {
+            await WriteProblemAsync(
+                    context,
+                    StatusCodes.Status409Conflict,
+                    "The requested State PATCH spans multiple non-transactional write resources.",
+                    exception.Message
+                )
+                .ConfigureAwait(false);
+            return;
+        }
+        catch (InvalidOperationException exception)
+        {
+            await WriteProblemAsync(
+                    context,
+                    StatusCodes.Status500InternalServerError,
+                    "State write preview failed.",
+                    exception.Message
+                )
+                .ConfigureAwait(false);
+            return;
+        }
+
+        if (writePreview.IsEmpty)
+        {
+            await WriteStateResponseAsync(context, descriptor, current, options)
+                .ConfigureAwait(false);
+            return;
+        }
+
+        if (!writePreview.IsAtomic)
+        {
+            await WriteProblemAsync(
+                    context,
+                    StatusCodes.Status409Conflict,
+                    "The requested State PATCH spans multiple non-transactional write resources.",
+                    $"The patch would require {writePreview.PhysicalWriteCount} independent physical writes with no transactional batch guarantee, so it was rejected before writing anything."
+                )
+                .ConfigureAwait(false);
+            return;
+        }
+
+        TModel committed;
+        try
+        {
+            using var session = await editSessions
+                .OpenEditSessionAsync(context.RequestAborted)
+                .ConfigureAwait(false);
+            session.Value = desired;
+            await session.CommitAsync(context.RequestAborted).ConfigureAwait(false);
+            committed = session.Value;
+        }
+        catch (ConfiglueValidationException exception)
+        {
+            await WriteValidationProblemAsync(context, exception).ConfigureAwait(false);
+            return;
+        }
+        catch (StateConflictException exception)
+        {
+            await WriteProblemAsync(
+                    context,
+                    StatusCodes.Status409Conflict,
+                    "The state write conflicts with a concurrent change.",
+                    exception.Message
+                )
+                .ConfigureAwait(false);
+            return;
+        }
+        catch (StateMultiWriteException exception)
+        {
+            await WriteProblemAsync(
+                    context,
+                    StatusCodes.Status409Conflict,
+                    "A multi-source write failed after partial completion.",
+                    exception.Message
+                )
+                .ConfigureAwait(false);
+            return;
+        }
+        catch (InvalidOperationException exception)
+        {
+            await WriteProblemAsync(
+                    context,
+                    StatusCodes.Status500InternalServerError,
+                    "State write failed.",
+                    exception.Message
+                )
+                .ConfigureAwait(false);
+            return;
+        }
+
+        await WriteStateResponseAsync(context, descriptor, committed, options)
+            .ConfigureAwait(false);
+    }
+
+    private static async Task WriteStateResponseAsync<TModel>(
+        HttpContext context,
+        ConfiglueModelDescriptor<TModel> descriptor,
+        TModel value,
+        ValidatedOptions options
+    )
+        where TModel : IConfiglueFacadeModel<TModel>
+    {
+        byte[] responseJson;
+        try
+        {
+            responseJson = EncodeModel(descriptor, value, options.SerializerOptions);
         }
         catch (Exception exception)
         {
@@ -634,6 +1199,20 @@ public static class ConfiglueStateEndpointRouteBuilderExtensions
         );
     }
 
+    private static bool HasJsonPatchContentType(HttpRequest request)
+    {
+        if (!MediaTypeHeaderValue.TryParse(request.ContentType, out var contentType))
+        {
+            return false;
+        }
+
+        return string.Equals(
+            contentType.MediaType,
+            "application/json-patch+json",
+            StringComparison.OrdinalIgnoreCase
+        );
+    }
+
     private static bool TryReadIfMatch(HttpRequest request, out string? etag, out bool malformed)
     {
         etag = null;
@@ -793,6 +1372,7 @@ public static class ConfiglueStateEndpointRouteBuilderExtensions
     private sealed record ValidatedOptions(
         bool MapRead,
         bool MapWrite,
+        bool MapPatch,
         bool MapEvents,
         string ReadPath,
         string WritePath,
@@ -803,7 +1383,7 @@ public static class ConfiglueStateEndpointRouteBuilderExtensions
 
     private static ValidatedOptions ValidateOptions(ConfiglueStateEndpointOptions options)
     {
-        if (!options.MapRead && !options.MapWrite && !options.MapEvents)
+        if (!options.MapRead && !options.MapWrite && !options.MapPatch && !options.MapEvents)
         {
             throw new ArgumentException("At least one endpoint must be mapped.", nameof(options));
         }
@@ -840,6 +1420,7 @@ public static class ConfiglueStateEndpointRouteBuilderExtensions
         return new ValidatedOptions(
             options.MapRead,
             options.MapWrite,
+            options.MapPatch,
             options.MapEvents,
             options.ReadPath,
             options.WritePath,

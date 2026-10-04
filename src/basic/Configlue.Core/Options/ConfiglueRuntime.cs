@@ -16,6 +16,7 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
         IConfiglueReloadFailureDiagnostics<TModel>,
         IConfiglueRuntimeLifetimeProvider,
         ISubjectState<TModel>,
+        IConfiglueWritePreview<TModel>,
         IDisposable,
         IAsyncDisposable
     where TModel : IConfiglueModel<TModel, TFragment>

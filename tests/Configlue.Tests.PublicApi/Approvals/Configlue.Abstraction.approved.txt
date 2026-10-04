@@ -663,6 +663,10 @@ namespace Configlue
     {
         T CloneValue(T value);
     }
+    public interface IConfiglueWritePreview<T>
+    {
+        System.Threading.Tasks.ValueTask<Configlue.StateWritePreview> PreviewWriteAsync(T desired, System.Threading.CancellationToken cancellationToken = default);
+    }
     public interface INamedConfiglueValidator<in T> : Configlue.IConfiglueValidator<T>
     {
         System.Collections.Generic.IReadOnlyList<string> Validate(string? name, T value);
@@ -798,6 +802,14 @@ namespace Configlue
         public Configlue.StateWritePlan Build() { }
         public Configlue.StateWritePlanBuilder<TModel> DefaultTo(Configlue.SourceKey<TModel> source) { }
         public Configlue.StateWritePlanBuilder<TModel> Route<TValue>(System.Linq.Expressions.Expression<System.Func<TModel, TValue>> property, Configlue.SourceKey<TModel> source) { }
+    }
+    public sealed class StateWritePreview
+    {
+        public StateWritePreview(int physicalWriteCount, bool isEmpty) { }
+        public bool IsAtomic { get; }
+        public bool IsEmpty { get; }
+        public int PhysicalWriteCount { get; }
+        public static Configlue.StateWritePreview Empty { get; }
     }
     public sealed class StateWriteReceipt
     {

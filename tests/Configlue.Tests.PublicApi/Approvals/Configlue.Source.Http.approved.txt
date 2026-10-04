@@ -10,6 +10,13 @@ namespace Configlue.Source.Http
     {
         public HttpStateForbiddenException(string message) { }
     }
+    public sealed class HttpStatePatchResult<TFragment> : System.IEquatable<Configlue.Source.Http.HttpStatePatchResult<TFragment>>
+        where TFragment :  class, Configlue.IConfiglueFragment<TFragment>
+    {
+        public HttpStatePatchResult(TFragment? Value, string? Revision) { }
+        public string? Revision { get; init; }
+        public TFragment Value { get; init; }
+    }
     public sealed class HttpStateReader<TFragment> : Configlue.Resources.IResourceIdentity, Configlue.Sources.ISourceCapabilities<TFragment>, Configlue.Sources.ISourceReader<TFragment>, Configlue.Sources.ISourceWatcher, Configlue.Sources.ISourceWriter<TFragment>
         where TFragment :  class, Configlue.IConfiglueFragment<TFragment>
     {
@@ -19,6 +26,7 @@ namespace Configlue.Source.Http
         public Configlue.Sources.ISourceWatcher? Watcher { get; }
         public Configlue.Sources.ISourceWriter<TFragment>? Writer { get; }
         public Configlue.Resources.ResourceId GetResourceId(Configlue.Resources.ConfiglueResourceContext context) { }
+        public System.Threading.Tasks.ValueTask<Configlue.Source.Http.HttpStatePatchResult<TFragment>> PatchAsync(SparseFragments.JsonPatch.JsonPatchDocument patch, string etag, System.Threading.CancellationToken cancellationToken = default) { }
         public System.Threading.Tasks.ValueTask<Configlue.State.StateReadResult<TFragment>> ReadAsync(Configlue.Resources.ConfiglueResourceContext context, System.Threading.CancellationToken cancellationToken = default) { }
         public System.Threading.Tasks.ValueTask WaitForChangeAsync(Configlue.Resources.ConfiglueResourceContext context, string? observedRevision, System.Threading.CancellationToken cancellationToken = default) { }
         public System.Threading.Tasks.ValueTask<Configlue.State.StateWriteResult> WriteAsync(Configlue.Resources.ConfiglueResourceContext context, Configlue.State.StateWriteRequest<TFragment> request, System.Threading.CancellationToken cancellationToken = default) { }

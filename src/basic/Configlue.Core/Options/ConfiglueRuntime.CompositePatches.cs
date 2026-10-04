@@ -17,14 +17,7 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
         ResolvedState baseline,
         ConfiglueModelSchema modelSchema,
         Dictionary<SourceId, StateReadResult<TFragment>> replacements,
-        List<(
-            StateSource<TFragment> Source,
-            ISourceWriter<TFragment> Writer,
-            StateWriteRequest<TFragment> Request,
-            ResourceId? ResourceId,
-            IResourceBatchWriter? BatchWriter,
-            ResourceWriteMutation? Mutation
-        )> writePlans,
+        List<PendingSourceWrite> writePlans,
         DisposableBag preparedPlanOwners,
         CancellationToken cancellationToken
     )
@@ -237,7 +230,7 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
             }
 
             writePlans.Add(
-                (
+                new PendingSourceWrite(
                     component,
                     component.Writer!,
                     componentRequest,

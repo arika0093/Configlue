@@ -178,7 +178,8 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
             IConfiglueDetailsRuntime,
             IConfiglueStateSnapshotRuntime<TModel>,
             IConfiglueInspection<TModel>,
-            IConfiglueEditSessions<TModel>
+            IConfiglueEditSessions<TModel>,
+            IConfiglueWritePreview<TModel>
     {
         public IDisposable OnChange(Action<TModel> listener) =>
             owner.WatchSubject(subject, listener);
@@ -206,6 +207,11 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
             ArgumentNullException.ThrowIfNull(writePlan);
             return owner.OpenEditSessionForSubjectAsync(subject, writePlan, cancellationToken);
         }
+
+        public ValueTask<StateWritePreview> PreviewWriteAsync(
+            TModel desired,
+            CancellationToken cancellationToken = default
+        ) => owner.PreviewForSubjectAsync(subject, desired, cancellationToken);
 
         async ValueTask<ConfiglueDetailsSnapshot> IConfiglueDetailsRuntime.GetDetailsSnapshotAsync(
             CancellationToken cancellationToken
