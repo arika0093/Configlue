@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Runtime.CompilerServices;
 using Microsoft.Extensions.Logging;
 
 namespace Configlue;
@@ -12,6 +13,8 @@ internal sealed class RuntimeDiagnosticRecorder : IConfiglueRuntimeDiagnostics
     private readonly int _modelVersion;
     private readonly ConfiglueRuntimeDiagnosticOptions _options;
     private readonly ILogger? _logger;
+    private readonly bool _configEnabled;
+    private readonly bool _hasLogger;
     private readonly ConfiglueDiagnosticEvent[] _history;
     private readonly Dictionary<SourceId, ConfiglueRuntimeSourceSnapshot> _sources;
     private readonly Dictionary<SourceId, int> _watchCounts = new();
@@ -42,23 +45,66 @@ internal sealed class RuntimeDiagnosticRecorder : IConfiglueRuntimeDiagnostics
         _logger = logger;
         _history = new ConfiglueDiagnosticEvent[options.EventHistoryCapacity];
         _sources = sources.ToDictionary(static source => source.Id);
+        // Immutable configuration evaluated once. TrackSnapshot and history capacity never
+        // change after construction, and logger presence is fixed. Only explicit listener
+        // subscriptions and Activity/Meter listeners can change dynamically and must be
+        // re-evaluated per operation.
+        _configEnabled = options.TrackSnapshot || _history.Length != 0;
+        _hasLogger = logger is not null;
     }
 
-    private bool IsEnabled(ConfiglueDiagnosticEventKind kind) =>
-        _options.TrackSnapshot
-        || _history.Length != 0
-        || Volatile.Read(ref _listeners).Length != 0
-        || ConfiglueTelemetry.IsEnabled(kind)
-        || LoggerIsEnabled();
+    // Fast path for the fully-disabled case: one cached static branch plus only the
+    // truly-dynamic checks (explicit listeners, Activity/Meter listeners). Logger checks
+    // are hoisted behind _hasLogger so the common logger-less path performs no virtual
+    // calls, and when a logger is present only the level relevant to the event kind is
+    // probed instead of all four levels.
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private bool IsEnabled(ConfiglueDiagnosticEventKind kind)
+    {
+        if (_configEnabled)
+            return true;
+        if (Volatile.Read(ref _listeners).Length != 0)
+            return true;
+        if (ConfiglueTelemetry.IsEnabled(kind))
+            return true;
+        return _hasLogger && LoggerIsEnabled(kind);
+    }
 
-    private bool LoggerIsEnabled() =>
-        _logger is not null
-        && (
-            _logger.IsEnabled(LogLevel.Trace)
-            || _logger.IsEnabled(LogLevel.Debug)
-            || _logger.IsEnabled(LogLevel.Warning)
-            || _logger.IsEnabled(LogLevel.Error)
-        );
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private bool LoggerIsEnabled(ConfiglueDiagnosticEventKind kind)
+    {
+        // Mirrors RuntimeDiagnosticLogging.Log level mapping. Checking only the relevant
+        // level is safe: when configuration, listeners, and telemetry are all disabled,
+        // logging is the sole observable effect, and kinds mapped to other levels would
+        // not emit anyway.
+        var level = kind switch
+        {
+            ConfiglueDiagnosticEventKind.ResolveStarted
+            or ConfiglueDiagnosticEventKind.SourceReadStarted
+            or ConfiglueDiagnosticEventKind.WriteStarted
+            or ConfiglueDiagnosticEventKind.ReloadStarted
+            or ConfiglueDiagnosticEventKind.MigrationStarted
+            or ConfiglueDiagnosticEventKind.WatchStarted
+            or ConfiglueDiagnosticEventKind.WatchStopped => LogLevel.Trace,
+            ConfiglueDiagnosticEventKind.WriteConflict
+            or ConfiglueDiagnosticEventKind.ValidationFailed => LogLevel.Warning,
+            ConfiglueDiagnosticEventKind.ResolveFailed
+            or ConfiglueDiagnosticEventKind.SourceReadFailed
+            or ConfiglueDiagnosticEventKind.WriteFailed
+            or ConfiglueDiagnosticEventKind.ReloadFailed
+            or ConfiglueDiagnosticEventKind.MigrationFailed
+            or ConfiglueDiagnosticEventKind.ObserverFailed => LogLevel.Error,
+            ConfiglueDiagnosticEventKind.SourceFallback => LogLevel.Debug,
+            _ => LogLevel.Debug,
+        };
+        if (kind == ConfiglueDiagnosticEventKind.SourceFallback)
+        {
+            // Fallback maps to Warning when unavailable, Debug otherwise; probe both.
+            // This path is cold (multi-source miss only).
+            return _logger!.IsEnabled(LogLevel.Debug) || _logger.IsEnabled(LogLevel.Warning);
+        }
+        return _logger!.IsEnabled(level);
+    }
 
     internal DiagnosticOperation Start(
         ConfiglueDiagnosticEventKind kind,
@@ -94,7 +140,7 @@ internal sealed class RuntimeDiagnosticRecorder : IConfiglueRuntimeDiagnostics
                 }
             }
         }
-        Record(kind, operationId, parentOperationId, sourceId);
+        RecordCore(kind, operationId, parentOperationId, sourceId);
         return new DiagnosticOperation(
             this,
             operationId,
@@ -120,6 +166,35 @@ internal sealed class RuntimeDiagnosticRecorder : IConfiglueRuntimeDiagnostics
     {
         if (!IsEnabled(kind))
             return;
+        RecordCore(
+            kind,
+            operationId,
+            parentOperationId,
+            sourceId,
+            readStatus,
+            hasRevision,
+            duration,
+            errorCategory,
+            canceled,
+            effectiveValueChanged
+        );
+    }
+
+    // Enabled implementation separated from the always-disabled fast path above so the
+    // disabled case returns before any event construction, locking, or observer dispatch.
+    private void RecordCore(
+        ConfiglueDiagnosticEventKind kind,
+        long operationId = 0,
+        long parentOperationId = 0,
+        SourceId? sourceId = null,
+        StateReadStatus? readStatus = null,
+        bool hasRevision = false,
+        TimeSpan duration = default,
+        string? errorCategory = null,
+        bool canceled = false,
+        bool? effectiveValueChanged = null
+    )
+    {
         ConfiglueDiagnosticEvent diagnosticEvent;
         lock (_gate)
         {
