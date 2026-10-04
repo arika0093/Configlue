@@ -121,8 +121,14 @@ public sealed class StateSourceResolver<T> : ISourceReader<T>
         StateReadResult<T> lastResult = default;
         var revisions = ArrayPool<StateRevision>.Shared.Rent(_sourceSet.Count);
         var revisionCount = 0;
-        var watchTargets = new StateSourceWatchTarget<T>[_sourceSet.Count];
+        // Scratch observation state: pooled per read and never retained. The retained
+        // topology (sources + effective contexts) is deduplicated against the previous
+        // resolution, while per-resolution observed revisions are copied once into the
+        // new resolution. Escaping arrays are always freshly owned, never pooled.
+        var watchScratch = ArrayPool<WatchScratchEntry>.Shared.Rent(_sourceSet.Count);
         var watchTargetCount = 0;
+        var previousTopology = PeekResolution(subject, context)?.Topology;
+        var topologyMatches = previousTopology is not null;
         KeyValuePair<SourceId, StateRevisionVector>[]? nestedRevisions = null;
         var nestedRevisionCount = 0;
         try
@@ -136,11 +142,22 @@ public sealed class StateSourceResolver<T> : ISourceReader<T>
                     await ReadSourceAsync(source, effectiveContext, cancellationToken)
                         .ConfigureAwait(false)
                 ).FromSource(source.Id, source.PhysicalOrigin);
-                watchTargets[watchTargetCount++] = new StateSourceWatchTarget<T>(
+                watchScratch[watchTargetCount] = new WatchScratchEntry(
                     source,
                     effectiveContext,
                     result.Revision
                 );
+                if (topologyMatches)
+                {
+                    topologyMatches = TopologyMatches(
+                        previousTopology!,
+                        watchTargetCount,
+                        source,
+                        effectiveContext
+                    );
+                }
+
+                watchTargetCount++;
                 _logger?.LogDebug(
                     ReadEvent,
                     "State source {SourceId} returned {ReadStatus}.",
@@ -167,10 +184,13 @@ public sealed class StateSourceResolver<T> : ISourceReader<T>
                     SetResolution(
                         subject,
                         context,
-                        new Resolution(
+                        CreateResolution(
+                            previousTopology,
+                            topologyMatches,
+                            watchScratch,
+                            watchTargetCount,
                             source,
-                            revisionVector,
-                            SnapshotWatchTargets(watchTargets, watchTargetCount)
+                            revisionVector
                         )
                     );
                     return result with { Revisions = revisionVector };
@@ -198,10 +218,13 @@ public sealed class StateSourceResolver<T> : ISourceReader<T>
                     SetResolution(
                         subject,
                         context,
-                        new Resolution(
+                        CreateResolution(
+                            previousTopology,
+                            topologyMatches,
+                            watchScratch,
+                            watchTargetCount,
                             null,
-                            revisionVector,
-                            SnapshotWatchTargets(watchTargets, watchTargetCount)
+                            revisionVector
                         )
                     );
                     return result with { Revisions = revisionVector };
@@ -219,10 +242,13 @@ public sealed class StateSourceResolver<T> : ISourceReader<T>
             SetResolution(
                 subject,
                 context,
-                new Resolution(
+                CreateResolution(
+                    previousTopology,
+                    topologyMatches,
+                    watchScratch,
+                    watchTargetCount,
                     null,
-                    finalVector,
-                    SnapshotWatchTargets(watchTargets, watchTargetCount)
+                    finalVector
                 )
             );
             return lastResult with { Revisions = finalVector };
@@ -231,6 +257,8 @@ public sealed class StateSourceResolver<T> : ISourceReader<T>
         {
             Array.Clear(revisions, 0, revisions.Length);
             ArrayPool<StateRevision>.Shared.Return(revisions);
+            Array.Clear(watchScratch, 0, watchScratch.Length);
+            ArrayPool<WatchScratchEntry>.Shared.Return(watchScratch);
             if (nestedRevisions is not null)
             {
                 ArrayPool<KeyValuePair<SourceId, StateRevisionVector>>.Shared.Return(
@@ -262,13 +290,31 @@ public sealed class StateSourceResolver<T> : ISourceReader<T>
         var revision = new StateRevision(source.Id, result.Revision);
         var revisionVector = StateRevisionVector.FromSingle(revision, result.Revisions);
 
+        // Single-source topology is stored inline (no heap array). When routing is
+        // unchanged the previous immutable topology instance is reused outright.
+        var previousTopology = PeekResolution(subject, context)?.Topology;
+        ResolverWatchTopology<T> topology;
+        if (
+            previousTopology is not null
+            && previousTopology.Count == 1
+            && TopologyMatches(previousTopology, 0, source, effectiveContext)
+        )
+        {
+            topology = previousTopology;
+        }
+        else
+        {
+            topology = new ResolverWatchTopology<T>(source, effectiveContext);
+        }
+
         SetResolution(
             subject,
             context,
             new Resolution(
                 result.Status == StateReadStatus.Success ? source : null,
                 revisionVector,
-                [new StateSourceWatchTarget<T>(source, effectiveContext, result.Revision)]
+                topology,
+                result.Revision
             )
         );
         return result with { Revisions = revisionVector };
@@ -280,19 +326,136 @@ public sealed class StateSourceResolver<T> : ISourceReader<T>
         ConfiglueResourceContext context
     ) => subject is null ? context : source.GetResourceContext(subject);
 
-    private static StateSourceWatchTarget<T>[] SnapshotWatchTargets(
-        StateSourceWatchTarget<T>[] targets,
-        int count
+    private struct WatchScratchEntry
+    {
+        public StateSource<T>? Source;
+        public ConfiglueResourceContext Context;
+        public string? Revision;
+
+        public WatchScratchEntry(
+            StateSource<T>? source,
+            ConfiglueResourceContext context,
+            string? revision
+        )
+        {
+            Source = source;
+            Context = context;
+            Revision = revision;
+        }
+    }
+
+    private static bool TopologyMatches(
+        ResolverWatchTopology<T> topology,
+        int index,
+        StateSource<T> source,
+        ConfiglueResourceContext context
     )
     {
-        if (count == targets.Length)
+        if ((uint)index >= (uint)topology.Count)
         {
-            return targets;
+            return false;
         }
 
-        var snapshot = new StateSourceWatchTarget<T>[count];
-        Array.Copy(targets, snapshot, count);
-        return snapshot;
+        return ReferenceEquals(topology.GetSource(index), source)
+            && topology.GetContext(index).Equals(context);
+    }
+
+    private static Resolution CreateResolution(
+        ResolverWatchTopology<T>? previousTopology,
+        bool topologyMatches,
+        WatchScratchEntry[] scratch,
+        int count,
+        StateSource<T>? activeSource,
+        StateRevisionVector revisionVector
+    )
+    {
+        if (topologyMatches && previousTopology is not null && previousTopology.Count == count)
+        {
+            if (count == 1)
+            {
+                return new Resolution(
+                    activeSource,
+                    revisionVector,
+                    previousTopology,
+                    scratch[0].Revision
+                );
+            }
+
+            var retainedRevisions = new string?[count];
+            for (var index = 0; index < count; index++)
+            {
+                retainedRevisions[index] = scratch[index].Revision;
+            }
+
+            return new Resolution(
+                activeSource,
+                revisionVector,
+                previousTopology,
+                retainedRevisions
+            );
+        }
+
+        if (count == 1)
+        {
+            var singleTopology = new ResolverWatchTopology<T>(
+                scratch[0].Source!,
+                scratch[0].Context
+            );
+            return new Resolution(
+                activeSource,
+                revisionVector,
+                singleTopology,
+                scratch[0].Revision
+            );
+        }
+
+        var routes = new WatchRoute<T>[count];
+        var observedRevisions = new string?[count];
+        for (var index = 0; index < count; index++)
+        {
+            routes[index] = new WatchRoute<T>(scratch[index].Source!, scratch[index].Context);
+            observedRevisions[index] = scratch[index].Revision;
+        }
+
+        return new Resolution(
+            activeSource,
+            revisionVector,
+            new ResolverWatchTopology<T>(routes),
+            observedRevisions
+        );
+    }
+
+    private Resolution? PeekResolution(IConfiglueSubject? subject, ConfiglueResourceContext context)
+    {
+        if (subject is null)
+        {
+            return Volatile.Read(ref _resolution);
+        }
+
+        if (!_subjectResolutions.TryGetValue((subject.Key, context.Route), out var entry))
+        {
+            return null;
+        }
+
+        return entry.TryPeek();
+    }
+
+    internal ResolverWatchTopology<T>? GetWatchTopologyForTest(
+        IConfiglueSubject? subject,
+        RouteKey route
+    )
+    {
+        if (subject is null)
+        {
+            return Volatile.Read(ref _resolution)?.Topology;
+        }
+
+        if (!_subjectResolutions.TryGetValue((subject.Key, route), out var entry))
+        {
+            return null;
+        }
+
+        return entry.TryPeek()?.Topology;
     }
 
     private async ValueTask<StateReadResult<T>> ReadSourceAsync(
@@ -373,8 +536,9 @@ public sealed class StateSourceResolver<T> : ISourceReader<T>
         var sources = new List<StateSourceWatchTarget<T>>(_sourceSet.Count);
         if (resolution is not null)
         {
-            foreach (var target in resolution.WatchTargets)
+            for (var index = 0; index < resolution.WatchTargetCount; index++)
             {
+                var target = resolution.GetWatchTarget(index);
                 if (active is not null && target.Source.Priority < active.Priority)
                 {
                     continue;
@@ -531,22 +695,54 @@ public sealed class StateSourceResolver<T> : ISourceReader<T>
                 nestedRevisions.AsSpan(0, nestedRevisionCount)
             );
 
-    private sealed record Resolution
+    private sealed class Resolution
     {
-        public StateSource<T>? ActiveSource { get; init; }
-        public StateRevisionVector Revisions { get; init; }
-        public StateSourceWatchTarget<T>[] WatchTargets { get; init; }
+        public StateSource<T>? ActiveSource { get; }
+        public StateRevisionVector Revisions { get; }
+        public ResolverWatchTopology<T> Topology { get; }
+        public string? SingleObservedRevision { get; }
+        public string?[]? ObservedRevisions { get; }
 
         public Resolution(
-            StateSource<T>? ActiveSource,
-            StateRevisionVector Revisions,
-            StateSourceWatchTarget<T>[] WatchTargets
+            StateSource<T>? activeSource,
+            StateRevisionVector revisions,
+            ResolverWatchTopology<T> topology,
+            string? singleObservedRevision
         )
         {
-            this.ActiveSource = ActiveSource;
-            this.Revisions = Revisions;
-            this.WatchTargets = WatchTargets;
+            ActiveSource = activeSource;
+            Revisions = revisions;
+            Topology = topology;
+            SingleObservedRevision = singleObservedRevision;
         }
+
+        public Resolution(
+            StateSource<T>? activeSource,
+            StateRevisionVector revisions,
+            ResolverWatchTopology<T> topology,
+            string?[] observedRevisions
+        )
+        {
+            ActiveSource = activeSource;
+            Revisions = revisions;
+            Topology = topology;
+            ObservedRevisions = observedRevisions;
+        }
+
+        public int WatchTargetCount => Topology.Count;
+
+        public StateSourceWatchTarget<T> GetWatchTarget(int index) =>
+            Topology.Count == 1
+                ? new StateSourceWatchTarget<T>(
+                    Topology.GetSource(0),
+                    Topology.GetContext(0),
+                    SingleObservedRevision
+                )
+                : new StateSourceWatchTarget<T>(
+                    Topology.GetSource(index),
+                    Topology.GetContext(index),
+                    ObservedRevisions![index]
+                );
 
         public void Deconstruct(out StateSource<T>? ActiveSource, out StateRevisionVector Revisions)
         {
@@ -643,6 +839,23 @@ public sealed class StateSourceResolver<T> : ISourceReader<T>
                 resolution = _resolution;
                 lease = new WatchLease(this);
                 return true;
+            }
+        }
+
+        /// <summary>
+        /// Returns the current resolution without acquiring a watch lease. The returned topology is
+        /// immutable, so reusing it for the next read is safe even if this entry is evicted concurrently.
+        /// </summary>
+        public Resolution? TryPeek()
+        {
+            lock (_gate)
+            {
+                if (_state != SubjectResolutionState.Active)
+                {
+                    return null;
+                }
+
+                return _resolution;
             }
         }
 
@@ -802,4 +1015,59 @@ internal readonly record struct StateSourceWatchTarget<T>
         Source = this.Source;
         ObservedRevision = this.ObservedRevision;
     }
+}
+
+/// <summary>
+/// One immutable watch route: the source plus the effective context used to read it.
+/// Revision state is deliberately excluded so identical routing can be shared across reads.
+/// </summary>
+internal readonly record struct WatchRoute<T>(
+    StateSource<T> Source,
+    ConfiglueResourceContext EffectiveContext
+);
+
+/// <summary>
+/// Immutable reusable watch topology: the ordered sources and effective contexts inspected by
+/// one resolution, without per-resolution observed revisions. Single-target topologies are stored
+/// inline with no heap array; multi-target topologies own one exact-size route array that is never
+/// mutated or pooled after publication.
+/// </summary>
+internal sealed class ResolverWatchTopology<T>
+{
+    private readonly StateSource<T>? _singleSource;
+    private readonly ConfiglueResourceContext _singleContext;
+    private readonly WatchRoute<T>[]? _routes;
+
+    public ResolverWatchTopology(StateSource<T> source, ConfiglueResourceContext context)
+    {
+        ArgumentNullException.ThrowIfNull(source);
+        Count = 1;
+        _singleSource = source;
+        _singleContext = context;
+    }
+
+    public ResolverWatchTopology(WatchRoute<T>[] routes)
+    {
+        ArgumentNullException.ThrowIfNull(routes);
+        if (routes.Length == 0)
+        {
+            throw new ArgumentException(
+                "A watch topology requires at least one route.",
+                nameof(routes)
+            );
+        }
+
+        Count = routes.Length;
+        _routes = routes;
+    }
+
+    public int Count { get; }
+
+    internal bool UsesRetainedArray => _routes is not null;
+
+    public StateSource<T> GetSource(int index) =>
+        _routes is null ? _singleSource! : _routes[index].Source;
+
+    public ConfiglueResourceContext GetContext(int index) =>
+        _routes is null ? _singleContext : _routes[index].EffectiveContext;
 }
