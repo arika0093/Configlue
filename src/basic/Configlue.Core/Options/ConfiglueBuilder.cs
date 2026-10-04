@@ -52,26 +52,30 @@ public sealed class ConfiglueBuilder
         var model = new ConfiglueModelBuilder<TModel>();
         configure(model);
         model.Seal();
+        AddRegistration(new ConfiglueModelRegistration<TModel>(model), nameof(configure));
+    }
 
-        if (
-            _registrations.Any(registration =>
-                registration.ModelType == typeof(TModel)
-                && string.Equals(registration.StateName, model.StateName, StringComparison.Ordinal)
-            )
-        )
-        {
-            throw new ArgumentException(
-                $"Model '{typeof(TModel)}' with state name '{model.StateName}' is already registered.",
-                nameof(configure)
-            );
-        }
-
-        _registrations.Add(new ConfiglueModelRegistration<TModel>(model));
+    /// <summary>Adds one model registration and returns its builder for chained configuration.</summary>
+    /// <remarks>
+    /// The returned builder stays mutable until <see cref="Seal"/> or <see cref="CreateContext"/>
+    /// runs, so a single-file setup reads as <c>config.Add&lt;AppSettings&gt;().UseLocalJson("settings.json")</c>.
+    /// </remarks>
+    public ConfiglueModelBuilder<TModel> Add<TModel>()
+        where TModel : IConfiglueFacadeModel<TModel>
+    {
+        EnsureMutable();
+        var model = new ConfiglueModelBuilder<TModel>();
+        var registration = new ConfiglueModelRegistration<TModel>(model);
+        AddRegistration(registration, nameof(TModel));
+        return model;
     }
 
     /// <summary>Builds an independent context from the collected definitions.</summary>
-    public ConfiglueContext CreateContext(IServiceProvider? serviceProvider = null) =>
-        ConfiglueContext.Create(_registrations, serviceProvider, _hostPaths);
+    public ConfiglueContext CreateContext(IServiceProvider? serviceProvider = null)
+    {
+        SealModels();
+        return ConfiglueContext.Create(_registrations, serviceProvider, _hostPaths);
+    }
 
     /// <summary>Gets the generated schemas for the models registered with this builder.</summary>
     /// <remarks>Multiple named registrations of one model can return the same schema more than once.</remarks>
@@ -91,7 +95,54 @@ public sealed class ConfiglueBuilder
 
     internal IReadOnlyList<IConfiglueModelRegistration> Registrations => _registrations;
 
-    internal void Seal() => _sealed = true;
+    internal void Seal()
+    {
+        if (_sealed)
+        {
+            return;
+        }
+
+        SealModels();
+        _sealed = true;
+    }
+
+    private void AddRegistration(IConfiglueModelRegistration registration, string parameterName)
+    {
+        if (
+            _registrations.Any(candidate =>
+                candidate.ModelType == registration.ModelType
+                && string.Equals(
+                    candidate.StateName,
+                    registration.StateName,
+                    StringComparison.Ordinal
+                )
+            )
+        )
+        {
+            throw new ArgumentException(
+                $"Model '{registration.ModelType}' with state name '{registration.StateName}' is already registered.",
+                parameterName
+            );
+        }
+
+        _registrations.Add(registration);
+    }
+
+    private void SealModels()
+    {
+        var seen = new HashSet<(Type ModelType, string StateName)>();
+        foreach (var registration in _registrations)
+        {
+            if (!seen.Add((registration.ModelType, registration.StateName)))
+            {
+                throw new InvalidOperationException(
+                    $"Model '{registration.ModelType}' with state name '{registration.StateName}' is already registered."
+                );
+            }
+
+            registration.SealModel();
+        }
+    }
 
     private void EnsureMutable()
     {
@@ -563,6 +614,7 @@ internal interface IConfiglueModelRegistration
     Type ModelType { get; }
     ConfiglueModelSchema ModelSchema { get; }
     string StateName { get; }
+    void SealModel();
     bool IsPerSubject { get; }
     Type? SubjectAccessorType { get; }
     bool EnableDynamicStates { get; }
@@ -610,6 +662,8 @@ internal sealed class ConfiglueModelRegistration<TModel>(ConfiglueModelBuilder<T
     public bool EnableDynamicStates => builder.EnableDynamicStates;
 
     public bool EnableProfiles => builder.HasProfileCatalog;
+
+    public void SealModel() => builder.Seal();
 
     public RuntimeLifetimeRequirement RuntimeLifetime => builder.EffectiveRuntimeLifetime;
 

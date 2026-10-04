@@ -172,4 +172,9 @@ namespace Configlue.Provider.Json
         public void Serialize(T? value, System.Buffers.IBufferWriter<byte> destination) { }
         public static Configlue.Provider.Json.JsonStateValueSerializer<T> FromConverter(System.Text.Json.Serialization.JsonConverter<T> converter) { }
     }
+    public static class SingleFileJsonExtensions
+    {
+        public static void UseLocalJson<TModel>(this Configlue.ConfiglueModelBuilder<TModel> model, string path, System.Text.Json.JsonSerializerOptions? serializerOptions = null)
+            where TModel : Configlue.CompilerServices.IConfiglueFacadeModel<TModel> { }
+    }
 }

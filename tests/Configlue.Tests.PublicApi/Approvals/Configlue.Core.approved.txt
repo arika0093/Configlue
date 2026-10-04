@@ -20,6 +20,8 @@ namespace Configlue
         public ConfiglueBuilder() { }
         public Configlue.Resources.IConfiglueHostPaths HostPaths { get; }
         public System.Collections.Generic.IReadOnlyList<Configlue.ConfiglueModelSchema> ModelSchemas { get; }
+        public Configlue.ConfiglueModelBuilder<TModel> Add<TModel>()
+            where TModel : Configlue.CompilerServices.IConfiglueFacadeModel<TModel> { }
         public void Add<TModel>(System.Action<Configlue.ConfiglueModelBuilder<TModel>> configure)
             where TModel : Configlue.CompilerServices.IConfiglueFacadeModel<TModel> { }
         public Configlue.ConfiglueContext CreateContext(System.IServiceProvider? serviceProvider = null) { }

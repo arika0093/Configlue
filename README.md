@@ -96,23 +96,21 @@ And the detailed configuration itself only has to happen once, at application st
 
 ## Quick Start
 
-Save it as `example.cs` and run it with `dotnet run example.cs` (.NET 10 or later).
+The first workflow is a single local JSON file: define a model, choose where it is
+stored, read it, and save a patch. Save it as `example.cs` and run it with
+`dotnet run example.cs` (.NET 10 or later).
 
 ```csharp
 #!/usr/bin/env dotnet
 #:package Configlue@*
 
 using Configlue;
-using Configlue.Source.Presets;
+using Configlue.Provider.Json;
 
-// 1. Initialize
+// 1. Initialize: one model declaration plus one file declaration.
 ConfiglueApp.Initialize(config =>
 {
-    config.UseCommonSources(sources =>
-    {
-        sources.WithLocal();
-        sources.Add<AppSettings>();
-    });
+    config.Add<AppSettings>().UseLocalJson("settings.json");
 });
 
 // 2. Read
@@ -137,6 +135,59 @@ public partial class AppSettings
     public string Theme { get; set; } = "System";
 }
 ```
+
+That is the whole getting-started surface: no source IDs, priorities, write routing,
+Resource/Codec terms, or subject/profile vocabulary. The application consumes only
+`IWritableState<AppSettings>` (`GetValueAsync` / `SaveAsync` / `OnChange`).
+
+### Single-file defaults
+
+`UseLocalJson` is tuned for ordinary application settings:
+
+- A missing file reads as model defaults; the file (including its directory) is
+  created on the first save.
+- Writes replace the file atomically (temporary file plus rename) and keep one
+  backup generation.
+- The file is watched: external edits reload, and `OnChange` listeners observe them.
+- A malformed document fails reads (the JSON format exception propagates) instead of
+  silently returning defaults; the watcher reports the failure and recovers on the
+  next valid write.
+- Validation failures throw (`ConfiglueValidationException`); concurrent write
+  conflicts fail instead of overwriting.
+- Documents are plain simple-layout JSON (`{ "$version": 1, ... }`); comments are
+  accepted on read.
+
+### Grow without rewriting
+
+Choosing the tiny-file path never forces a later migration to another library.
+When the application grows, the same consumer code keeps working while the setup
+gains layers — local file, then environment overrides, then remote policy:
+
+```csharp
+using Configlue.Source.Presets;
+
+ConfiglueApp.Initialize(config =>
+{
+    config.UseCommonSources(sources =>
+    {
+        sources.WithLocal("settings.json");
+        sources.WithEnvironment("APP_");
+        sources.WithHttpPolicy("https://example.com/policy", httpClient);
+        sources.Add<AppSettings>();
+    });
+});
+
+// Unchanged application code:
+var settings = ConfiglueApp.GetState<AppSettings>();
+var current = await settings.GetValueAsync();
+await settings.SaveAsync(patch =>
+{
+    patch.Theme = "Dark";
+});
+```
+
+Layering, provenance, migrations, and diagnostics stay available behind the same
+`IWritableState<T>`; they just do not appear in the getting-started path.
 
 ## Installation
 ### Plain .NET

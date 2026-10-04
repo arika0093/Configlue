@@ -134,6 +134,21 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
             return;
         }
 
+        if (_isSingleSourceFastPath && ReferenceEquals(activeSources, _fastPathSources))
+        {
+            // Single-file fast path (#231): one watchable source needs no fan-out list or
+            // multi-task coordination. Topology retirement replaces the active array, which
+            // drops back to the general implementation below.
+            await WaitForSingleSourceChangeAsync(
+                    activeSources[0],
+                    revisions,
+                    topologyChanged,
+                    cancellationToken
+                )
+                .ConfigureAwait(false);
+            return;
+        }
+
         var activeSourceIds = GetActiveSourceIds(activeSources);
         if (
             revisions.Revisions.Keys.Any(revisionSourceId =>
@@ -190,6 +205,52 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
                 {
                     waitTasks.Clear();
                 }
+            }
+        }
+    }
+
+    private async Task WaitForSingleSourceChangeAsync(
+        StateSource<TFragment> source,
+        StateRevisionVector? revisions,
+        Task topologyChanged,
+        CancellationToken cancellationToken
+    )
+    {
+        if (
+            source.Watcher is null
+            || revisions is null
+            || !revisions.TryGetRevision(source.Id, out var revision)
+        )
+        {
+            await topologyChanged.WaitAsync(cancellationToken).ConfigureAwait(false);
+            return;
+        }
+
+        using var waitCancellation = CancellationTokenSource.CreateLinkedTokenSource(
+            cancellationToken
+        );
+        var sourceWait = WaitForSourceChangeAsync(source, revision, waitCancellation.Token)
+            .AsTask();
+        var topologyWait = topologyChanged.WaitAsync(waitCancellation.Token);
+        var completed = await Task.WhenAny(sourceWait, topologyWait).ConfigureAwait(false);
+        await waitCancellation.CancelAsync().ConfigureAwait(false);
+        try
+        {
+            await completed.ConfigureAwait(false);
+        }
+        finally
+        {
+            // Drain the loser so asynchronous watcher cleanup cannot outlive the runtime,
+            // mirroring the fan-out coordination below. Cancellation requested through the
+            // linked source is expected; any winning failure has already propagated.
+            var loser = ReferenceEquals(completed, sourceWait) ? topologyWait : sourceWait;
+            try
+            {
+                await loser.ConfigureAwait(false);
+            }
+            catch (OperationCanceledException) when (waitCancellation.IsCancellationRequested)
+            {
+                // Cancellation of the losing wait is expected.
             }
         }
     }

@@ -55,6 +55,9 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
     private TaskCompletionSource _sourceTopologyChanged = NewTopologySignal();
     private readonly StateWritePlan _writePlan;
     private readonly bool _defaultWriteSourceIsInferred;
+    private readonly bool _isSingleSourceFastPath;
+    private readonly StateSource<TFragment>[] _fastPathSources = [];
+    private readonly StateSource<TFragment>? _fastPathWriteSource;
     private readonly Func<TModel, TModel>? _cloneStrategy;
     private readonly StateSchemaMigrationChain<TFragment> _migrationChain;
     private readonly IConfiglueValidator<TModel>[] _validators;
@@ -192,10 +195,37 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
             );
         }
 
+        var migrationList = migrations?.ToArray() ?? [];
         _migrationChain = new StateSchemaMigrationChain<TFragment>(
             ModelSchema.ToMetadata(),
-            migrations
+            migrationList
         );
+        // Single-file fast path (#231): one writable root source with no write routing,
+        // no migrations, and no layered topology lets construction precompute the decisions
+        // the general multi-source machinery would otherwise re-derive per operation
+        // (write-target scan, resolver fan-out, watcher coordination). Semantics are unchanged:
+        // every fast path observes the same resource context and falls back to the general
+        // implementation whenever the topology changes (for example source retirement).
+        if (
+            _activeSources.Length == 1
+            && _sourceSet.Count == 1
+            && migrationList.Length == 0
+            && _writePlan.PropertyRoutes.Count == 0
+        )
+        {
+            var single = _activeSources[0];
+            if (
+                single.Writer is not null
+                && !single.ExplicitOnly
+                && single.OwnedPropertyPaths.Count == 0
+                && _writePlan.DefaultSourceId == single.Id
+            )
+            {
+                _isSingleSourceFastPath = true;
+                _fastPathSources = _activeSources;
+                _fastPathWriteSource = single;
+            }
+        }
         _diagnostics = new RuntimeDiagnosticRecorder(
             _stateName,
             ModelSchema.Id,

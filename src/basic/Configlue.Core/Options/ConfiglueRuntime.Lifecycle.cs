@@ -137,6 +137,17 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
 
     private StateSource<TFragment>? ResolveDefaultWriteSource()
     {
+        if (
+            _isSingleSourceFastPath
+            && _fastPathWriteSource is not null
+            && ReferenceEquals(GetActiveSources(), _fastPathSources)
+        )
+        {
+            // Single-file fast path (#231): the only writable root was pre-resolved at
+            // construction, so ordinary saves skip the per-save topology scan.
+            return _fastPathWriteSource;
+        }
+
         if (_writePlan.DefaultSourceId is not { } defaultSourceId)
         {
             return null;
