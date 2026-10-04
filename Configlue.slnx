@@ -27,6 +27,7 @@
   <Folder Name="/src/resources/">
     <Project Path="src/resources/Configlue.Resource.Etcd/Configlue.Resource.Etcd.csproj" />
     <Project Path="src/resources/Configlue.Resource.AzureAppConfiguration/Configlue.Resource.AzureAppConfiguration.csproj" />
+    <Project Path="src/resources/Configlue.Resource.AzureKeyVault/Configlue.Resource.AzureKeyVault.csproj" />
     <Project Path="src/resources/Configlue.Resource.Redis/Configlue.Resource.Redis.csproj" />
     <Project Path="src/resources/Configlue.Resource.S3/Configlue.Resource.S3.csproj" />
     <Project Path="src/resources/Configlue.Resource.Vault/Configlue.Resource.Vault.csproj" />
