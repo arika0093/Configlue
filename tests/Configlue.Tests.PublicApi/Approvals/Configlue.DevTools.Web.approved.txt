@@ -125,6 +125,8 @@ namespace Configlue.DevTools.Web
         [Microsoft.AspNetCore.Components.Parameter]
         public Configlue.IReadOnlyState<TModel> State { get; set; }
         [Microsoft.AspNetCore.Components.Parameter]
+        public string StateName { get; set; }
+        [Microsoft.AspNetCore.Components.Parameter]
         public Configlue.DevTools.ConfiglueDevToolsViewerOptions? ViewerOptions { get; set; }
         protected override void BuildRenderTree(Microsoft.AspNetCore.Components.Rendering.RenderTreeBuilder @__builder) { }
         public void Dispose() { }
@@ -133,8 +135,12 @@ namespace Configlue.DevTools.Web
     }
     public static class ConfiglueMonacoBridge
     {
+        public static System.Threading.Tasks.ValueTask ClearDocumentAsync(Microsoft.JSInterop.IJSRuntime js, string documentKey) { }
         public static System.Threading.Tasks.ValueTask ConfigureJsonSchemaAsync(Microsoft.JSInterop.IJSRuntime js, Configlue.DevTools.ConfiglueViewerSchemaSetup setup) { }
-        public static System.Threading.Tasks.ValueTask SetHoverDataAsync(Microsoft.JSInterop.IJSRuntime js, string documentKey, System.Collections.Generic.IReadOnlyList<Configlue.DevTools.ConfiglueViewerHover> hovers) { }
+        public static System.Threading.Tasks.ValueTask ConfigureJsonSchemaAsync(Microsoft.JSInterop.IJSRuntime js, Configlue.DevTools.ConfiglueViewerSchemaSetup setup, string documentUri) { }
+        public static System.Threading.Tasks.ValueTask EnsureDocumentModelAsync(Microsoft.JSInterop.IJSRuntime js, string editorId, string documentUri, string language = "json", string fallbackJson = "{
+}") { }
+        public static System.Threading.Tasks.ValueTask SetHoverDataAsync(Microsoft.JSInterop.IJSRuntime js, string documentKey, System.Collections.Generic.IReadOnlyList<Configlue.DevTools.ConfiglueViewerHover> hovers, System.Collections.Generic.IReadOnlyList<Configlue.DevTools.ConfiglueViewerMemberRange> memberRanges) { }
         public static System.Threading.Tasks.ValueTask SetInlayLabelsAsync(Microsoft.JSInterop.IJSRuntime js, string documentKey, System.Collections.Generic.IReadOnlyList<Configlue.DevTools.ConfiglueViewerDecoration> decorations) { }
         public static System.Threading.Tasks.ValueTask SetRuntimeMarkersAsync(Microsoft.JSInterop.IJSRuntime js, string documentKey, System.Collections.Generic.IReadOnlyList<Configlue.DevTools.ConfiglueViewerMarker> markers) { }
     }

@@ -35,6 +35,7 @@ public sealed partial class ConfiglueEffectiveStateViewer<TModel> : ComponentBas
     private ConfiglueModelSchema? _schema;
     private ConfiglueViewerSchemaSetup? _schemaSetup;
     private ConfiglueViewerDocument? _document;
+    private readonly string _editorId = Guid.NewGuid().ToString("N");
     private string[] _decorationIds = [];
     private bool _editorReady;
     private bool _schemaMissing;
@@ -59,6 +60,15 @@ public sealed partial class ConfiglueEffectiveStateViewer<TModel> : ComponentBas
     [Parameter]
     public ConfiglueDevToolsViewerOptions? ViewerOptions { get; set; }
 
+    /// <summary>The state-name identity for <c>(TModel, StateName)</c>.</summary>
+    /// <remarks>
+    /// Feeds the explicit Monaco document URI
+    /// (<c>configlue://states/{modelId}/{stateName}</c>) so schema
+    /// <c>fileMatch</c> and runtime markers target the actual editor model.
+    /// </remarks>
+    [Parameter]
+    public string StateName { get; set; } = string.Empty;
+
     /// <summary>Editor height CSS value. Defaults to 480px.</summary>
     [Parameter]
     public string Height { get; set; } = "480px";
@@ -68,6 +78,11 @@ public sealed partial class ConfiglueEffectiveStateViewer<TModel> : ComponentBas
 
     /// <summary>Whether the initial document is loaded.</summary>
     public bool IsLoaded => _document is not null;
+
+    /// <summary>
+    /// Internal test hook simulating Monaco readiness without a browser.
+    /// </summary>
+    internal Task SimulateEditorInitForTestsAsync() => HandleEditorInitAsync();
 
     /// <inheritdoc />
     protected override async Task OnInitializedAsync()
@@ -119,6 +134,7 @@ public sealed partial class ConfiglueEffectiveStateViewer<TModel> : ComponentBas
         _diagnosticSubscription?.Dispose();
         _diagnosticSubscription = null;
         Interlocked.Increment(ref _generation);
+        ClearBrowserDocument();
         GC.SuppressFinalize(this);
     }
 
@@ -387,20 +403,30 @@ public sealed partial class ConfiglueEffectiveStateViewer<TModel> : ComponentBas
             return;
         }
 
-        var key = _schemaSetup.SchemaUri;
+        // The document key is the explicit editor model URI, never the schema
+        // URI and never the anonymous model URI.
+        var key = ConfiglueDevToolsViewerProjection.BuildDocumentUri(
+            _schemaSetup.ModelId,
+            StateName
+        );
         try
         {
+            // Bind the BlazorMonaco model to the document URI first so schema
+            // fileMatch and marker targeting match the real model.
+            await ConfiglueMonacoBridge
+                .EnsureDocumentModelAsync(Js, _editorId, key, "json", _document.Json)
+                .ConfigureAwait(true);
             if (!_schemaConfigured)
             {
                 // Configured once per model/schema; never per keystroke.
                 await ConfiglueMonacoBridge
-                    .ConfigureJsonSchemaAsync(Js, _schemaSetup)
+                    .ConfigureJsonSchemaAsync(Js, _schemaSetup, key)
                     .ConfigureAwait(true);
                 _schemaConfigured = true;
             }
 
             await ConfiglueMonacoBridge
-                .SetHoverDataAsync(Js, key, _document.Hovers)
+                .SetHoverDataAsync(Js, key, _document.Hovers, _document.MemberRanges)
                 .ConfigureAwait(true);
             await ConfiglueMonacoBridge
                 .SetInlayLabelsAsync(Js, key, _document.Decorations)
@@ -416,6 +442,30 @@ public sealed partial class ConfiglueEffectiveStateViewer<TModel> : ComponentBas
         catch (Exception exception)
         {
             // Overlays are best-effort UI; failures never replace the rendered value.
+            _ = exception;
+        }
+    }
+
+    private void ClearBrowserDocument()
+    {
+        if (_schemaSetup is null)
+        {
+            return;
+        }
+
+        try
+        {
+            var key = ConfiglueDevToolsViewerProjection.BuildDocumentUri(
+                _schemaSetup.ModelId,
+                StateName
+            );
+            // Best effort: the circuit may already be gone. Selection changes
+            // recreate the keyed editor subtree, so stale overlays can never
+            // leak into another state's document.
+            _ = ConfiglueMonacoBridge.ClearDocumentAsync(Js, key);
+        }
+        catch (Exception exception)
+        {
             _ = exception;
         }
     }

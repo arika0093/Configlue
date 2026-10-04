@@ -22,6 +22,8 @@
   <ItemGroup>
     <EmbeddedResource Include="wwwroot\configlue-devtools-monaco.js" />
     <Content Remove="wwwroot\configlue-devtools-monaco.js" />
+    <EmbeddedResource Include="wwwroot\configlue-devtools.css" />
+    <Content Remove="wwwroot\configlue-devtools.css" />
     <EmbeddedResource Include="$(NuGetPackageRoot)microsoft.aspnetcore.app.internal.assets/10.0.5/_framework/blazor.web.js">
       <LogicalName>Configlue.DevTools.Web.Framework.blazor.web.js</LogicalName>
     </EmbeddedResource>

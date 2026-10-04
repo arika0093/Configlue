@@ -1,0 +1,7 @@
+{
+  "name": "configlue-devtools-browser-tests",
+  "private": true,
+  "type": "module",
+  "scripts": { "test": "node --test monaco-devtools.test.mjs" },
+  "devDependencies": { "monaco-editor": "0.54.0", "playwright": "1.58.2" }
+}

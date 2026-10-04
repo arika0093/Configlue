@@ -149,8 +149,14 @@ public sealed class ConfiglueDevToolsWebHost : IAsyncDisposable, IDisposable
 
         var app = builder.Build();
         app.UseMiddleware<ConfiglueDevToolsTokenGateMiddleware>(_sessionToken);
+        // Serves BlazorMonaco static web assets (_content/BlazorMonaco/**) for
+        // the real browser app. Those files are versioned library assets with
+        // no state; the token gate still guards the document, the circuit,
+        // and the Configlue bridge/stylesheet routes below.
+        app.UseStaticFiles();
         app.UseAntiforgery();
         app.MapBridge();
+        app.MapStyles();
         app.MapFrameworkBootFiles();
         app.MapRazorComponents<DevToolsApp>().AddInteractiveServerRenderMode();
 

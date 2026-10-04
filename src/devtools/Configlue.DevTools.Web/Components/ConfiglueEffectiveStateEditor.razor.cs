@@ -40,6 +40,7 @@ public sealed partial class ConfiglueEffectiveStateEditor<TModel> : ComponentBas
     private ConfiglueDevToolsEditorSession<TModel>? _session;
     private ConfiglueViewerSchemaSetup? _schemaSetup;
     private ConfiglueViewerDocument? _document;
+    private readonly string _editorId = Guid.NewGuid().ToString("N");
     private ConfiglueDevToolsDraftThrottle _throttle = new();
     private CancellationTokenSource? _debounceCts;
     private string[] _decorationIds = [];
@@ -155,6 +156,7 @@ public sealed partial class ConfiglueEffectiveStateEditor<TModel> : ComponentBas
             _session = null;
         }
 
+        ClearBrowserDocument();
         GC.SuppressFinalize(this);
     }
 
@@ -780,22 +782,32 @@ public sealed partial class ConfiglueEffectiveStateEditor<TModel> : ComponentBas
             return;
         }
 
-        var key = _schemaSetup.SchemaUri;
+        // The document key is the explicit editor model URI, never the schema
+        // URI and never the anonymous model URI.
+        var key = ConfiglueDevToolsViewerProjection.BuildDocumentUri(
+            _schemaSetup.ModelId,
+            StateName
+        );
         try
         {
+            // Bind the BlazorMonaco model to the document URI first so schema
+            // fileMatch and marker targeting match the real model.
+            await ConfiglueMonacoBridge
+                .EnsureDocumentModelAsync(Js, _editorId, key, "json", _document.Json)
+                .ConfigureAwait(true);
             if (!_schemaConfigured)
             {
                 // Configured once per model/schema; never per keystroke. The
                 // browser-side JSON language service stays advisory; server
                 // validation is authoritative on sync/commit.
                 await ConfiglueMonacoBridge
-                    .ConfigureJsonSchemaAsync(Js, _schemaSetup)
+                    .ConfigureJsonSchemaAsync(Js, _schemaSetup, key)
                     .ConfigureAwait(true);
                 _schemaConfigured = true;
             }
 
             await ConfiglueMonacoBridge
-                .SetHoverDataAsync(Js, key, _document.Hovers)
+                .SetHoverDataAsync(Js, key, _document.Hovers, _document.MemberRanges)
                 .ConfigureAwait(true);
             await ConfiglueMonacoBridge
                 .SetInlayLabelsAsync(Js, key, _document.Decorations)
@@ -811,6 +823,30 @@ public sealed partial class ConfiglueEffectiveStateEditor<TModel> : ComponentBas
         catch (Exception exception)
         {
             // Overlays are best-effort UI; failures never replace the rendered draft.
+            _ = exception;
+        }
+    }
+
+    private void ClearBrowserDocument()
+    {
+        if (_schemaSetup is null)
+        {
+            return;
+        }
+
+        try
+        {
+            var key = ConfiglueDevToolsViewerProjection.BuildDocumentUri(
+                _schemaSetup.ModelId,
+                StateName
+            );
+            // Best effort: the circuit may already be gone. Selection changes
+            // recreate the keyed editor subtree, so a stale draft can never
+            // commit to a different state.
+            _ = ConfiglueMonacoBridge.ClearDocumentAsync(Js, key);
+        }
+        catch (Exception exception)
+        {
             _ = exception;
         }
     }

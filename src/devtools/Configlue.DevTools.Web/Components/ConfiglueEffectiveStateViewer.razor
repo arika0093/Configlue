@@ -11,7 +11,8 @@
     else
     {
         <StandaloneCodeEditor @ref="_editor"
-                              ConstructionOptions="BuildConstructionOptions"
-                              OnDidInit="HandleEditorInitAsync" />
+                               Id="@_editorId"
+                               ConstructionOptions="BuildConstructionOptions"
+                               OnDidInit="HandleEditorInitAsync" />
     }
 </div>

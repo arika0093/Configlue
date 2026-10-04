@@ -33,21 +33,77 @@ public static class ConfiglueMonacoBridge
     {
         ArgumentNullException.ThrowIfNull(js);
         ArgumentNullException.ThrowIfNull(setup);
-        return js.InvokeVoidAsync($"{Global}.setJsonSchema", setup.SchemaUri, setup.SchemaJson);
+        return ConfigureJsonSchemaAsync(js, setup, setup.SchemaUri);
     }
 
     /// <summary>
-    /// Publishes hover/explain payloads for the viewer document key.
+    /// Configures the browser-side Monaco JSON language service with an
+    /// explicit document URI binding.
+    /// </summary>
+    /// <remarks>
+    /// The schema <c>fileMatch</c> targets <paramref name="documentUri"/>
+    /// (normally <c>configlue://states/{modelId}/{stateName}</c>), which must
+    /// be the actual editor model URI bound via
+    /// <see cref="EnsureDocumentModelAsync"/>. Never the anonymous model URI.
+    /// </remarks>
+    public static ValueTask ConfigureJsonSchemaAsync(
+        IJSRuntime js,
+        ConfiglueViewerSchemaSetup setup,
+        string documentUri
+    )
+    {
+        ArgumentNullException.ThrowIfNull(js);
+        ArgumentNullException.ThrowIfNull(setup);
+        ArgumentException.ThrowIfNullOrWhiteSpace(documentUri);
+        return js.InvokeVoidAsync(
+            $"{Global}.setJsonSchema",
+            setup.SchemaUri,
+            setup.SchemaJson,
+            documentUri
+        );
+    }
+
+    /// <summary>
+    /// Binds the BlazorMonaco editor model to the explicit Configlue document
+    /// URI so schema <c>fileMatch</c> and marker targeting match the real
+    /// model. Swaps the anonymous model once; later calls preserve
+    /// scroll/selection.
+    /// </summary>
+    public static ValueTask EnsureDocumentModelAsync(
+        IJSRuntime js,
+        string editorId,
+        string documentUri,
+        string language = "json",
+        string fallbackJson = "{\n}"
+    )
+    {
+        ArgumentNullException.ThrowIfNull(js);
+        ArgumentException.ThrowIfNullOrWhiteSpace(editorId);
+        ArgumentException.ThrowIfNullOrWhiteSpace(documentUri);
+        return js.InvokeVoidAsync(
+            $"{Global}.ensureDocumentModel",
+            editorId,
+            documentUri,
+            language,
+            fallbackJson
+        );
+    }
+
+    /// <summary>
+    /// Publishes hover/explain payloads for the viewer document key, together
+    /// with the member value ranges used to resolve hover positions.
     /// </summary>
     public static ValueTask SetHoverDataAsync(
         IJSRuntime js,
         string documentKey,
-        IReadOnlyList<ConfiglueViewerHover> hovers
+        IReadOnlyList<ConfiglueViewerHover> hovers,
+        IReadOnlyList<ConfiglueViewerMemberRange> memberRanges
     )
     {
         ArgumentNullException.ThrowIfNull(js);
         ArgumentException.ThrowIfNullOrWhiteSpace(documentKey);
         ArgumentNullException.ThrowIfNull(hovers);
+        ArgumentNullException.ThrowIfNull(memberRanges);
         var payload = hovers
             .Select(static hover => new
             {
@@ -55,7 +111,17 @@ public static class ConfiglueMonacoBridge
                 markdown = hover.Markdown,
             })
             .ToArray();
-        return js.InvokeVoidAsync($"{Global}.setHoverData", documentKey, payload);
+        var ranges = memberRanges
+            .Select(static range => new
+            {
+                memberPath = range.MemberPath,
+                startLineNumber = range.ValueRange.StartLineNumber,
+                startColumn = range.ValueRange.StartColumn,
+                endLineNumber = range.ValueRange.EndLineNumber,
+                endColumn = range.ValueRange.EndColumn,
+            })
+            .ToArray();
+        return js.InvokeVoidAsync($"{Global}.setHoverData", documentKey, payload, ranges);
     }
 
     /// <summary>Publishes compact inlay source labels for the viewer document key.</summary>
@@ -111,5 +177,17 @@ public static class ConfiglueMonacoBridge
             })
             .ToArray();
         return js.InvokeVoidAsync($"{Global}.setRuntimeMarkers", documentKey, payload);
+    }
+
+    /// <summary>
+    /// Drops cached hover/inlay/marker payloads for a closed document and
+    /// clears its markers, so selection changes and disposal never leak
+    /// overlays across states.
+    /// </summary>
+    public static ValueTask ClearDocumentAsync(IJSRuntime js, string documentKey)
+    {
+        ArgumentNullException.ThrowIfNull(js);
+        ArgumentException.ThrowIfNullOrWhiteSpace(documentKey);
+        return js.InvokeVoidAsync($"{Global}.clearDocument", documentKey);
     }
 }

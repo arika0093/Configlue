@@ -10,6 +10,7 @@
     <base href="/" />
     <title>Configlue DevTools (development only)</title>
     <HeadOutlet />
+    <link rel="stylesheet" href="@_devtoolsCssSrc" />
     <script>
         window.__CONFIGLUE_DEVTOOLS_TOKEN__ = @((MarkupString)_tokenJson);
         (function () {
@@ -65,6 +66,9 @@
             window.WebSocket = GatedWebSocket;
         })();
     </script>
+    <script src="@_blazorMonacoInteropSrc"></script>
+    <script src="@_blazorMonacoLoaderSrc"></script>
+    <script src="@_blazorMonacoMainSrc"></script>
     <script src="@_blazorBootSrc"></script>
     <script src="@_monacoBridgeSrc"></script>
 </head>

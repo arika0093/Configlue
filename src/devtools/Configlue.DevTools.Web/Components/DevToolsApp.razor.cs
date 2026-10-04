@@ -26,6 +26,16 @@ public sealed partial class DevToolsApp : ComponentBase
     private string _tokenJson = "\"\"";
     private string _blazorBootSrc = "_framework/blazor.web.js";
     private string _monacoBridgeSrc = "configlue-devtools-monaco.js";
+    private string _devtoolsCssSrc = "configlue-devtools.css";
+
+    // Versioned BlazorMonaco/Monaco library assets: identical for every app,
+    // stateless, served ungated (see the token-gate public-asset carve-out)
+    // because script tags, Monaco chunks, and workers cannot carry the token.
+    private string _blazorMonacoInteropSrc = "_content/BlazorMonaco/jsInterop.js";
+    private string _blazorMonacoLoaderSrc =
+        "_content/BlazorMonaco/lib/monaco-editor/min/vs/loader.js";
+    private string _blazorMonacoMainSrc =
+        "_content/BlazorMonaco/lib/monaco-editor/min/vs/editor/editor.main.js";
 
     /// <summary>The current HTTP context, available for the statically rendered root.</summary>
     [CascadingParameter]
@@ -41,6 +51,7 @@ public sealed partial class DevToolsApp : ComponentBase
             var encoded = Uri.EscapeDataString(token);
             _blazorBootSrc = $"_framework/blazor.web.js?token={encoded}";
             _monacoBridgeSrc = $"configlue-devtools-monaco.js?token={encoded}";
+            _devtoolsCssSrc = $"configlue-devtools.css?token={encoded}";
         }
     }
 

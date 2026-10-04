@@ -21,4 +21,34 @@
       ReferenceOutputAssembly="false"
     />
   </ItemGroup>
+  <!-- Replicates the published-app wwwroot layout for the DevTools browser
+    asset tests: a published consumer carries the BlazorMonaco RCL files as
+    physical wwwroot/_content files served by UseStaticFiles. The in-process
+    test host gets the same layout so delivery (gate carve-out plus static
+    files) is verified against real bytes, not bUnit interop.
+    The BlazorMonaco version is pinned to the PackageReference in
+    Configlue.DevTools.Web.csproj; bump both together. -->
+  <PropertyGroup>
+    <ConfiglueBlazorMonacoVersion>3.4.0</ConfiglueBlazorMonacoVersion>
+  </PropertyGroup>
+  <Target
+    Name="CopyBlazorMonacoPublishedLayoutForTests"
+    AfterTargets="Build"
+    Condition="'$(TargetFramework)' == 'net10.0'"
+  >
+    <ItemGroup>
+      <BlazorMonacoPublishedAsset
+        Include="$(NuGetPackageRoot)blazormonaco/$(ConfiglueBlazorMonacoVersion)/staticwebassets/**/*"
+      />
+    </ItemGroup>
+    <Error
+      Condition="'@(BlazorMonacoPublishedAsset)' == ''"
+      Text="BlazorMonaco $(ConfiglueBlazorMonacoVersion) static web assets were not found. Bump ConfiglueBlazorMonacoVersion together with the BlazorMonaco PackageReference."
+    />
+    <Copy
+      SourceFiles="@(BlazorMonacoPublishedAsset)"
+      DestinationFiles="@(BlazorMonacoPublishedAsset->'$(OutDir)wwwroot/_content/BlazorMonaco/%(RecursiveDir)%(Filename)%(Extension)')"
+      SkipUnchangedFiles="true"
+    />
+  </Target>
 </Project>

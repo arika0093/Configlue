@@ -17,12 +17,15 @@ namespace Configlue.DevTools.Web;
 /// request never reaches the Blazor endpoint.
 /// </para>
 /// <para>
-/// The only carve-out is the shared framework boot assets under
-/// <c>/_framework/</c>, which are identical for every application, carry no
-/// state, and are loaded by the browser as plain script tags (which cannot
-/// attach custom headers). The initial document is still token-gated, and the
-/// in-page bootstrap patches Blazor circuit requests to carry the token, so
-/// the circuit cannot be negotiated without it.
+/// The carve-outs are the shared framework boot assets under
+/// <c>/_framework/</c> and the versioned BlazorMonaco library assets under
+/// <c>/_content/BlazorMonaco/</c>, which are identical for every
+/// application, carry no state, and are loaded by the browser as plain
+/// script tags (which cannot attach custom headers) plus Monaco worker
+/// and chunk loads that cannot carry the session token either. The
+/// initial document is still token-gated, and the in-page bootstrap
+/// patches Blazor circuit requests to carry the token, so the circuit
+/// cannot be negotiated without it.
 /// </para>
 /// <para>
 /// The token lives in page memory only. It is never written to persisted
@@ -60,7 +63,7 @@ internal sealed class ConfiglueDevToolsTokenGateMiddleware
             return WriteForbiddenAsync(context, "loopback only");
         }
 
-        if (IsFrameworkAsset(context.Request.Path))
+        if (IsPublicAsset(context.Request.Path))
         {
             return _next(context);
         }
@@ -113,6 +116,15 @@ internal sealed class ConfiglueDevToolsTokenGateMiddleware
 
     internal static bool IsFrameworkAsset(PathString path) =>
         path.StartsWithSegments("/_framework", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// Whether the path is a stateless public library asset (framework boot
+    /// scripts or versioned BlazorMonaco/Monaco files) that browsers load as
+    /// plain scripts, chunks, or workers without the session token.
+    /// </summary>
+    internal static bool IsPublicAsset(PathString path) =>
+        IsFrameworkAsset(path)
+        || path.StartsWithSegments("/_content/BlazorMonaco", StringComparison.OrdinalIgnoreCase);
 
     internal static string SerializeTokenForPage(string token) =>
         JsonSerializer.Serialize(token, TokenJsonOptions);

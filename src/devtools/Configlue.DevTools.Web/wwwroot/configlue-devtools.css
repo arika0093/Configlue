@@ -1,0 +1,93 @@
+/* Configlue DevTools Monaco overlays (development only).
+ *
+ * Restrained by design: source identity travels mainly via inlay hints and
+ * hover markdown. Line decorations stay subtle; the effective state is never
+ * rainbow-colored. Secret values are only ever marked, never revealed.
+ */
+
+.configlue-devtools {
+  font-family: var(--configlue-font, system-ui, sans-serif);
+}
+
+.configlue-devtools-banner {
+  font-weight: 600;
+  padding: 4px 8px;
+}
+
+/* Effective/current contribution: a quiet left accent, not a full-line wash. */
+.configlue-effective {
+  border-left: 2px solid rgba(88, 166, 255, 0.35);
+}
+
+/* Read-only / non-editable effective value: visibly muted and locked. */
+.configlue-muted,
+.configlue-readonly {
+  opacity: 0.72;
+  background: rgba(128, 128, 128, 0.12);
+}
+
+/* Sensitive member: clearly marked without revealing content. */
+.configlue-secret {
+  background: rgba(187, 128, 9, 0.14);
+  border-bottom: 1px dashed #bb8009;
+}
+
+/* Invalid contribution or failed validation: clearly marked. */
+.configlue-invalid {
+  background: rgba(248, 81, 73, 0.12);
+  border-bottom: 1px solid #f85149;
+}
+
+/* Compact source-identity inlay labels rendered by the bridge provider. */
+.configlue-source-label {
+  color: #8b949e;
+  font-style: italic;
+}
+
+/* Glyph-margin markers (Monaco glyph margin classes). */
+.configlue-glyph-secret::after {
+  content: "S";
+  color: #d29922;
+  font-weight: 700;
+}
+
+.configlue-glyph-readonly::after {
+  content: "R";
+  color: #8b949e;
+  font-weight: 700;
+}
+
+.configlue-glyph-invalid::after {
+  content: "!";
+  color: #f85149;
+  font-weight: 700;
+}
+
+.configlue-viewer-error {
+  color: #f85149;
+}
+
+.configlue-editor-loading {
+  color: #8b949e;
+}
+
+.configlue-editor-toolbar {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  padding: 4px 0;
+}
+
+.configlue-editor-errors {
+  color: #f85149;
+}
+
+.configlue-editor-notice {
+  color: #3fb950;
+}
+
+.configlue-editor-secret {
+  border: 1px solid #d29922;
+  padding: 8px;
+  margin-top: 8px;
+}

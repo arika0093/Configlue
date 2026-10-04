@@ -96,6 +96,23 @@ internal static class ConfiglueDevToolsViewerProjection
     }
 
     /// <summary>
+    /// Builds the explicit Monaco document URI for one bound state instance.
+    /// </summary>
+    /// <remarks>
+    /// Development-only viewer metadata. The document URI identifies the state
+    /// instance (<c>modelId</c> plus <c>stateName</c>) and is distinct from the
+    /// schema URI: the JSON language-service <c>fileMatch</c> targets this
+    /// document URI, and runtime markers target the editor model carrying it.
+    /// An empty state name maps to <c>-</c> so the URI stays well-formed.
+    /// </remarks>
+    public static string BuildDocumentUri(string modelId, string stateName)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(modelId);
+        var name = string.IsNullOrEmpty(stateName) ? "-" : stateName;
+        return $"configlue://states/{Uri.EscapeDataString(modelId)}/{Uri.EscapeDataString(name)}";
+    }
+
+    /// <summary>
     /// Whether two viewer documents carry identical overlay content.
     /// Hover contribution lists are compared element-wise because record
     /// equality does not descend into collection properties.
