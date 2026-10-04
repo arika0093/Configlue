@@ -6,10 +6,13 @@ namespace Configlue.State;
 /// <summary>Routes writes independently from read-source selection using deterministic ownership.</summary>
 public sealed class StateSourceWriter<T> : ISourceWriter<T>
 {
-    private readonly StateSourceSet<T> _sourceSet;
-    private readonly SourceId? _defaultSourceId;
+    private readonly StateSource<T> _writeSource;
 
     /// <summary>Creates a source writer with an optional default write owner.</summary>
+    /// <exception cref="InvalidOperationException">
+    /// The configured default source is not registered, does not support writes, or no single
+    /// writable root source can be inferred.
+    /// </exception>
     public StateSourceWriter(StateSourceSet<T> sourceSet, SourceId? defaultSourceId = null)
     {
         ArgumentNullException.ThrowIfNull(sourceSet);
@@ -21,9 +24,11 @@ public sealed class StateSourceWriter<T> : ISourceWriter<T>
             );
         }
 
-        _sourceSet = sourceSet;
-        _defaultSourceId = defaultSourceId;
+        _writeSource = ResolveSource(sourceSet, defaultSourceId);
     }
+
+    /// <summary>The write source resolved once at construction time.</summary>
+    internal StateSource<T> WriteSource => _writeSource;
 
     /// <inheritdoc />
     public ValueTask<StateWriteResult> WriteAsync(
@@ -34,24 +39,33 @@ public sealed class StateSourceWriter<T> : ISourceWriter<T>
     {
         ArgumentNullException.ThrowIfNull(request);
         context = ConfiglueResourceContext.Normalize(context);
-        var source = ResolveSource();
         var sourceContext = context.IsDefault
             ? context
-            : source.GetResourceContext(context.Subject);
-        return source.WriteAsync(sourceContext, request, cancellationToken);
+            : _writeSource.GetResourceContext(context.Subject);
+        return _writeSource.WriteAsync(sourceContext, request, cancellationToken);
     }
 
-    private StateSource<T> ResolveSource()
+    private static StateSource<T> ResolveSource(
+        StateSourceSet<T> sourceSet,
+        SourceId? defaultSourceId
+    )
     {
-        if (_defaultSourceId is { } defaultSourceId)
+        if (defaultSourceId is { } configuredSourceId)
         {
-            var explicitSource = _sourceSet.Sources.FirstOrDefault(candidate =>
-                candidate.Id == defaultSourceId
-            );
+            StateSource<T>? explicitSource = null;
+            foreach (var candidate in sourceSet.Sources)
+            {
+                if (candidate.Id == configuredSourceId)
+                {
+                    explicitSource = candidate;
+                    break;
+                }
+            }
+
             if (explicitSource is null)
             {
                 throw new InvalidOperationException(
-                    $"State source '{defaultSourceId}' is not registered."
+                    $"State source '{configuredSourceId}' is not registered."
                 );
             }
 
@@ -66,7 +80,7 @@ public sealed class StateSourceWriter<T> : ISourceWriter<T>
         }
 
         StateSource<T>? inferred = null;
-        foreach (var candidate in _sourceSet.Sources)
+        foreach (var candidate in sourceSet.Sources)
         {
             if (
                 candidate.Writer is null

@@ -158,7 +158,13 @@ public sealed partial class StateRuntimeTests
         );
         var primaryRuntime = new CompositeStateRuntime<AppSettings.Fragment>(
             new StateSourceSet<AppSettings.Fragment>([
-                new("database", primary, watcher: primary, physicalOrigin: "primary://settings"),
+                new(
+                    "database",
+                    primary,
+                    writer: new NoOpSourceWriter<AppSettings.Fragment>(),
+                    watcher: primary,
+                    physicalOrigin: "primary://settings"
+                ),
             ])
         );
         var runtime = new CompositeStateRuntime<AppSettings.Fragment>(
@@ -175,6 +181,7 @@ public sealed partial class StateRuntimeTests
                     "local",
                     fallback,
                     priority: 0,
+                    writer: new NoOpSourceWriter<AppSettings.Fragment>(),
                     watcher: fallback,
                     physicalOrigin: "fallback://settings"
                 ),
@@ -805,5 +812,23 @@ public sealed partial class StateRuntimeTests
 
         (rejected).ShouldBeTrue();
         ((await user.ReadAsync()).Status).ShouldBe(StateReadStatus.NotFound);
+    }
+
+    // Keeps read-oriented composite runtimes constructible now that StateSourceWriter
+    // resolves its write target once at construction time. The writer is never invoked
+    // by the nested-identity test; it only satisfies single-writable-root inference.
+    private sealed class NoOpSourceWriter<T> : ISourceWriter<T>
+    {
+        public ValueTask<StateWriteResult> WriteAsync(
+            ConfiglueResourceContext context,
+            StateWriteRequest<T> request,
+            CancellationToken cancellationToken = default
+        )
+        {
+            _ = context;
+            _ = request;
+            _ = cancellationToken;
+            return ValueTaskCompat.FromResult(new StateWriteResult("noop"));
+        }
     }
 }

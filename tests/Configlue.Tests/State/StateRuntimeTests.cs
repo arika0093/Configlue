@@ -398,13 +398,16 @@ public sealed partial class StateRuntimeTests
                 watcher: throwingWatcher
             ),
         ]);
-        var runtime = new CompositeStateRuntime<string>(sources);
-        await runtime.Reader.ReadAsync();
+        // The candidate set is read-only, so only the reader/watcher pair is composed here:
+        // StateSourceWriter construction now rejects sets without a writable root.
+        var reader = new StateSourceResolver<string>(sources);
+        var watcher = new StateSourceWatcher<string>(reader);
+        await reader.ReadAsync();
 
         var threw = false;
         try
         {
-            await runtime.Watcher.WaitForChangeAsync("fallback");
+            await watcher.WaitForChangeAsync("fallback");
         }
         catch (InvalidOperationException)
         {
