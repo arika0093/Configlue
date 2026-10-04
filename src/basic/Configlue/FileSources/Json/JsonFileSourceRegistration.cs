@@ -234,16 +234,6 @@ public static class JsonFileSourceRegistration
                 );
             }
 
-            var file = new FileResource(
-                options.Path,
-                modelSchema.ToMetadata(),
-                options.ResourceOptions,
-                options.FixedResourceId,
-                hostPaths
-            );
-            ownResource(file);
-
-            var readOnly = options.ReadOnly;
             var watchChanges = options.WatchChangesOverride ?? options.WatchChanges;
             var sectionPath = options.SectionPathOverride ?? options.SectionPath;
             var serializerOptions = options.SerializerOptionsOverride ?? options.SerializerOptions;
@@ -253,55 +243,53 @@ public static class JsonFileSourceRegistration
                 options.DocumentLayout,
                 options.SchemaReferenceBaseUri
             );
-            IResourceReader resource = file;
-            IResourceWriter? writer = readOnly ? null : file;
-            ISourceWatcher? resourceWatcher = watchChanges ? file : null;
-            if (options.Transformers is { Count: > 0 })
-            {
-                var transformed = new TransformingResource(file, options.Transformers);
-                resource = transformed;
-                writer = readOnly ? null : transformed.Writer;
-            }
-            var section = sectionPath is null
-                ? JsonSectionResource.CreateRoot(
-                    resource,
-                    writer,
-                    resourceWatcher,
-                    serializerOptions,
-                    options.FixedResourceId,
-                    schemaShape
-                )
-                : new JsonSectionResource(
-                    resource,
-                    writer,
-                    sectionPath,
-                    resourceWatcher,
-                    serializerOptions,
-                    options.FixedResourceId,
-                    schemaShape
-                );
-            resource = section;
-            IResourceWriter? sourceWriter = writer is null ? null : section;
-            var codec = new JsonStateCodec<TFragment>(
-                serializerOptions,
-                ConfiglueJsonFragmentRegistry<TFragment>.Converter,
-                options.DocumentLayout
-            );
-            var serialized = new SerializedSource<TFragment>(
-                resource,
-                codec,
+            // The standard layer owns the file resource; JSON contributes its codec and the
+            // JSON document/section view as part of the standard file experience.
+            return FileSourceComposition.Create<TFragment>(
+                options.Path,
+                modelSchema.ToMetadata(),
+                options.ResourceOptions,
+                options.FixedResourceId,
+                hostPaths,
+                ownResource,
+                options.ReadOnly,
+                watchChanges,
+                options.Transformers,
+                (reader, writer, watcher) =>
+                {
+                    var section = sectionPath is null
+                        ? JsonSectionResource.CreateRoot(
+                            reader,
+                            writer,
+                            watcher,
+                            serializerOptions,
+                            options.FixedResourceId,
+                            schemaShape
+                        )
+                        : new JsonSectionResource(
+                            reader,
+                            writer,
+                            sectionPath,
+                            watcher,
+                            serializerOptions,
+                            options.FixedResourceId,
+                            schemaShape
+                        );
+                    IResourceWriter? sectionWriter = writer is null ? null : section;
+                    return ((IResourceReader)section, sectionWriter);
+                },
+                StateCodecBinding.Typed(
+                    new JsonStateCodec<TFragment>(
+                        serializerOptions,
+                        ConfiglueJsonFragmentRegistry<TFragment>.Converter,
+                        options.DocumentLayout
+                    )
+                ),
                 new StateCodecContext(null, null, options.SchemaReferenceBaseUri),
-                writer: sourceWriter,
-                watcher: resourceWatcher
-            );
-            return ConfiglueSourceCompletion.WithDerivedIdentity(
-                serialized,
                 options.Id,
                 JsonFileSourceSelector.CreateSourceId(options.Path, sectionPath, options.MountPath),
                 options.Priority,
                 options.FallbackCondition,
-                file.Path,
-                options.FixedResourceId,
                 options.ExplicitOnly
             );
         }

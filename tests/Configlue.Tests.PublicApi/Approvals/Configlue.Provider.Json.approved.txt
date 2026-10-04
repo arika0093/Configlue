@@ -1,15 +1,4 @@
 [assembly: System.Reflection.AssemblyMetadata("RepositoryUrl", "https://github.com/arika0093/Configlue")]
-namespace Configlue.Migrations
-{
-    public sealed class FileStateStorageMigrationJournal : Configlue.Migrations.IStateStorageMigrationJournal, Configlue.Migrations.IStateStorageMigrationLeaseProvider
-    {
-        public FileStateStorageMigrationJournal(string directoryPath, Configlue.Resources.FileResourceOptions? resourceOptions = null) { }
-        public string DirectoryPath { get; }
-        public System.Threading.Tasks.ValueTask<System.IAsyncDisposable> AcquireMigrationLeaseAsync(string migrationId, System.Threading.CancellationToken cancellationToken = default) { }
-        public System.Threading.Tasks.ValueTask<Configlue.Migrations.StateStorageMigrationProgress?> ReadAsync(string migrationId, System.Threading.CancellationToken cancellationToken = default) { }
-        public System.Threading.Tasks.ValueTask WriteAsync(Configlue.Migrations.StateStorageMigrationProgress progress, System.Threading.CancellationToken cancellationToken = default) { }
-    }
-}
 namespace Configlue.Provider.Json
 {
     public static class ConfiglueFragmentJson
@@ -36,54 +25,9 @@ namespace Configlue.Provider.Json
     {
         void WriteObjectPayloadProperties(System.Text.Json.Utf8JsonWriter writer, object value, System.Text.Json.JsonSerializerOptions options);
     }
-    public sealed class JsonFileRegistration<TModel>
-        where TModel : Configlue.CompilerServices.IConfiglueFacadeModel<TModel>
-    {
-        public Configlue.Provider.Json.JsonFileRegistration<TModel> ExplicitOnly(bool explicitOnly = true) { }
-        public Configlue.Provider.Json.JsonFileRegistration<TModel> FallbackWhen(Configlue.Sources.StateFallbackCondition condition) { }
-        public Configlue.Provider.Json.JsonFileRegistration<TModel> Mount<TSubtreeModel>(System.Linq.Expressions.Expression<System.Func<TModel, TSubtreeModel?>> subtreeSelector) { }
-        public Configlue.Provider.Json.JsonFileRegistration<TModel> Named(Configlue.SourceKey<TModel> sourceKey) { }
-        public Configlue.Provider.Json.JsonFileRegistration<TModel> Named(string name) { }
-        public Configlue.Provider.Json.JsonFileRegistration<TModel> Priority(int priority) { }
-        public Configlue.Provider.Json.JsonFileRegistration<TModel> ReadOnly(bool readOnly = true) { }
-        public Configlue.Provider.Json.JsonFileRegistration<TModel> Section(string sectionPath) { }
-        public Configlue.Provider.Json.JsonFileRegistration<TModel> SerializerOptions(System.Text.Json.JsonSerializerOptions serializerOptions) { }
-        public Configlue.Provider.Json.JsonFileRegistration<TModel> WatchChanges(bool watchChanges = true) { }
-        public Configlue.Provider.Json.JsonFileRegistration<TModel> Writable() { }
-    }
     public static class JsonFileSource
     {
         public static Configlue.Provider.Json.JsonFileSourceSelector At(string path, string? sectionPath = null, string? mountPath = null) { }
-    }
-    public sealed class JsonFileSourceOptions
-    {
-        public JsonFileSourceOptions() { }
-        public Configlue.Codecs.DocumentLayoutOptions? DocumentLayout { get; init; }
-        public bool ExplicitOnly { get; init; }
-        public Configlue.Sources.StateFallbackCondition FallbackCondition { get; init; }
-        public Configlue.Resources.ResourceId? FixedResourceId { get; init; }
-        public string? Id { get; init; }
-        public required string Path { get; init; }
-        public int Priority { get; init; }
-        public bool ReadOnly { get; init; }
-        public Configlue.Resources.FileResourceOptions? ResourceOptions { get; init; }
-        public string? SchemaReferenceBaseUri { get; init; }
-        public string? SectionPath { get; init; }
-        public System.Text.Json.JsonSerializerOptions? SerializerOptions { get; init; }
-        public System.Collections.Generic.IReadOnlyList<Configlue.Transformers.IStateByteTransformer>? Transformers { get; init; }
-        public bool WatchChanges { get; init; }
-    }
-    public static class JsonFileSourceRegistration
-    {
-        public static Configlue.Extensibility.ConfiglueSourceRegistration FromJsonFile(this Configlue.ConfiglueSourceSetBuilder sources, Configlue.Provider.Json.JsonFileSourceOptions options) { }
-        public static Configlue.Provider.Json.JsonFileRegistration<TModel> JsonFile<TModel>(this Configlue.ConfiglueSourceSetBuilder<TModel> sources, string path)
-            where TModel : Configlue.CompilerServices.IConfiglueFacadeModel<TModel> { }
-        public static void UseDefaultJsonFile<TModel>(this Configlue.ConfiglueModelBuilder<TModel> model)
-            where TModel : Configlue.CompilerServices.IConfiglueFacadeModel<TModel> { }
-        public static void UseJsonFile<TModel>(this Configlue.ConfiglueModelBuilder<TModel> model, Configlue.Provider.Json.JsonFileSourceOptions options)
-            where TModel : Configlue.CompilerServices.IConfiglueFacadeModel<TModel> { }
-        public static void UseJsonFile<TModel>(this Configlue.ConfiglueModelBuilder<TModel> model, string path)
-            where TModel : Configlue.CompilerServices.IConfiglueFacadeModel<TModel> { }
     }
     public sealed class JsonFileSourceSelector : System.IEquatable<Configlue.Provider.Json.JsonFileSourceSelector> { }
     public static class JsonFileSourceSelectorExtensions
@@ -171,10 +115,5 @@ namespace Configlue.Provider.Json
             "tor sets _typeInfo and never enters the reflection fallback.")]
         public void Serialize(T? value, System.Buffers.IBufferWriter<byte> destination) { }
         public static Configlue.Provider.Json.JsonStateValueSerializer<T> FromConverter(System.Text.Json.Serialization.JsonConverter<T> converter) { }
-    }
-    public static class SingleFileJsonExtensions
-    {
-        public static void UseLocalJson<TModel>(this Configlue.ConfiglueModelBuilder<TModel> model, string path, System.Text.Json.JsonSerializerOptions? serializerOptions = null)
-            where TModel : Configlue.CompilerServices.IConfiglueFacadeModel<TModel> { }
     }
 }

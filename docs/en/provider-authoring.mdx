@@ -50,6 +50,54 @@ construct separate serialized reader/writer objects for the same backing store.
 Provider options expose `StateCodecBinding` so applications keep passing codecs
 without touching composition types.
 
+## Codecs, resources, and file composition
+
+Codecs and resources are independent axes:
+
+- A **codec** (`IStateCodec<T>`) describes representation: how state values map
+  to bytes. Format packages ship codecs plus format-specific document helpers
+  (for example `JsonSectionResource` or `YamlSectionResource`).
+- A **resource** (`IResourceReader`, plus `IResourceWriter` when writable and
+  `ISourceWatcher` when observable) describes storage: where bytes live. File
+  storage (`FileResource`) is a standard Configlue implementation owned by the
+  `Configlue` layer; format packages never construct it.
+
+An upper composition layer combines the two axes for file-backed sources.
+`FileSourceComposition.Create` (in `Configlue.Extensibility`, part of the
+standard layer) builds the helper-owned `FileResource`, applies byte
+transformers, wraps the file view in your section adapter, composes the result
+with your codec into a `SerializedSource<T>`, and completes source identity
+and routing:
+
+```csharp
+return FileSourceComposition.Create<TFragment>(
+    options.Path,
+    modelSchema.ToMetadata(),
+    options.ResourceOptions,
+    options.FixedResourceId,
+    hostPaths,
+    ownResource,
+    options.ReadOnly,
+    options.WatchChanges,
+    options.Transformers,
+    (reader, writer, watcher) => /* wrap reader/writer in a section view */,
+    StateCodecBinding.Dynamic(new MyFormatStateCodec(...)),
+    new StateCodecContext(null, null, options.SchemaReferenceBaseUri),
+    options.Id,
+    MyFileSourceSelector.CreateSourceId(options.Path, options.SectionPath),
+    options.Priority,
+    options.FallbackCondition,
+    options.ExplicitOnly);
+```
+
+The file-source helpers (`FromJsonFile`, `FromYamlFile`, `FromXmlFile`,
+`FromMessagePackFile`) are thin adapters over this path: they validate their
+own options, build their codec and section adapter, and delegate instead of
+constructing a `FileResource` themselves. JSON file registration lives in the
+standard layer as part of the standard file experience. Keep
+`SerializedSource<T>` as the canonical low-level `Resource + Codec` entry
+point for providers whose storage is not a file.
+
 ## Registration
 
 Register the definition; the runtime materializes it per model:

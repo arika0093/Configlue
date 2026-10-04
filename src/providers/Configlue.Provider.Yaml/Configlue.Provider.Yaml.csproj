@@ -15,6 +15,7 @@
   <ItemGroup>
     <ProjectReference Include="../../basic/Configlue.Abstraction/Configlue.Abstraction.csproj" />
     <ProjectReference Include="../../basic/Configlue.Core/Configlue.Core.csproj" />
+    <ProjectReference Include="../../basic/Configlue/Configlue.csproj" />
     <PackageReference Include="SharpYaml" Version="3.13.1" />
   </ItemGroup>
 </Project>

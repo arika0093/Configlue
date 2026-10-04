@@ -115,74 +115,60 @@ public static class YamlFileSourceRegistration
                 );
             }
 
-            var file = new FileResource(
-                options.Path,
-                modelSchema.ToMetadata(),
-                options.ResourceOptions,
-                options.FixedResourceId,
-                hostPaths
-            );
-            ownResource(file);
-
-            IResourceReader resource = file;
-            IResourceWriter? writer = options.ReadOnly ? null : file;
-            if (options.Transformers is { Count: > 0 })
-            {
-                var transformed = new TransformingResource(file, options.Transformers);
-                resource = transformed;
-                writer = options.ReadOnly ? null : transformed.Writer;
-            }
             var schemaShape = YamlSchemaShape.Create(
                 modelSchema,
                 options.PropertyNamingPolicy,
                 options.SerializerOptions,
                 options.DocumentLayout
             );
-            ISourceWatcher? resourceWatcher = options.WatchChanges ? file : null;
-            var section = options.SectionPath is null
-                ? YamlSectionResource.CreateRoot(
-                    resource,
-                    writer,
-                    resourceWatcher,
-                    options.FixedResourceId,
-                    null,
-                    schemaShape
-                )
-                : new YamlSectionResource(
-                    resource,
-                    writer,
-                    options.SectionPath,
-                    resourceWatcher,
-                    options.FixedResourceId,
-                    null,
-                    schemaShape
-                );
-            resource = section;
-            IResourceWriter? sourceWriter = writer is null ? null : section;
-            var codec = StateCodecBinding.Dynamic(
-                new YamlStateCodec(
-                    options.PropertyNamingPolicy,
-                    modelSchema,
-                    options.SerializerOptions,
-                    options.DocumentLayout
-                )
-            );
-            var serialized = new SerializedSource<TFragment>(
-                resource,
-                codec,
+            // The standard layer owns the file resource; this adapter contributes only the
+            // YAML codec and the YAML document/section view.
+            return FileSourceComposition.Create<TFragment>(
+                options.Path,
+                modelSchema.ToMetadata(),
+                options.ResourceOptions,
+                options.FixedResourceId,
+                hostPaths,
+                ownResource,
+                options.ReadOnly,
+                options.WatchChanges,
+                options.Transformers,
+                (reader, writer, watcher) =>
+                {
+                    var section = options.SectionPath is null
+                        ? YamlSectionResource.CreateRoot(
+                            reader,
+                            writer,
+                            watcher,
+                            options.FixedResourceId,
+                            null,
+                            schemaShape
+                        )
+                        : new YamlSectionResource(
+                            reader,
+                            writer,
+                            options.SectionPath,
+                            watcher,
+                            options.FixedResourceId,
+                            null,
+                            schemaShape
+                        );
+                    IResourceWriter? sectionWriter = writer is null ? null : section;
+                    return (section, sectionWriter);
+                },
+                StateCodecBinding.Dynamic(
+                    new YamlStateCodec(
+                        options.PropertyNamingPolicy,
+                        modelSchema,
+                        options.SerializerOptions,
+                        options.DocumentLayout
+                    )
+                ),
                 new StateCodecContext(null, null, options.SchemaReferenceBaseUri),
-                writer: sourceWriter,
-                watcher: resourceWatcher
-            );
-            var fixedResourceId = options.FixedResourceId;
-            return ConfiglueSourceCompletion.WithDerivedIdentity(
-                serialized,
                 options.Id,
-                YamlFileSourceSelector.CreateSourceId(file.Path, options.SectionPath),
+                YamlFileSourceSelector.CreateSourceId(options.Path, options.SectionPath),
                 options.Priority,
                 options.FallbackCondition,
-                file.Path,
-                fixedResourceId,
                 options.ExplicitOnly
             );
         }

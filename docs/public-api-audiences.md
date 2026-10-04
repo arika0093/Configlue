@@ -96,7 +96,7 @@ with buffering/lifetime requirements, and unnecessary for the canonical
 | --- | --- | --- |
 | `ConfiglueApp`, `ConfiglueBuilder`, `ConfiglueContext`, `ConfiglueModelBuilder<TModel>`, `ConfiglueValidationException` | application | C |
 | `ConfiglueNamedState<TModel>`, `ConfiglueRuntimeDiagnosticOptions`, `ConfiglueTelemetry`, `ConfiglueSourceRegistrationContext<TModel>`, `ConfiglueSourceSetBuilder`, `ConfiglueSourceSetBuilder<TModel>`, `StateSourceSetBuilder<T>`, `StateSourceBuilder<T>`, `StateStorageMigrationExtensions` | advanced-application / provider | C |
-| `ConfiglueHostPathProfile`, `ConfiglueStandardPaths`, `FileResource`, `FileResourceOptions`, `FileBackupDirectoryMode`, `FileChangeDetectionMode`, `CommonFileSourceSettings` | provider (advanced resource) | C |
+| `ConfiglueHostPathProfile`, `ConfiglueStandardPaths`, `FileResourceOptions`, `FileBackupDirectoryMode`, `FileChangeDetectionMode`, `CommonFileSourceSettings` | provider (advanced resource) | C |
 | `PipelineResourceReadResult`, `PipelineResourceReader` | provider (advanced perf) | C |
 | `CompositeStateSource<TFragment>` | provider (advanced composition) | C |
 | `ConfiglueStorageMigrationBuilder<TModel>` | advanced-application (migration-only definitions) | C |
@@ -109,6 +109,19 @@ with buffering/lifetime requirements, and unnecessary for the canonical
 | `SerializedSource<T>` | provider (canonical Resource+Codec entry) | C |
 | `TransformingResource` | provider (composition helper) | C |
 | `IConfiglueSourceRegistrationSink`, `ConfiglueSourceRegistration`, `ConfiglueSourceSetBuilderMountExtensions` | provider (registration port) | I/C |
+
+## Standard file composition (lives in `Configlue`)
+
+Codecs describe representation and resources describe storage; the standard
+layer owns the upper composition of the two for files, so format packages
+never construct `FileResource` themselves.
+
+| Type | Audience | I/C/O |
+| --- | --- | --- |
+| `FileResource` | provider (advanced resource) | C |
+| `FileSourceComposition` | provider (standard file composition entry) | C |
+| `JsonFileSourceOptions`, `JsonFileSourceRegistration`, `JsonFileRegistration<TModel>`, `SingleFileJsonExtensions`, `CommonJsonFileSourceExtensions` | application (standard JSON file experience) | C |
+| `FileStateStorageMigrationJournal` | advanced-application (migration stores) | C |
 
 ## `Configlue.CompilerServices` (both assemblies)
 Generated ABI. CLR-public because generated code lives in consumer assemblies;
@@ -144,6 +157,24 @@ approvals pin the small surface (`Configlue.DevTools.approved.txt`,
 namespace is introduced, so `ApiAudienceOwnershipTests` stays green; the
 official `BlazorMonaco` NuGet package is referenced only by the
 development-only `Configlue.DevTools.Web` package.
+
+## What changed for `#260`
+
+- File-source composition moved out of format providers: `FileResource`
+  construction plus codec/section composition is owned by the standard
+  `Configlue` layer (`FileSourceComposition.Create`), while
+  `Configlue.Provider.Json/Yaml/Xml/MessagePack` keep codecs and format
+  document/section semantics only.
+- `FromYamlFile` / `FromXmlFile` / `FromMessagePackFile` (and
+  `FromGeneratedMessagePackFile`) are thin adapters delegating to the standard
+  composition; JSON file registration lives in the standard layer as part of
+  the standard file experience.
+- `SerializedSource<T>` stays the canonical low-level `Resource + Codec` path;
+  `Configlue.Core` no longer carries concrete file storage for providers.
+- Public API approvals pin the new ownership (`Configlue.Core`,
+  `Configlue.Provider.Json`, `Configlue.Standard`), and
+  `FileSourceOwnershipTests` forbids provider assemblies from referencing
+  `FileResource` while pinning the project-reference graph.
 
 ## What changed for `#228`
 

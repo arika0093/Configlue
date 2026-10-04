@@ -86,53 +86,41 @@ public static class XmlFileSourceRegistration
         )
             where TFragment : class, IConfiglueFragment<TFragment>
         {
-            var file = new FileResource(
+            // The standard layer owns the file resource; this adapter contributes only the
+            // XML codec and the XML element/section view.
+            return FileSourceComposition.Create<TFragment>(
                 options.Path,
                 modelSchema.ToMetadata(),
                 options.ResourceOptions,
                 options.FixedResourceId,
-                hostPaths
-            );
-            ownResource(file);
+                hostPaths,
+                ownResource,
+                options.ReadOnly,
+                options.WatchChanges,
+                options.Transformers,
+                (reader, writer, watcher) =>
+                {
+                    if (options.SectionPath is { } sectionPath)
+                    {
+                        var section = new XmlSectionResource(
+                            reader,
+                            writer,
+                            sectionPath,
+                            watcher,
+                            options.FixedResourceId
+                        );
+                        IResourceWriter? sectionWriter = writer is null ? null : section;
+                        return ((IResourceReader)section, sectionWriter);
+                    }
 
-            IResourceReader resource = file;
-            IResourceWriter? writer = options.ReadOnly ? null : file;
-            if (options.Transformers is { Count: > 0 })
-            {
-                var transformed = new TransformingResource(file, options.Transformers);
-                resource = transformed;
-                writer = options.ReadOnly ? null : transformed.Writer;
-            }
-            IResourceWriter? sourceWriter = writer;
-            if (options.SectionPath is { } sectionPath)
-            {
-                var section = new XmlSectionResource(
-                    resource,
-                    writer,
-                    sectionPath,
-                    options.WatchChanges ? file : null,
-                    options.FixedResourceId
-                );
-                resource = section;
-                sourceWriter = writer is null ? null : section;
-            }
-            ISourceWatcher? watcher = options.WatchChanges ? file : null;
-            var codec = StateCodecBinding.Dynamic(new XmlStateCodec());
-            var serialized = new SerializedSource<TFragment>(
-                resource,
-                codec,
-                writer: sourceWriter,
-                watcher: watcher
-            );
-            var fixedResourceId = options.FixedResourceId;
-            return ConfiglueSourceCompletion.WithDerivedIdentity(
-                serialized,
+                    return (reader, writer);
+                },
+                StateCodecBinding.Dynamic(new XmlStateCodec()),
+                default,
                 options.Id,
-                XmlFileSourceSelector.CreateSourceId(file.Path, options.SectionPath),
+                XmlFileSourceSelector.CreateSourceId(options.Path, options.SectionPath),
                 options.Priority,
                 options.FallbackCondition,
-                file.Path,
-                fixedResourceId,
                 options.ExplicitOnly
             );
         }

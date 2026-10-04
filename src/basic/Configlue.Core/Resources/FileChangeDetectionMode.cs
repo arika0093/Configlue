@@ -1,6 +1,6 @@
 namespace Configlue.Resources;
 
-/// <summary>Available change detection strategies for <see cref="FileResource"/>.</summary>
+/// <summary>Available change detection strategies for file-backed resources.</summary>
 /// <remarks>Advanced resource option.</remarks>
 [System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Advanced)]
 public enum FileChangeDetectionMode

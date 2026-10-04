@@ -8,6 +8,7 @@
   </PropertyGroup>
   <ItemGroup>
     <InternalsVisibleTo Include="Configlue.Tests" />
+    <InternalsVisibleTo Include="Configlue" />
   </ItemGroup>
   <ItemGroup>
     <Compile Include="../Shared/DocumentSemanticEditPlan.cs" Link="DocumentSemanticEditPlan.cs" />

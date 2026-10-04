@@ -1,0 +1,123 @@
+[assembly: System.Reflection.AssemblyMetadata("RepositoryUrl", "https://github.com/arika0093/Configlue")]
+namespace Configlue.Extensibility
+{
+    public static class FileSourceComposition
+    {
+        public static Configlue.Sources.StateSource<TFragment> Create<TFragment>(
+                    string path,
+                    Configlue.State.StateSchemaMetadata? backupSchema,
+                    Configlue.Resources.FileResourceOptions? resourceOptions,
+                    Configlue.Resources.ResourceId? fixedResourceId,
+                    Configlue.Resources.IConfiglueHostPaths hostPaths,
+                    System.Action<object> ownResource,
+                    bool readOnly,
+                    bool watchChanges,
+                    System.Collections.Generic.IReadOnlyList<Configlue.Transformers.IStateByteTransformer>? transformers,
+                    [System.Runtime.CompilerServices.TupleElementNames(new string[] {
+                            "Resource",
+                            "Writer"})] System.Func<Configlue.Resources.IResourceReader, Configlue.Resources.IResourceWriter?, Configlue.Sources.ISourceWatcher?, System.ValueTuple<Configlue.Resources.IResourceReader, Configlue.Resources.IResourceWriter?>> sectionAdapter,
+                    Configlue.Codecs.StateCodecBinding codec,
+                    Configlue.Codecs.StateCodecContext codecContext,
+                    string? id,
+                    string derivedId,
+                    int priority,
+                    Configlue.Sources.StateFallbackCondition fallbackCondition,
+                    bool explicitOnly)
+            where TFragment :  class, Configlue.IConfiglueFragment<TFragment> { }
+    }
+}
+namespace Configlue.Migrations
+{
+    public sealed class FileStateStorageMigrationJournal : Configlue.Migrations.IStateStorageMigrationJournal, Configlue.Migrations.IStateStorageMigrationLeaseProvider
+    {
+        public FileStateStorageMigrationJournal(string directoryPath, Configlue.Resources.FileResourceOptions? resourceOptions = null) { }
+        public string DirectoryPath { get; }
+        public System.Threading.Tasks.ValueTask<System.IAsyncDisposable> AcquireMigrationLeaseAsync(string migrationId, System.Threading.CancellationToken cancellationToken = default) { }
+        public System.Threading.Tasks.ValueTask<Configlue.Migrations.StateStorageMigrationProgress?> ReadAsync(string migrationId, System.Threading.CancellationToken cancellationToken = default) { }
+        public System.Threading.Tasks.ValueTask WriteAsync(Configlue.Migrations.StateStorageMigrationProgress progress, System.Threading.CancellationToken cancellationToken = default) { }
+    }
+}
+namespace Configlue.Provider.Json
+{
+    public static class CommonJsonFileSourceExtensions
+    {
+        public static Configlue.Source.Presets.CommonFileSourceBuilder Json(this Configlue.Source.Presets.CommonFileSourceBuilder source, System.Text.Json.JsonSerializerOptions? options = null) { }
+        public static Configlue.Source.Presets.CommonFileSourceBuilder Json(this Configlue.Source.Presets.CommonFileSourceBuilder source, System.Text.Json.Serialization.JsonSerializerContext context) { }
+        public static Configlue.Source.Presets.CommonFileSourceBuilder SerializerOptions(this Configlue.Source.Presets.CommonFileSourceBuilder source, System.Text.Json.JsonSerializerOptions options) { }
+    }
+    public sealed class JsonFileRegistration<TModel>
+        where TModel : Configlue.CompilerServices.IConfiglueFacadeModel<TModel>
+    {
+        public Configlue.Provider.Json.JsonFileRegistration<TModel> ExplicitOnly(bool explicitOnly = true) { }
+        public Configlue.Provider.Json.JsonFileRegistration<TModel> FallbackWhen(Configlue.Sources.StateFallbackCondition condition) { }
+        public Configlue.Provider.Json.JsonFileRegistration<TModel> Mount<TSubtreeModel>(System.Linq.Expressions.Expression<System.Func<TModel, TSubtreeModel?>> subtreeSelector) { }
+        public Configlue.Provider.Json.JsonFileRegistration<TModel> Named(Configlue.SourceKey<TModel> sourceKey) { }
+        public Configlue.Provider.Json.JsonFileRegistration<TModel> Named(string name) { }
+        public Configlue.Provider.Json.JsonFileRegistration<TModel> Priority(int priority) { }
+        public Configlue.Provider.Json.JsonFileRegistration<TModel> ReadOnly(bool readOnly = true) { }
+        public Configlue.Provider.Json.JsonFileRegistration<TModel> Section(string sectionPath) { }
+        public Configlue.Provider.Json.JsonFileRegistration<TModel> SerializerOptions(System.Text.Json.JsonSerializerOptions serializerOptions) { }
+        public Configlue.Provider.Json.JsonFileRegistration<TModel> WatchChanges(bool watchChanges = true) { }
+        public Configlue.Provider.Json.JsonFileRegistration<TModel> Writable() { }
+    }
+    public sealed class JsonFileSourceOptions
+    {
+        public JsonFileSourceOptions() { }
+        public Configlue.Codecs.DocumentLayoutOptions? DocumentLayout { get; init; }
+        public bool ExplicitOnly { get; init; }
+        public Configlue.Sources.StateFallbackCondition FallbackCondition { get; init; }
+        public Configlue.Resources.ResourceId? FixedResourceId { get; init; }
+        public string? Id { get; init; }
+        public required string Path { get; init; }
+        public int Priority { get; init; }
+        public bool ReadOnly { get; init; }
+        public Configlue.Resources.FileResourceOptions? ResourceOptions { get; init; }
+        public string? SchemaReferenceBaseUri { get; init; }
+        public string? SectionPath { get; init; }
+        public System.Text.Json.JsonSerializerOptions? SerializerOptions { get; init; }
+        public System.Collections.Generic.IReadOnlyList<Configlue.Transformers.IStateByteTransformer>? Transformers { get; init; }
+        public bool WatchChanges { get; init; }
+    }
+    public static class JsonFileSourceRegistration
+    {
+        public static Configlue.Extensibility.ConfiglueSourceRegistration FromJsonFile(this Configlue.ConfiglueSourceSetBuilder sources, Configlue.Provider.Json.JsonFileSourceOptions options) { }
+        public static Configlue.Provider.Json.JsonFileRegistration<TModel> JsonFile<TModel>(this Configlue.ConfiglueSourceSetBuilder<TModel> sources, string path)
+            where TModel : Configlue.CompilerServices.IConfiglueFacadeModel<TModel> { }
+        public static void UseDefaultJsonFile<TModel>(this Configlue.ConfiglueModelBuilder<TModel> model)
+            where TModel : Configlue.CompilerServices.IConfiglueFacadeModel<TModel> { }
+        public static void UseJsonFile<TModel>(this Configlue.ConfiglueModelBuilder<TModel> model, Configlue.Provider.Json.JsonFileSourceOptions options)
+            where TModel : Configlue.CompilerServices.IConfiglueFacadeModel<TModel> { }
+        public static void UseJsonFile<TModel>(this Configlue.ConfiglueModelBuilder<TModel> model, string path)
+            where TModel : Configlue.CompilerServices.IConfiglueFacadeModel<TModel> { }
+    }
+    public static class SingleFileJsonExtensions
+    {
+        public static void UseLocalJson<TModel>(this Configlue.ConfiglueModelBuilder<TModel> model, string path, System.Text.Json.JsonSerializerOptions? serializerOptions = null)
+            where TModel : Configlue.CompilerServices.IConfiglueFacadeModel<TModel> { }
+    }
+}
+namespace Configlue.Resources
+{
+    public sealed class FileResource : Configlue.Resources.IResourceBackupRecovery, Configlue.Resources.IResourceBatchCompatibility, Configlue.Resources.IResourceBatchWriter, Configlue.Resources.IResourceIdentity, Configlue.Resources.IResourceReader, Configlue.Resources.IResourceWriter, Configlue.Sources.ISourceWatcher, Configlue.State.IPipelineResourceReader, System.IDisposable
+    {
+        public FileResource(string path, Configlue.Resources.FileResourceOptions? options = null, Configlue.Resources.ResourceId? fixedResourceId = default) { }
+        public FileResource(string path, Configlue.Resources.FileResourceOptions? options, Configlue.Resources.ResourceId? fixedResourceId, Configlue.Resources.IConfiglueHostPaths hostPaths) { }
+        public FileResource(string path, Configlue.State.StateSchemaMetadata backupSchema, Configlue.Resources.FileResourceOptions? options = null, Configlue.Resources.ResourceId? fixedResourceId = default) { }
+        public FileResource(string path, Configlue.State.StateSchemaMetadata backupSchema, Configlue.Resources.FileResourceOptions? options, Configlue.Resources.ResourceId? fixedResourceId, Configlue.Resources.IConfiglueHostPaths hostPaths) { }
+        public bool AutomaticBackupRecoveryEnabled { get; }
+        public bool IsPipelineReadPreferred { get; }
+        public string Path { get; }
+        public Configlue.Resources.ResourceId ResourceId { get; }
+        public System.Threading.Tasks.ValueTask<System.IDisposable> AcquireExclusiveLockAsync(System.Threading.CancellationToken cancellationToken) { }
+        public void Dispose() { }
+        public object? GetBatchCompatibilityToken(Configlue.Resources.ConfiglueResourceContext context) { }
+        public Configlue.Resources.ResourceId GetResourceId(Configlue.Resources.ConfiglueResourceContext context) { }
+        public System.Threading.Tasks.ValueTask<Configlue.Resources.ResourceReadResult> ReadAsync(Configlue.Resources.ConfiglueResourceContext context, System.Threading.CancellationToken cancellationToken = default) { }
+        public System.Threading.Tasks.ValueTask<Configlue.Resources.PipelineResourceReadResult> ReadPipelineAsync(Configlue.Resources.ConfiglueResourceContext context, System.Threading.CancellationToken cancellationToken = default) { }
+        public System.Threading.Tasks.ValueTask<Configlue.State.StateWriteResult> RestoreLatestBackupAsync(System.Threading.CancellationToken cancellationToken = default) { }
+        public System.Threading.Tasks.ValueTask<Configlue.Resources.ResourceReadResult?> TryRecoverLatestBackupAsync(string? expectedRevision, bool expectedMissing, System.Func<Configlue.Resources.ResourceReadResult, System.Threading.CancellationToken, System.Threading.Tasks.ValueTask<bool>> validate, System.Threading.CancellationToken cancellationToken = default) { }
+        public System.Threading.Tasks.ValueTask WaitForChangeAsync(Configlue.Resources.ConfiglueResourceContext context, string? observedRevision, System.Threading.CancellationToken cancellationToken = default) { }
+        public System.Threading.Tasks.ValueTask<Configlue.State.StateWriteResult> WriteAsync(Configlue.Resources.ConfiglueResourceContext context, Configlue.Resources.ResourceWriteRequest request, System.Threading.CancellationToken cancellationToken = default) { }
+        public System.Threading.Tasks.ValueTask<Configlue.State.StateWriteResult> WriteBatchAsync(System.Collections.Generic.IReadOnlyList<Configlue.Resources.ResourceWriteMutation> mutations, System.Threading.CancellationToken cancellationToken = default) { }
+    }
+}

@@ -283,6 +283,14 @@ public sealed class PublicApiCheckTest
         );
 
     [Test]
+    public void StandardFileLayer() =>
+        PublicApiCheck.CheckAssembly(
+            typeof(CommonSourceBuilder).Assembly,
+            "Configlue.Standard",
+            static type => type.Namespace != "Configlue.Source.Presets"
+        );
+
+    [Test]
     public void CommonXmlSources() =>
         PublicApiCheck.CheckAssembly(
             typeof(CommonXmlFileSourceExtensions).Assembly,

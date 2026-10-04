@@ -10,6 +10,7 @@
   <ItemGroup>
     <ProjectReference Include="../../basic/Configlue.Abstraction/Configlue.Abstraction.csproj" />
     <ProjectReference Include="../../basic/Configlue.Core/Configlue.Core.csproj" />
+    <ProjectReference Include="../../basic/Configlue/Configlue.csproj" />
     <PackageReference Include="MessagePack" Version="3.1.11" />
   </ItemGroup>
 </Project>

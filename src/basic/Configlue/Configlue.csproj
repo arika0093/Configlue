@@ -20,6 +20,14 @@
     />
   </ItemGroup>
   <ItemGroup>
+    <PackageReference Include="System.IO.Hashing" Version="10.0.0" />
+    <PackageReference
+      Include="System.Text.Json"
+      Version="10.0.0"
+      Condition="'$(ConfiglueNetStandard)' == 'true'"
+    />
+  </ItemGroup>
+  <ItemGroup>
     <None
       Include="../../tools/Configlue.Generator/bin/$(Configuration)/netstandard2.0/Configlue.Generator.dll"
       Pack="true"

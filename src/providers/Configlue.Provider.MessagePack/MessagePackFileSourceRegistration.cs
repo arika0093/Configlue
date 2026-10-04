@@ -204,39 +204,25 @@ public static class MessagePackFileSourceRegistration
     )
         where TFragment : class, IConfiglueFragment<TFragment>
     {
-        var file = new FileResource(
+        // The standard layer owns the file resource; this adapter contributes only the
+        // MessagePack codec. MessagePack documents have no section views.
+        return FileSourceComposition.Create<TFragment>(
             options.Path,
             modelSchema.ToMetadata(),
             options.ResourceOptions,
             options.FixedResourceId,
-            hostPaths
-        );
-        ownResource(file);
-
-        IResourceReader resource = file;
-        IResourceWriter? writer = options.ReadOnly ? null : file;
-        if (options.Transformers is { Count: > 0 })
-        {
-            var transformed = new TransformingResource(file, options.Transformers);
-            resource = transformed;
-            writer = options.ReadOnly ? null : transformed.Writer;
-        }
-
-        var serialized = new SerializedSource<TFragment>(
-            resource,
-            codec,
-            writer: writer,
-            watcher: options.WatchChanges ? file : null
-        );
-        var fixedResourceId = options.FixedResourceId;
-        return ConfiglueSourceCompletion.WithDerivedIdentity(
-            serialized,
+            hostPaths,
+            ownResource,
+            options.ReadOnly,
+            options.WatchChanges,
+            options.Transformers,
+            static (reader, writer, _) => (reader, writer),
+            StateCodecBinding.Typed(codec),
+            default,
             options.Id,
             CreateSourceId(options.Path),
             options.Priority,
             options.FallbackCondition,
-            file.Path,
-            fixedResourceId,
             options.ExplicitOnly
         );
     }
