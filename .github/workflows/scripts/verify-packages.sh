@@ -2,11 +2,30 @@
 # Verifies packed NuGet package integrity: expected package IDs, target
 # assets, and analyzer/build assets that packing can silently omit.
 #
-# Dependency composition is exercised by positive consumer tests in
-# test-package-consumers.yaml (restore/build/run of representative packed
-# packages), not by denylists here. This script keeps a single negative
-# graph assertion with material deployment consequence (Hosting must not
-# pull DevTools into production graphs, #264).
+# Consumer coverage in test-package-consumers.yaml is intentionally narrow:
+# package-basic exercises only the Configlue facade (net8.0/net10.0
+# restore/build/run), package-sparse exercises only SparseFragments (plus a
+# netstandard2.0/net48 build), and the native-aot jobs exercise only Configlue
+# plus the MessagePack provider. These positive runs prove that required facade
+# dependencies resolve, but they cannot detect extra opt-in dependencies, a
+# netstandard2.0-only compat package leaking into the netstandard2.1 group,
+# SparseFragments independence beyond its own restore, or DevTools/Blazor
+# graphs that no consumer references.
+#
+# Per #274 (positive-consumer-first, minimal negatives), detailed composition
+# drift outside the checks below is intentionally ungated and accepted as
+# residual risk:
+# - #261 (Configlue facade standard boundary): a missing required facade
+#   dependency fails the package-basic consumer build, but an extra opt-in
+#   dependency (DI/HTTP/CommandLine/YAML/XML/MessagePack/transformers) does
+#   not fail and is not gated here. A lightweight transitive-closure smoke
+#   assertion lives in test-package-consumers.yaml, not in this script.
+# - #264 (Hosting/DevTools boundary): only leaks with material deployment
+#   consequence stay gated here. Hosting.* must not depend on
+#   Configlue.DevTools* (dev tooling in production graphs), and only
+#   Configlue.DevTools.Web may depend on BlazorMonaco. The BlazorMonaco check
+#   stays because no consumer references DevTools.Web, so this nuspec check is
+#   the only cheap containment gate.
 #
 # Usage: verify-packages.sh <package-directory>
 set -euo pipefail
@@ -156,11 +175,11 @@ for package_file in "${package_files[@]}"; do
         require_entry 'analyzers/dotnet/cs/Configlue.Generator.dll'
     fi
 
-    # #264 package boundary (sole negative graph assertion): ordinary Hosting
-    # packages must not pull DevTools into production graphs. Development-only
-    # tooling leaking into a production package has material deployment
-    # consequence and is not caught cheaply elsewhere. All other composition
-    # is covered by packed consumer tests in test-package-consumers.yaml.
+    # #264 package boundaries (negative graph assertions with material
+    # deployment consequence): ordinary Hosting packages must not pull
+    # DevTools into production graphs, and Blazor/Monaco assets must stay
+    # contained in Configlue.DevTools.Web (no consumer references DevTools.Web,
+    # so this nuspec check is the only cheap gate).
     case "${package_id}" in
         Configlue.Hosting.*)
             if grep -Eq '<dependency[^>]*id="Configlue\.DevTools' <<<"${nuspec}"; then
@@ -169,6 +188,12 @@ for package_file in "${package_files[@]}"; do
             fi
             ;;
     esac
+    if [[ "${package_id}" != "Configlue.DevTools.Web" ]]; then
+        if grep -Eq '<dependency[^>]*id="BlazorMonaco"' <<<"${nuspec}"; then
+            echo "Package '${package_id}' must not depend on BlazorMonaco (#264)." >&2
+            exit 1
+        fi
+    fi
 done
 
 missing_package_ids=()

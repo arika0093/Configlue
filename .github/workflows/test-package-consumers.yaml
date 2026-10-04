@@ -115,6 +115,53 @@ jobs:
               -p:RestoreAdditionalProjectSources="$CONFIGLUE_PACKAGE_FEED"
           done
 
+      - name: Assert facade transitive closure smoke (#261)
+        run: |
+          set -euo pipefail
+          # Lightweight #261 smoke on the already-restored packed graph with no
+          # new fixture/csproj. `dotnet list package --include-transitive` does
+          # not forward -p:ConfigluePackageVersion, so it would re-evaluate the
+          # wrong (ProjectReference) graph; obj/project.assets.json is the
+          # restored ground truth instead. Quoted "id/" matching keeps
+          # Microsoft.Extensions.DependencyInjection(.Abstractions) style
+          # prefixes from false-positive matching.
+          assets="tests/fixtures/consumers/package-basic/obj/project.assets.json"
+          if [[ ! -f "$assets" ]]; then
+            echo "Missing restored assets file '$assets'." >&2
+            exit 1
+          fi
+          for required in Configlue.Core Configlue.Abstraction Configlue.Provider.Json Configlue.Source.Environment; do
+            if ! grep -q "\"${required}/" "$assets"; then
+              echo "Basic consumer graph is missing required facade dependency '${required}' (#261)." >&2
+              exit 1
+            fi
+          done
+          for forbidden in Configlue.Extensions.DI Configlue.Source.Http Configlue.Source.CommandLine Configlue.Transformer.AES Configlue.Transformer.Compression Configlue.Provider.Yaml Configlue.Provider.Xml Configlue.Provider.MessagePack System.CommandLine SharpYaml MessagePack Microsoft.Extensions.DependencyInjection Microsoft.Extensions.Http Microsoft.Extensions.Hosting; do
+            if grep -q "\"${forbidden}/" "$assets"; then
+              echo "Basic consumer graph leaks opt-in dependency '${forbidden}' (#261)." >&2
+              exit 1
+            fi
+          done
+          echo "Facade transitive-closure smoke passed."
+
+      - name: Assert SparseFragments independence smoke
+        run: |
+          set -euo pipefail
+          # SparseFragments must stand alone: the package-sparse consumer graph
+          # must not contain any Configlue.* package. Same assets.json rationale
+          # as the facade smoke above; no new fixture needed.
+          assets="tests/fixtures/consumers/package-sparse/obj/project.assets.json"
+          if [[ ! -f "$assets" ]]; then
+            echo "Missing restored assets file '$assets'." >&2
+            exit 1
+          fi
+          if grep -q '"Configlue\.' "$assets"; then
+            echo "SparseFragments consumer graph must not reference Configlue packages:" >&2
+            grep -o '"Configlue\.[^"]*"' "$assets" | sort -u >&2
+            exit 1
+          fi
+          echo "SparseFragments independence smoke passed."
+
       - name: Upload failure artifacts
         if: failure() || cancelled()
         uses: actions/upload-artifact@v7
