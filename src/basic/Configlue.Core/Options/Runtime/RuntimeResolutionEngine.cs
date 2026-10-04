@@ -320,11 +320,7 @@ internal sealed partial class RuntimeResolutionEngine<TModel, TFragment>
             {
                 try
                 {
-                    sourceResult = await ReadSourceAsync(
-                            source,
-                            resourceContext,
-                            cancellationToken
-                        )
+                    sourceResult = await ReadSourceAsync(source, resourceContext, cancellationToken)
                         .ConfigureAwait(false);
                 }
                 catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
