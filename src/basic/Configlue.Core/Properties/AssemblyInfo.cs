@@ -6,3 +6,4 @@ using System.Runtime.CompilerServices;
 [assembly: InternalsVisibleTo("Configlue.Resource.AzureAppConfiguration")]
 [assembly: InternalsVisibleTo("Configlue.Source.PostgreSql")]
 [assembly: InternalsVisibleTo("Configlue.Source.Consul")]
+[assembly: InternalsVisibleTo("Configlue.Source.Ssm")]

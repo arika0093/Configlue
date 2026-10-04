@@ -39,6 +39,7 @@
     <Project Path="src/sources/Configlue.Source.Http/Configlue.Source.Http.csproj" />
     <Project Path="src/sources/Configlue.Source.PostgreSql/Configlue.Source.PostgreSql.csproj" />
     <Project Path="src/sources/Configlue.Source.PostgreSql.Migrations/Configlue.Source.PostgreSql.Migrations.csproj" />
+    <Project Path="src/sources/Configlue.Source.Ssm/Configlue.Source.Ssm.csproj" />
   </Folder>
   <Folder Name="/src/transformers/">
     <Project Path="src/transformers/Configlue.Transformer.AES/Configlue.Transformer.AES.csproj" />
