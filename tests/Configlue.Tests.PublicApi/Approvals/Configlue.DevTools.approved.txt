@@ -19,4 +19,134 @@ namespace Configlue.DevTools
         public int ModelVersion { get; init; }
         public string StateName { get; init; }
     }
+    public sealed class ConfiglueDevToolsViewerOptions
+    {
+        public ConfiglueDevToolsViewerOptions() { }
+        public string Indent { get; set; }
+        public System.Text.Json.JsonNamingPolicy? NamingPolicy { get; set; }
+        public static Configlue.DevTools.ConfiglueDevToolsViewerOptions Default { get; }
+    }
+    public sealed class ConfiglueDevToolsViewerSession<TModel> : System.IDisposable
+        where TModel : Configlue.CompilerServices.IConfiglueFacadeModel<TModel>
+    {
+        public ConfiglueDevToolsViewerSession(Configlue.IWritableState<TModel> state, Configlue.DevTools.ConfiglueDevToolsViewerOptions? options = null) { }
+        public Configlue.DevTools.ConfiglueViewerDocument? Current { get; }
+        public long DocumentVersion { get; }
+        public Configlue.ConfiglueModelSchema Schema { get; }
+        public Configlue.DevTools.ConfiglueViewerSchemaSetup SchemaSetup { get; }
+        public event System.Action? Changed;
+        public void Dispose() { }
+        public string GetContributionJson(string memberPath) { }
+        public System.Threading.Tasks.ValueTask<Configlue.DevTools.ConfiglueViewerDocument> LoadAsync(System.Threading.CancellationToken cancellationToken = default) { }
+        public System.Threading.Tasks.ValueTask<Configlue.DevTools.ConfiglueViewerRefreshResult> RefreshAsync(System.Threading.CancellationToken cancellationToken = default) { }
+    }
+    public sealed class ConfiglueViewerContribution : System.IEquatable<Configlue.DevTools.ConfiglueViewerContribution>
+    {
+        public ConfiglueViewerContribution(string SourceKey, string DisplayName, string Kind, string State, bool IsEffective, bool IsShadowed, string? Locator) { }
+        public string DisplayName { get; init; }
+        public bool IsEffective { get; init; }
+        public bool IsShadowed { get; init; }
+        public string Kind { get; init; }
+        public string? Locator { get; init; }
+        public string SourceKey { get; init; }
+        public string State { get; init; }
+    }
+    public sealed class ConfiglueViewerDecoration : System.IEquatable<Configlue.DevTools.ConfiglueViewerDecoration>
+    {
+        public ConfiglueViewerDecoration(string MemberPath, Configlue.DevTools.ConfiglueViewerRange Range, Configlue.DevTools.ConfiglueViewerDecorationKind Kind, string Label, string CssClass) { }
+        public string CssClass { get; init; }
+        public Configlue.DevTools.ConfiglueViewerDecorationKind Kind { get; init; }
+        public string Label { get; init; }
+        public string MemberPath { get; init; }
+        public Configlue.DevTools.ConfiglueViewerRange Range { get; init; }
+    }
+    public enum ConfiglueViewerDecorationKind
+    {
+        Effective = 0,
+        ReadOnly = 1,
+        Secret = 2,
+        Invalid = 3,
+        SourceLabel = 4,
+    }
+    public sealed class ConfiglueViewerDocument : System.IEquatable<Configlue.DevTools.ConfiglueViewerDocument>
+    {
+        public ConfiglueViewerDocument(string ModelId, int ModelVersion, long DocumentVersion, string Json, string SchemaUri, System.Collections.Generic.IReadOnlyList<Configlue.DevTools.ConfiglueViewerMemberRange> MemberRanges, System.Collections.Generic.IReadOnlyList<Configlue.DevTools.ConfiglueViewerDecoration> Decorations, System.Collections.Generic.IReadOnlyList<Configlue.DevTools.ConfiglueViewerHover> Hovers, System.Collections.Generic.IReadOnlyList<Configlue.DevTools.ConfiglueViewerMarker> Markers) { }
+        public System.Collections.Generic.IReadOnlyList<Configlue.DevTools.ConfiglueViewerDecoration> Decorations { get; init; }
+        public long DocumentVersion { get; init; }
+        public System.Collections.Generic.IReadOnlyList<Configlue.DevTools.ConfiglueViewerHover> Hovers { get; init; }
+        public string Json { get; init; }
+        public System.Collections.Generic.IReadOnlyList<Configlue.DevTools.ConfiglueViewerMarker> Markers { get; init; }
+        public System.Collections.Generic.IReadOnlyList<Configlue.DevTools.ConfiglueViewerMemberRange> MemberRanges { get; init; }
+        public string ModelId { get; init; }
+        public int ModelVersion { get; init; }
+        public string SchemaUri { get; init; }
+    }
+    public sealed class ConfiglueViewerHover : System.IEquatable<Configlue.DevTools.ConfiglueViewerHover>
+    {
+        public ConfiglueViewerHover(string MemberPath, string Title, string Markdown, string? EffectiveSource, string Editability, bool IsSecret, System.Collections.Generic.IReadOnlyList<Configlue.DevTools.ConfiglueViewerContribution> Contributions, string? Locator) { }
+        public System.Collections.Generic.IReadOnlyList<Configlue.DevTools.ConfiglueViewerContribution> Contributions { get; init; }
+        public string Editability { get; init; }
+        public string? EffectiveSource { get; init; }
+        public bool IsSecret { get; init; }
+        public string? Locator { get; init; }
+        public string Markdown { get; init; }
+        public string MemberPath { get; init; }
+        public string Title { get; init; }
+    }
+    public sealed class ConfiglueViewerMarker : System.IEquatable<Configlue.DevTools.ConfiglueViewerMarker>
+    {
+        public ConfiglueViewerMarker(string MemberPath, Configlue.DevTools.ConfiglueViewerRange Range, Configlue.DevTools.ConfiglueViewerMarkerSeverity Severity, string Message, string? Source) { }
+        public string MemberPath { get; init; }
+        public string Message { get; init; }
+        public Configlue.DevTools.ConfiglueViewerRange Range { get; init; }
+        public Configlue.DevTools.ConfiglueViewerMarkerSeverity Severity { get; init; }
+        public string? Source { get; init; }
+    }
+    public enum ConfiglueViewerMarkerSeverity
+    {
+        Hint = 0,
+        Info = 1,
+        Warning = 2,
+        Error = 3,
+    }
+    public sealed class ConfiglueViewerMemberRange : System.IEquatable<Configlue.DevTools.ConfiglueViewerMemberRange>
+    {
+        public ConfiglueViewerMemberRange(string MemberPath, string WireName, Configlue.DevTools.ConfiglueViewerRange NameRange, Configlue.DevTools.ConfiglueViewerRange ValueRange, bool IsSecret) { }
+        public bool IsSecret { get; init; }
+        public string MemberPath { get; init; }
+        public Configlue.DevTools.ConfiglueViewerRange NameRange { get; init; }
+        public Configlue.DevTools.ConfiglueViewerRange ValueRange { get; init; }
+        public string WireName { get; init; }
+    }
+    public readonly struct ConfiglueViewerRange : System.IEquatable<Configlue.DevTools.ConfiglueViewerRange>
+    {
+        public ConfiglueViewerRange(int StartLineNumber, int StartColumn, int EndLineNumber, int EndColumn) { }
+        public int EndColumn { get; init; }
+        public int EndLineNumber { get; init; }
+        public bool IsValid { get; }
+        public int StartColumn { get; init; }
+        public int StartLineNumber { get; init; }
+    }
+    public sealed class ConfiglueViewerRefreshResult : System.IEquatable<Configlue.DevTools.ConfiglueViewerRefreshResult>
+    {
+        public ConfiglueViewerRefreshResult(Configlue.DevTools.ConfiglueViewerDocument Document, System.Collections.Generic.IReadOnlyList<Configlue.DevTools.ConfiglueViewerTextEdit> TextEdits, bool TextChanged, bool DecorationsChanged) { }
+        public bool DecorationsChanged { get; init; }
+        public Configlue.DevTools.ConfiglueViewerDocument Document { get; init; }
+        public bool TextChanged { get; init; }
+        public System.Collections.Generic.IReadOnlyList<Configlue.DevTools.ConfiglueViewerTextEdit> TextEdits { get; init; }
+    }
+    public sealed class ConfiglueViewerSchemaSetup : System.IEquatable<Configlue.DevTools.ConfiglueViewerSchemaSetup>
+    {
+        public ConfiglueViewerSchemaSetup(string ModelId, int ModelVersion, string SchemaUri, string SchemaJson) { }
+        public string ModelId { get; init; }
+        public int ModelVersion { get; init; }
+        public string SchemaJson { get; init; }
+        public string SchemaUri { get; init; }
+    }
+    public sealed class ConfiglueViewerTextEdit : System.IEquatable<Configlue.DevTools.ConfiglueViewerTextEdit>
+    {
+        public ConfiglueViewerTextEdit(Configlue.DevTools.ConfiglueViewerRange Range, string Text) { }
+        public Configlue.DevTools.ConfiglueViewerRange Range { get; init; }
+        public string Text { get; init; }
+    }
 }

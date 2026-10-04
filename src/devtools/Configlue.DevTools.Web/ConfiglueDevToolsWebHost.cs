@@ -372,6 +372,9 @@ public sealed class ConfiglueDevToolsWebHost : IAsyncDisposable, IDisposable
             || string.Equals(path, "/api/schema", StringComparison.Ordinal)
             || string.Equals(path, "/api/diagnostics", StringComparison.Ordinal)
             || string.Equals(path, "/api/check", StringComparison.Ordinal)
+            || string.Equals(path, "/api/viewer", StringComparison.Ordinal)
+            || string.Equals(path, "/api/viewer-schema", StringComparison.Ordinal)
+            || string.Equals(path, "/api/viewer-contribution", StringComparison.Ordinal)
             || string.Equals(path, "/api/save", StringComparison.Ordinal)
         )
         {
@@ -470,6 +473,111 @@ public sealed class ConfiglueDevToolsWebHost : IAsyncDisposable, IDisposable
                             200,
                             "application/json; charset=utf-8",
                             diagnostics,
+                            cancellationToken
+                        )
+                        .ConfigureAwait(false);
+                    return;
+                }
+
+                if (string.Equals(path, "/api/viewer", StringComparison.Ordinal))
+                {
+                    if (!string.Equals(request.Method, "GET", StringComparison.OrdinalIgnoreCase))
+                    {
+                        await WriteMethodNotAllowedAsync(stream, cancellationToken)
+                            .ConfigureAwait(false);
+                        return;
+                    }
+
+                    long knownVersion = -1;
+                    if (request.Query.TryGetValue("knownVersion", out var knownText))
+                    {
+                        long.TryParse(
+                            knownText,
+                            System.Globalization.NumberStyles.Integer,
+                            System.Globalization.CultureInfo.InvariantCulture,
+                            out knownVersion
+                        );
+                    }
+
+                    var delta = await entry
+                        .GetViewerDeltaAsync(knownVersion, null, cancellationToken)
+                        .ConfigureAwait(false);
+                    var document = delta.Document;
+                    await WriteResponseAsync(
+                            stream,
+                            200,
+                            "application/json; charset=utf-8",
+                            JsonSerializer.Serialize(
+                                new
+                                {
+                                    modelId = document.ModelId,
+                                    modelVersion = document.ModelVersion,
+                                    stateName = entry.Info.StateName,
+                                    documentVersion = document.DocumentVersion,
+                                    json = delta.JsonOmitted ? string.Empty : document.Json,
+                                    jsonOmitted = delta.JsonOmitted,
+                                    memberRanges = document.MemberRanges,
+                                    decorations = document.Decorations,
+                                    hovers = document.Hovers,
+                                    markers = document.Markers,
+                                    schemaUri = document.SchemaUri,
+                                },
+                                JsonOptions
+                            ),
+                            cancellationToken
+                        )
+                        .ConfigureAwait(false);
+                    return;
+                }
+
+                if (string.Equals(path, "/api/viewer-schema", StringComparison.Ordinal))
+                {
+                    if (!string.Equals(request.Method, "GET", StringComparison.OrdinalIgnoreCase))
+                    {
+                        await WriteMethodNotAllowedAsync(stream, cancellationToken)
+                            .ConfigureAwait(false);
+                        return;
+                    }
+
+                    var setup = entry.GetViewerSchemaSetup(null);
+                    await WriteResponseAsync(
+                            stream,
+                            200,
+                            "application/json; charset=utf-8",
+                            JsonSerializer.Serialize(setup, JsonOptions),
+                            cancellationToken
+                        )
+                        .ConfigureAwait(false);
+                    return;
+                }
+
+                if (string.Equals(path, "/api/viewer-contribution", StringComparison.Ordinal))
+                {
+                    if (!string.Equals(request.Method, "GET", StringComparison.OrdinalIgnoreCase))
+                    {
+                        await WriteMethodNotAllowedAsync(stream, cancellationToken)
+                            .ConfigureAwait(false);
+                        return;
+                    }
+
+                    if (
+                        !request.Query.TryGetValue("member", out var memberPath)
+                        || string.IsNullOrEmpty(memberPath)
+                    )
+                    {
+                        await WriteBadRequestAsync(stream, "missing member", cancellationToken)
+                            .ConfigureAwait(false);
+                        return;
+                    }
+
+                    var contribution = await entry
+                        .GetContributionJsonAsync(memberPath, null, cancellationToken)
+                        .ConfigureAwait(false);
+                    await WriteResponseAsync(
+                            stream,
+                            200,
+                            "application/json; charset=utf-8",
+                            contribution,
                             cancellationToken
                         )
                         .ConfigureAwait(false);
@@ -611,11 +719,11 @@ public sealed class ConfiglueDevToolsWebHost : IAsyncDisposable, IDisposable
             </style>
             </head>
             <body>
-            <header>Configlue DevTools &mdash; development tooling only (local loopback, no Monaco yet)</header>
+            <header>Configlue DevTools &mdash; development tooling only (local loopback)</header>
             <main>
             <div class="row"><label>State/model: <select id="states"></select></label></div>
             <div class="row tabs"><button id="tabState">State JSON</button><button id="tabDiagnostics">Diagnostics</button><button id="tabSchema">Schema</button></div>
-            <div class="row"><textarea id="editor" spellcheck="false" placeholder="State JSON appears here. Plain textarea for now; Monaco is a follow-up."></textarea></div>
+            <div class="row"><textarea id="editor" spellcheck="false" placeholder="State JSON appears here. Plain fallback view; the BlazorMonaco effective-state viewer (ConfiglueEffectiveStateViewer) is available for Blazor Server UI."></textarea></div>
             <div class="row"><button id="save">Save (edit session)</button> <button id="discard">Discard</button> <button id="check">Run check</button> <span id="status"></span></div>
             <div class="row"><pre id="output"></pre></div>
             <script>

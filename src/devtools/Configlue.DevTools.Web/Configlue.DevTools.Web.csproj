@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk.Razor">
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
     <AssemblyName>Configlue.DevTools.Web</AssemblyName>
@@ -9,12 +9,10 @@
     <ImplicitUsings>enable</ImplicitUsings>
   </PropertyGroup>
   <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
     <ProjectReference Include="../Configlue.DevTools/Configlue.DevTools.csproj" />
     <ProjectReference Include="../../basic/Configlue.Abstraction/Configlue.Abstraction.csproj" />
     <ProjectReference Include="../../basic/Configlue.Core/Configlue.Core.csproj" />
-    <PackageReference
-      Include="Microsoft.Extensions.DependencyInjection.Abstractions"
-      Version="10.0.0"
-    />
+    <PackageReference Include="BlazorMonaco" Version="3.4.0" />
   </ItemGroup>
 </Project>

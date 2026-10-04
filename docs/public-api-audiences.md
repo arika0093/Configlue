@@ -128,14 +128,21 @@ construction:
 
 | Namespace | Audience |
 | --- | --- |
-| `Configlue.DevTools` | development-only (live-state projections, JSON canonical form) |
-| `Configlue.DevTools.Web` | development-only (loopback host; DI extension lives in `Configlue` for discoverability) |
+| `Configlue.DevTools` | development-only (live-state projections, JSON canonical form, effective-state viewer documents/sessions) |
+| `Configlue.DevTools.Web` | development-only (loopback host; BlazorMonaco viewer component plus narrow Monaco bridge; DI extension lives in `Configlue` for discoverability) |
 
 Rules: no new public inspection API (reuse `GetDetailsAsync` transport,
 diagnostics snapshots/events, `Check()`, edit sessions, schema metadata,
 registries), `#244` redaction enforced in serialized payloads, and PublicApi
 approvals pin the small surface (`Configlue.DevTools.approved.txt`,
 `Configlue.DevTools.Web.approved.txt`).
+
+`#247` adds viewer contracts (`ConfiglueViewer*`), the viewer session, the
+`ConfiglueEffectiveStateViewer<TModel>` component, and the narrow
+`ConfiglueMonacoBridge` to these existing development-only namespaces. No new
+namespace is introduced, so `ApiAudienceOwnershipTests` stays green; the
+official `BlazorMonaco` NuGet package is referenced only by the
+development-only `Configlue.DevTools.Web` package.
 
 ## What changed for `#228`
 

@@ -1,0 +1,17 @@
+@namespace Configlue.DevTools.Web
+@typeparam TModel
+
+@using BlazorMonaco.Editor
+
+<div class="configlue-effective-state-viewer" style="height: @Height; min-height: 240px;">
+    @if (_schemaMissing)
+    {
+        <p class="configlue-viewer-error">No generated Configlue schema is registered for model '@typeof(TModel).FullName'.</p>
+    }
+    else
+    {
+        <StandaloneCodeEditor @ref="_editor"
+                              ConstructionOptions="BuildConstructionOptions"
+                              OnDidInit="HandleEditorInitAsync" />
+    }
+</div>

@@ -1,3 +1,4 @@
+using System.Text.Json.Serialization;
 using Configlue;
 using Configlue.Sources;
 using Configlue.Testing;
@@ -31,6 +32,40 @@ public partial class DevToolsNamedSettings
 public partial class DevToolsDynamicSettings
 {
     public string Mood { get; set; } = "calm";
+}
+
+[ConfiglueModel("devtools-viewer", Version = 1)]
+public partial class DevToolsViewerSettings
+{
+    public string Theme { get; set; } = "Light";
+
+    public int RetryCount { get; set; } = 3;
+
+    public string? Notes { get; set; }
+
+    public DevToolsViewerDatabase? Database { get; set; } = new();
+
+    public List<string> Tags { get; set; } = ["alpha"];
+}
+
+[ConfiglueModel("devtools-viewer-database", Version = 1)]
+public partial class DevToolsViewerDatabase
+{
+    public string Host { get; set; } = "localhost";
+
+    public int Port { get; set; } = 5432;
+
+    [SecretValue]
+    public string Password { get; set; } = "";
+}
+
+[ConfiglueModel("devtools-viewer-naming", Version = 1)]
+public partial class DevToolsViewerNamingSettings
+{
+    [JsonPropertyName("theme")]
+    public string Theme { get; set; } = "Light";
+
+    public int RetryCount { get; set; } = 3;
 }
 
 internal static class DevToolsFixtures

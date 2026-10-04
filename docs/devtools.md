@@ -104,14 +104,62 @@ a raw source-file editor. Saving a payload that still contains the redacted
 placeholder for a secret preserves the existing secret instead of writing the
 placeholder.
 
+## Effective-state viewer (`#247`)
+
+`ConfiglueEffectiveStateViewer<TModel>` renders the resolved state as
+deterministic canonical JSON (generated model/schema order,
+naming-policy-aware wire names, nested models and collections, deterministic
+nulls, no source syntax or comments) and overlays provenance without touching
+the text:
+
+- effective source (compact label/inlay), read-only lock/muted state, secret
+  markers, and invalid markers via Monaco decorations, glyph margin, inlay
+  hints, and hover;
+- hover explains effective and shadowed contributions (source, editable
+  state, locator such as the env key); secrets show safe state only, never
+  plaintext;
+- Monaco's browser-side JSON language service is configured once per
+  model/schema from the generated schema (syntax, validation, enum
+  completion, descriptions, constraints); Configlue runtime validation beyond
+  the schema arrives as extra markers.
+
+Architecture notes:
+
+- BlazorMonaco owns editor lifecycle, values, minimal text edits, and
+  decorations. The narrow `configlue-devtools-monaco.js` bridge
+  (`ConfiglueMonacoBridge`) covers only Monaco APIs BlazorMonaco does not
+  wrap cleanly (JSON language-service setup, hover content, inlay labels,
+  server-side markers). No runtime object graph is mirrored to the browser.
+- Member-path to Monaco-range mapping is emitted alongside the projection
+  from generated schema metadata (AOT-safe, no reflection); decorations reuse
+  it instead of rescanning the document.
+- Read-only in this issue; semantic editing is `#248`. The viewer is
+  read-only (`ReadOnly = true`); no draft or save path is introduced here.
+- Synchronization reuses the existing Interactive Server circuit: initial JSON
+  on state load, minimal Monaco edits on watched changes (scroll/selection
+  preserved), decoration-only deltas without document payloads. No new
+  SSE/WebSocket protocol and no hidden extra backend reads (one consistent
+  snapshot per load/refresh; contribution projections reuse the cached
+  snapshot).
+- The loopback host additionally serves `/api/viewer` (with `knownVersion`
+  delta omission), `/api/viewer-schema`, and `/api/viewer-contribution`
+  (normalized per-member contribution JSON, redacted; no raw source docs).
+
 ## UI scope
 
-The first UI is deliberately small: a state/model selector, a plain
-`<textarea>` JSON editor (Monaco arrives in a follow-up; no Monaco dependency
-today), an optional diagnostics/statistics view, schema view, check runner,
-save/discard, and a development-tooling banner. There is intentionally no
-form framework, theme/plugin system, per-type editor framework, production
-operator console, or source administration UI.
+The browser surface has two layers:
+
+- The loopback host page: a state/model selector, a plain `<textarea>`
+  fallback JSON view, an optional diagnostics/statistics view, schema view,
+  check runner, save/discard, and a development-tooling banner.
+- The BlazorMonaco effective-state JSON viewer
+  (`ConfiglueEffectiveStateViewer<TModel>` in `Configlue.DevTools.Web`,
+  `#247`): the canonical DevTools representation for Blazor Server UI.
+  Monaco runs browser-side while the Configlue runtime stays server-side;
+  only compact state/details metadata crosses the circuit.
+
+There is intentionally no form framework, theme/plugin system, per-type editor
+framework, production operator console, or source administration UI.
 
 ## Compatibility
 
@@ -127,4 +175,9 @@ HTTP-level assertions against the loopback server cover opt-in, loopback
 defaults, startup/shutdown/disposal, discovery/selection, named and dynamic
 registry states, disabled-means-no-server, the `#244` redaction boundary, no
 new inspection API, and no mutation without an explicit edit-session save.
+Viewer tests cover component lifecycle, deterministic projection,
+nesting/collections/nulls/naming, range mapping, source annotation, shadowed
+hover, read-only markers, schema setup, runtime markers, redaction, watch
+updates, no source-syntax leak, and no full-document traffic for
+decoration-only updates.
 Fakes only; no real browser is required.
