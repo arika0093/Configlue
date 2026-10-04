@@ -448,7 +448,7 @@ public sealed partial class ConfiglueGenerator
             );
 
         foreach (
-            var property in SparseFragments.Generator.Shared.SparseModelAnalyzer.UnsupportedStructuralMembers(
+            var property in SparseFragments.Generator.Shared.SparseModelDiagnostics.UnsupportedStructuralMembers(
                 model,
                 SparseConfiguration,
                 cancellationToken
@@ -463,7 +463,7 @@ public sealed partial class ConfiglueGenerator
             );
 
         foreach (
-            var property in SparseFragments.Generator.Shared.SparseModelAnalyzer.UnsupportedCloneMembers(
+            var property in SparseFragments.Generator.Shared.SparseCloneAnalysis.UnsupportedCloneMembers(
                 model,
                 SparseConfiguration,
                 cancellationToken

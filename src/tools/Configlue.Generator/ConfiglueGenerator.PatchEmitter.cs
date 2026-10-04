@@ -43,7 +43,7 @@ public sealed partial class ConfiglueGenerator
             2,
             "public global::Configlue.ConfiglueModelSchema Schema => ConfiglueSchema;"
         );
-        SparseFragments.Generator.Shared.SparseFragmentPatchEmitter.AppendPatchMembers(
+        SparseFragments.Generator.Shared.SparseFragmentPatchCoreEmitter.AppendPatchMembers(
             code,
             members.Select(ToSparseMember).ToImmutableArray(),
             "global::Configlue.",
@@ -63,7 +63,7 @@ public sealed partial class ConfiglueGenerator
                 "ApplyNested",
                 false
             );
-        SparseFragments.Generator.Shared.SparseFragmentPatchEmitter.AppendPatchWholeOperations(
+        SparseFragments.Generator.Shared.SparseFragmentPatchCoreEmitter.AppendPatchWholeOperations(
             code,
             modelType,
             wholePatch,
@@ -71,17 +71,17 @@ public sealed partial class ConfiglueGenerator
             sparseMembers,
             patchDialect
         );
-        SparseFragments.Generator.Shared.SparseFragmentPatchEmitter.AppendPatchConstructor(
+        SparseFragments.Generator.Shared.SparseFragmentPatchCoreEmitter.AppendPatchConstructor(
             code,
             sparseMembers,
             patchDialect
         );
-        SparseFragments.Generator.Shared.SparseFragmentPatchEmitter.AppendPatchApplyMembers(
+        SparseFragments.Generator.Shared.SparseFragmentPatchCoreEmitter.AppendPatchApplyMembers(
             code,
             sparseMembers,
             patchDialect
         );
-        SparseFragments.Generator.Shared.SparseFragmentPatchEmitter.AppendPatchOptionalApply(
+        SparseFragments.Generator.Shared.SparseFragmentPatchCoreEmitter.AppendPatchOptionalApply(
             code,
             sparseMembers,
             patchDialect,

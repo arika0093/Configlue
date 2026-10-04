@@ -134,7 +134,7 @@ public sealed partial class ConfiglueGenerator
         if (
             HasUnsupportedPocoMembers(named, cancellationToken)
             || !SparseFragments
-                .Generator.Shared.SparseModelAnalyzer.GetReadableProperties(
+                .Generator.Shared.SparseModelDiscovery.GetReadableProperties(
                     named,
                     cancellationToken
                 )

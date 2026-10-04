@@ -54,7 +54,7 @@ internal sealed record ModelConstructorBinding(
         CancellationToken cancellationToken
     )
     {
-        var properties = SparseModelAnalyzer
+        var properties = SparseModelDiscovery
             .GetReadableProperties(model, cancellationToken)
             .Where(static property =>
                 property.SetMethod is null

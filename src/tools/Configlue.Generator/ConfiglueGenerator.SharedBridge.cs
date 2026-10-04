@@ -80,7 +80,7 @@ public sealed partial class ConfiglueGenerator
     )
     {
         foreach (
-            var member in SparseModelAnalyzer.GetMembers(
+            var member in SparseModelDiscovery.GetMembers(
                 model,
                 SparseConfiguration,
                 cancellationToken
