@@ -9,17 +9,37 @@ using Microsoft.Extensions.Logging;
 
 namespace Configlue;
 
-internal sealed partial class ConfiglueRuntime<TModel, TFragment>
+/// <summary>
+/// Owns read-side and write-side model validation for one runtime.
+///
+/// Holds the configured validators, the data-annotations opt-in, and the state
+/// name used in failure messages. All member/data-annotation metadata caches live
+/// here; resolution and write code calls in with explicit fragments so no shared
+/// mutable resolution state is needed.
+/// </summary>
+internal sealed class RuntimeValidationPipeline<TModel, TFragment>
     where TModel : IConfiglueModel<TModel, TFragment>
     where TFragment : class, IConfiglueFragment<TFragment>
 {
-    private static bool TryGetMember(
-        ConfiglueModelSchema schema,
-        int memberId,
-        out ConfiglueMemberSchema member
-    ) => schema.TryGetMember(memberId, out member);
+    private readonly IConfiglueValidator<TModel>[] _validators;
+    private readonly string _stateName;
+    private readonly bool _validateDataAnnotations;
+    private readonly RuntimeDiagnosticRecorder _diagnostics;
 
-    private void Validate(TModel value)
+    internal RuntimeValidationPipeline(
+        IConfiglueValidator<TModel>[] validators,
+        bool validateDataAnnotations,
+        string stateName,
+        RuntimeDiagnosticRecorder diagnostics
+    )
+    {
+        _validators = validators;
+        _validateDataAnnotations = validateDataAnnotations;
+        _stateName = stateName;
+        _diagnostics = diagnostics;
+    }
+
+    internal void Validate(TModel value)
     {
         var failures = new List<string>();
         CollectValidationFailures(value, failures);
@@ -72,7 +92,7 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
         Justification = "This reflection path runs only when dynamic code is supported."
     )]
     private static bool HasValidationMetadata(Type modelType) =>
-        ModelValidationMetadata.GetOrAdd(
+        RuntimeValidationCaches.ModelValidationMetadata.GetOrAdd(
             modelType,
             static type =>
                 typeof(IValidatableObject).IsAssignableFrom(type)
@@ -83,10 +103,16 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
                     .Any(static property => property.Attributes.OfType<ValidationAttribute>().Any())
         );
 
-    private void ValidateContribution(StateSource<TFragment> source, TFragment fragment)
+    internal void ValidateContribution(
+        StateSource<TFragment> source,
+        TFragment fragment,
+        TFragment defaultsFragment
+    )
     {
         var failures = new List<string>();
-        var contributionModel = FromFragment(_modelDefaultsFragment.Merge(fragment));
+        var contributionModel = RuntimeModel<TModel, TFragment>.FromFragment(
+            defaultsFragment.Merge(fragment)
+        );
         if (_validateDataAnnotations)
         {
             CollectMemberFailures(
@@ -116,9 +142,10 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
         );
     }
 
-    private IConfiglueFragment PruneInvalidMembers(
+    internal IConfiglueFragment PruneInvalidMembers(
         StateSource<TFragment> source,
-        IConfiglueFragment fragment
+        IConfiglueFragment fragment,
+        TFragment defaultsFragment
     )
     {
         var failures = new List<string>();
@@ -131,7 +158,9 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
         {
             // Snapshot the container once so members pruned earlier in this pass do not
             // change the meaning of context-dependent attributes evaluated later.
-            container = FromFragment(_modelDefaultsFragment.Merge(typedFragment));
+            container = RuntimeModel<TModel, TFragment>.FromFragment(
+                defaultsFragment.Merge(typedFragment)
+            );
         }
 
         fragment = PruneInvalidMembers(
@@ -169,7 +198,7 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
 
         foreach (var present in fragment.EnumeratePresentMembersFast())
         {
-            if (!TryGetMember(schema, present.Id, out var found))
+            if (!RuntimeState.TryGetMember(schema, present.Id, out var found))
             {
                 continue;
             }
@@ -224,7 +253,7 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
         return fragment;
     }
 
-    private void ValidateResolvedModel(TModel model, IConfiglueFragment merged)
+    internal void ValidateResolvedModel(TModel model, IConfiglueFragment merged)
     {
         var validateDataAnnotations =
             _validateDataAnnotations && ConfiglueRuntimeCapabilities.IsDynamicCodeSupported;
@@ -257,7 +286,7 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
     }
 
     private static bool HasMemberValidationMetadata(ConfiglueModelSchema schema) =>
-        MemberValidationMetadata.GetOrAdd(
+        RuntimeValidationCaches.MemberValidationMetadata.GetOrAdd(
             schema.ModelType,
             _ => HasMemberValidationMetadata(schema, [])
         );
@@ -317,7 +346,7 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
 
         foreach (var present in fragment.EnumeratePresentMembersFast())
         {
-            if (!TryGetMember(schema, present.Id, out var found))
+            if (!RuntimeState.TryGetMember(schema, present.Id, out var found))
             {
                 continue;
             }
@@ -388,50 +417,6 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
         return false;
     }
 
-    [UnconditionalSuppressMessage(
-        "Trimming",
-        "IL2026",
-        Justification = "Callers guard member metadata inspection on dynamic code support."
-    )]
-    [UnconditionalSuppressMessage(
-        "AOT",
-        "IL3050",
-        Justification = "Callers guard member metadata inspection on dynamic code support."
-    )]
-    private static object? TryGetNestedContainer(object container, ConfiglueMemberSchema member)
-    {
-        try
-        {
-            if (ConfiglueModelSchemaCatalog.TryGet(container.GetType(), out var modelSchema))
-            {
-                var candidates = modelSchema.Members;
-                for (var candidateIndex = 0; candidateIndex < candidates.Count; candidateIndex++)
-                {
-                    var candidate = candidates[candidateIndex];
-                    if (
-                        string.Equals(candidate.Name, member.Name, StringComparison.Ordinal)
-                        && candidate.GetValue is not null
-                    )
-                    {
-                        return candidate.GetValue(container);
-                    }
-                }
-            }
-
-            return container
-                .GetType()
-                .GetProperty(
-                    member.Name,
-                    BindingFlags.Public | BindingFlags.Instance | BindingFlags.IgnoreCase
-                )
-                ?.GetValue(container);
-        }
-        catch (Exception ex) when (ex is TargetInvocationException || ex is ArgumentException)
-        {
-            return null;
-        }
-    }
-
     [RequiresUnreferencedCode(
         "Member validation reflects over model properties that trimming may remove."
     )]
@@ -440,7 +425,7 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
         Type modelType,
         string memberName
     ) =>
-        MemberValidationAttributes.GetOrAdd(
+        RuntimeValidationCaches.MemberValidationAttributes.GetOrAdd(
             (modelType, memberName),
             static key =>
                 key.ModelType.GetProperty(
@@ -502,6 +487,66 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
 
         return attributes;
     }
+
+    [UnconditionalSuppressMessage(
+        "Trimming",
+        "IL2026",
+        Justification = "Callers guard member metadata inspection on dynamic code support."
+    )]
+    [UnconditionalSuppressMessage(
+        "AOT",
+        "IL3050",
+        Justification = "Callers guard member metadata inspection on dynamic code support."
+    )]
+    private static object? TryGetNestedContainer(object container, ConfiglueMemberSchema member)
+    {
+        try
+        {
+            if (ConfiglueModelSchemaCatalog.TryGet(container.GetType(), out var modelSchema))
+            {
+                var candidates = modelSchema.Members;
+                for (var candidateIndex = 0; candidateIndex < candidates.Count; candidateIndex++)
+                {
+                    var candidate = candidates[candidateIndex];
+                    if (
+                        string.Equals(candidate.Name, member.Name, StringComparison.Ordinal)
+                        && candidate.GetValue is not null
+                    )
+                    {
+                        return candidate.GetValue(container);
+                    }
+                }
+            }
+
+            return container
+                .GetType()
+                .GetProperty(
+                    member.Name,
+                    BindingFlags.Public | BindingFlags.Instance | BindingFlags.IgnoreCase
+                )
+                ?.GetValue(container);
+        }
+        catch (Exception ex) when (ex is TargetInvocationException || ex is ArgumentException)
+        {
+            return null;
+        }
+    }
+}
+
+/// <summary>
+/// Validation metadata caches shared across all closed model types.
+///
+/// The dictionaries are keyed by runtime <see cref="Type"/>, so sharing one
+/// instance across constructed types is intentional.
+/// </summary>
+internal static class RuntimeValidationCaches
+{
+    internal static readonly ConcurrentDictionary<
+        (Type ModelType, string MemberName),
+        ValidationAttribute[]
+    > MemberValidationAttributes = new();
+    internal static readonly ConcurrentDictionary<Type, bool> ModelValidationMetadata = new();
+    internal static readonly ConcurrentDictionary<Type, bool> MemberValidationMetadata = new();
 }
 
 internal static class ConfiglueMemberValidationAttributeCache

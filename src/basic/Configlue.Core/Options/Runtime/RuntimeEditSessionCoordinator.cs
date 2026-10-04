@@ -1,67 +1,65 @@
 using Configlue.CompilerServices;
-using Microsoft.Extensions.Logging;
 
 namespace Configlue;
 
-internal sealed partial class ConfiglueRuntime<TModel, TFragment>
+/// <summary>
+/// Owns edit sessions for one runtime: draft creation, rebased saves, and rebase.
+///
+/// Sessions snapshot the resolved state and its revisions at open time; saves
+/// rebase local edits onto the latest upstream state according to the configured
+/// conflict resolution, then route through the write coordinator. The post-write
+/// snapshot barrier used by contract tests lives here.
+/// </summary>
+internal sealed class RuntimeEditSessionCoordinator<TModel, TFragment>
     where TModel : IConfiglueModel<TModel, TFragment>
     where TFragment : class, IConfiglueFragment<TFragment>
 {
+    private readonly RuntimeResolutionEngine<TModel, TFragment> _engine;
+    private readonly RuntimeWriteCoordinator<TModel, TFragment> _writes;
+    private readonly RuntimeInspectionCoordinator<TModel, TFragment> _inspection;
+    private readonly RuntimeDiagnosticRecorder _diagnostics;
+    private readonly RuntimeLifetime _lifetime;
+    private readonly RuntimeSubjectContext _subjects;
+    private readonly RuntimeModelCloner<TModel, TFragment> _cloner;
+    private readonly WriteConflictResolution _writeConflictResolution;
+
+    internal RuntimeEditSessionCoordinator(
+        RuntimeResolutionEngine<TModel, TFragment> engine,
+        RuntimeWriteCoordinator<TModel, TFragment> writes,
+        RuntimeInspectionCoordinator<TModel, TFragment> inspection,
+        RuntimeDiagnosticRecorder diagnostics,
+        RuntimeLifetime lifetime,
+        RuntimeSubjectContext subjects,
+        RuntimeModelCloner<TModel, TFragment> cloner,
+        WriteConflictResolution writeConflictResolution
+    )
+    {
+        _engine = engine;
+        _writes = writes;
+        _inspection = inspection;
+        _diagnostics = diagnostics;
+        _lifetime = lifetime;
+        _subjects = subjects;
+        _cloner = cloner;
+        _writeConflictResolution = writeConflictResolution;
+    }
+
     // Contract-test barrier between the post-write snapshot read and its result publication.
     internal Func<CancellationToken, ValueTask>? AfterEditSessionSnapshotResolved { get; set; }
 
-    /// <inheritdoc />
-    public ValueTask<EditSession<TModel>> OpenEditSessionAsync(
-        CancellationToken cancellationToken = default
-    ) =>
-        OpenEditSessionCoreAsync(null, cancellationToken, pinnedSubject: null, upstreamState: this);
-
-    /// <inheritdoc />
-    public ValueTask<EditSession<TModel>> OpenEditSessionAsync(
-        StateWritePlan writePlan,
-        CancellationToken cancellationToken = default
-    )
-    {
-        ArgumentNullException.ThrowIfNull(writePlan);
-        return OpenEditSessionCoreAsync(
-            writePlan,
-            cancellationToken,
-            pinnedSubject: null,
-            upstreamState: this
-        );
-    }
-
-    private ValueTask<EditSession<TModel>> OpenEditSessionForSubjectAsync(
-        IConfiglueSubject subject,
-        StateWritePlan? writePlan,
-        CancellationToken cancellationToken
-    )
-    {
-        ArgumentNullException.ThrowIfNull(subject);
-        return OpenEditSessionCoreAsync(
-            writePlan,
-            cancellationToken,
-            pinnedSubject: subject,
-            upstreamState: new SubjectBoundOptions(this, subject)
-        );
-    }
-
-    private async ValueTask<EditSession<TModel>> OpenEditSessionCoreAsync(
+    internal async ValueTask<EditSession<TModel>> OpenEditSessionCoreAsync(
         StateWritePlan? writePlan,
         CancellationToken cancellationToken,
         IConfiglueSubject? pinnedSubject,
         IReadOnlyState<TModel>? upstreamState
     )
     {
-        using var operation = EnterOperation();
+        using var operation = _lifetime.EnterOperation();
         using IDisposable? subjectScope = pinnedSubject is null
             ? null
-            : EnterSubject(pinnedSubject);
-        var resolvedState = await ResolveCoreAsync(
-                null,
-                cancellationToken,
-                captureContributions: true
-            )
+            : _subjects.Enter(pinnedSubject);
+        var resolvedState = await _engine
+            .ResolveAsync(null, cancellationToken, captureContributions: true)
             .ConfigureAwait(false);
         var resolved = resolvedState.Result;
         if (resolved.Status != StateReadStatus.Success)
@@ -71,7 +69,7 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
             );
         }
 
-        var effectiveWritePlan = _writePlan.OverrideWith(writePlan ?? StateWritePlan.Empty);
+        var effectiveWritePlan = _writes.Plan.OverrideWith(writePlan ?? StateWritePlan.Empty);
         if (
             effectiveWritePlan.DefaultSourceId is null
             && effectiveWritePlan.PropertyRoutes.Count == 0
@@ -84,14 +82,18 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
 
         if (effectiveWritePlan.PropertyRoutes.Count > 0)
         {
-            ValidateWritePlan(effectiveWritePlan);
+            _writes.ValidateWritePlan(effectiveWritePlan);
         }
 
-        var details = BuildDetailsSnapshot(resolvedState);
-        var draft = CloneModel(resolved.Value!);
-        var sessionStart = new StateSnapshot<TModel>(CloneModel(resolved.Value!), details);
-        var baseline = CloneModel(resolved.Value!);
-        var defaultValue = CloneModel(FromFragment(EmptyFragment));
+        var details = _inspection.BuildDetailsSnapshot(resolvedState);
+        var draft = _cloner.Clone(resolved.Value!);
+        var sessionStart = new StateSnapshot<TModel>(_cloner.Clone(resolved.Value!), details);
+        var baseline = _cloner.Clone(resolved.Value!);
+        var defaultValue = _cloner.Clone(
+            RuntimeModel<TModel, TFragment>.FromFragment(
+                RuntimeModel<TModel, TFragment>.EmptyFragment
+            )
+        );
         var expectedRevisions = resolved.Revisions;
         var upstreamGeneration = new UpstreamGenerationCounter();
 
@@ -102,8 +104,9 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
         {
             using IDisposable? saveScope = pinnedSubject is null
                 ? null
-                : EnterSubject(pinnedSubject);
-            var latestState = await ResolveCoreAsync(null, token, captureContributions: true)
+                : _subjects.Enter(pinnedSubject);
+            var latestState = await _engine
+                .ResolveAsync(null, token, captureContributions: true)
                 .ConfigureAwait(false);
             var latest = latestState.Result;
             if (latest.Status != StateReadStatus.Success)
@@ -113,7 +116,10 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
                 );
             }
 
-            var hasRevisionChanges = !HaveSameRevisions(expectedRevisions, latest.Revisions);
+            var hasRevisionChanges = !RuntimeState.HaveSameRevisions(
+                expectedRevisions,
+                latest.Revisions
+            );
             var saveBaseline = baseline;
             var saveValue = value;
             var saveContributions = latestState.Contributions;
@@ -124,7 +130,8 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
                 saveValue = RebaseConfigurationEdit(baseline, value, saveBaseline);
             }
 
-            var writeResult = await WriteChangesToSourcesAsync(
+            var writeResult = await _writes
+                .WriteChangesToSourcesAsync(
                     saveBaseline,
                     saveValue,
                     saveRevisions,
@@ -141,7 +148,8 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
             // A notification observed during or after this read may describe a newer state.
             // Only generations known before the read can safely be represented by its result.
             var committedGeneration = upstreamGeneration.Capture();
-            var committedState = await ResolveCoreAsync(null, token, captureContributions: true)
+            var committedState = await _engine
+                .ResolveAsync(null, token, captureContributions: true)
                 .ConfigureAwait(false);
             var committed = committedState.Result;
             if (committed.Status != StateReadStatus.Success || committed.Value is null)
@@ -160,7 +168,10 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
             expectedRevisions = committed.Revisions;
             return new StateCommitResult<TModel>(
                 writeResult,
-                new StateSnapshot<TModel>(committed.Value, BuildDetailsSnapshot(committedState)),
+                new StateSnapshot<TModel>(
+                    committed.Value,
+                    _inspection.BuildDetailsSnapshot(committedState)
+                ),
                 committedGeneration
             );
         }
@@ -171,8 +182,9 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
         {
             using IDisposable? resolveScope = pinnedSubject is null
                 ? null
-                : EnterSubject(pinnedSubject);
-            var latestState = await ResolveCoreAsync(null, token, captureContributions: true)
+                : _subjects.Enter(pinnedSubject);
+            var latestState = await _engine
+                .ResolveAsync(null, token, captureContributions: true)
                 .ConfigureAwait(false);
             var latest = latestState.Result;
             if (latest.Status != StateReadStatus.Success || latest.Value is null)
@@ -185,7 +197,10 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
             // Read-only: the saved baseline/expectedRevisions advance only after the
             // session successfully rebases onto this snapshot (see ApplySessionRebase).
             return new SessionUpstreamResolution<TModel>(
-                new StateSnapshot<TModel>(latest.Value, BuildDetailsSnapshot(latestState)),
+                new StateSnapshot<TModel>(
+                    latest.Value,
+                    _inspection.BuildDetailsSnapshot(latestState)
+                ),
                 latest.Revisions
             );
         }
@@ -201,10 +216,11 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
             sessionStart,
             SaveSessionValueAsync,
             RebaseConfigurationEdit,
-            static (value, baselineValue) => !Diff(baselineValue, value).IsEmpty,
+            static (value, baselineValue) =>
+                !RuntimeModel<TModel, TFragment>.Diff(baselineValue, value).IsEmpty,
             ResolveSessionUpstreamAsync,
             ApplySessionRebase,
-            CloneModel,
+            _cloner.Clone,
             defaultValue,
             upstreamState,
             upstreamGeneration
@@ -213,14 +229,14 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
 
     private TModel RebaseConfigurationEdit(TModel before, TModel desired, TModel current)
     {
-        var changes = Diff(before, desired);
+        var changes = RuntimeModel<TModel, TFragment>.Diff(before, desired);
         if (changes.IsEmpty)
         {
             return current;
         }
 
         var rebase = ConfiglueFragmentRebase.Rebase(
-            ModelSchema,
+            RuntimeModel<TModel, TFragment>.Schema,
             changes,
             before,
             desired,
@@ -233,13 +249,14 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
         )
         {
             var conflict = rebase.Conflicts[0];
-            throw LogConflict(
+            throw RuntimeState.NewConflict(
+                _diagnostics,
                 conflict.Reason
                     ?? $"The configuration edit conflicts with a concurrent change to '{conflict.PathText}'."
             );
         }
 
-        var currentFragment = ToFragment(current);
+        var currentFragment = RuntimeModel<TModel, TFragment>.ToFragment(current);
         if (currentFragment.ApplyChanges((TFragment)rebase.Rebased) is not TFragment updated)
         {
             throw new InvalidOperationException(
@@ -247,6 +264,6 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
             );
         }
 
-        return FromFragment(updated);
+        return RuntimeModel<TModel, TFragment>.FromFragment(updated);
     }
 }

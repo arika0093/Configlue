@@ -2,32 +2,191 @@ using Configlue.CompilerServices;
 
 namespace Configlue;
 
-/// <summary>Builds generated configuration details from single resolution snapshots.</summary>
-internal sealed partial class ConfiglueRuntime<TModel, TFragment>
+/// <summary>
+/// Owns read-only inspection for one runtime: health checks, details snapshots,
+/// state snapshots, and static diagnostics.
+///
+/// Composes resolution, topology, and write-plan state without owning them; all
+/// inputs arrive as explicit resolution snapshots or coordinator references.
+/// </summary>
+internal sealed class RuntimeInspectionCoordinator<TModel, TFragment>
+    where TModel : IConfiglueModel<TModel, TFragment>
+    where TFragment : class, IConfiglueFragment<TFragment>
 {
-    /// <inheritdoc />
-    async ValueTask<ConfiglueDetailsSnapshot> IConfiglueDetailsRuntime.GetDetailsSnapshotAsync(
+    private readonly RuntimeResolutionEngine<TModel, TFragment> _engine;
+    private readonly RuntimeSourceTopology<TFragment> _topology;
+    private readonly RuntimeWriteCoordinator<TModel, TFragment> _writes;
+    private readonly RuntimeSubjectContext _subjects;
+    private readonly string _stateName;
+
+    internal RuntimeInspectionCoordinator(
+        RuntimeResolutionEngine<TModel, TFragment> engine,
+        RuntimeSourceTopology<TFragment> topology,
+        RuntimeWriteCoordinator<TModel, TFragment> writes,
+        RuntimeSubjectContext subjects,
+        string stateName
+    )
+    {
+        _engine = engine;
+        _topology = topology;
+        _writes = writes;
+        _subjects = subjects;
+        _stateName = stateName;
+    }
+
+    internal ConfiglueStateDiagnostics GetDiagnostics()
+    {
+        var activeSources = _topology.GetActiveSources();
+
+        var activeIds = activeSources.Select(static source => source.Id).ToHashSet();
+        var sources = _topology
+            .SourceSet.Sources.Select(source => new ConfiglueSourceDiagnostics(
+                source.Id,
+                source.Priority,
+                source.FallbackCondition,
+                canRead: true,
+                canWrite: source.Writer is not null,
+                canWatch: source.Watcher is not null,
+                isActive: activeIds.Contains(source.Id),
+                physicalOrigin: source.PhysicalOrigin,
+                fixedResourceId: source.FixedResourceId
+            ))
+            .ToArray();
+        return new ConfiglueStateDiagnostics(
+            _stateName,
+            sources,
+            _writes.Plan.DefaultSourceId,
+            _writes.DefaultWriteSourceIsInferred,
+            _writes.Plan.PropertyRoutes
+        );
+    }
+
+    internal ConfiglueCheckOperation CreateCheckOperation(
+        IConfiglueSubject? subject,
+        CancellationToken cancellationToken
+    ) =>
+        new(
+            (reportSource, token) =>
+                subject is null
+                    ? RunCheckAsync(reportSource, token)
+                    : RunCheckForSubjectAsync(subject, reportSource, token),
+            cancellationToken
+        );
+
+    private async Task<ConfiglueCheckResult> RunCheckForSubjectAsync(
+        IConfiglueSubject subject,
+        Action<ConfiglueSourceCheckResult> reportSource,
         CancellationToken cancellationToken
     )
     {
-        var resolved = await ResolveCoreAsync(null, cancellationToken, captureContributions: true)
+        using var scope = _subjects.Enter(subject);
+        return await RunCheckAsync(reportSource, cancellationToken).ConfigureAwait(false);
+    }
+
+    private async Task<ConfiglueCheckResult> RunCheckAsync(
+        Action<ConfiglueSourceCheckResult> reportSource,
+        CancellationToken cancellationToken
+    )
+    {
+        ArgumentNullException.ThrowIfNull(reportSource);
+        try
+        {
+            var resolved = await _engine
+                .ResolveAsync(
+                    null,
+                    cancellationToken,
+                    captureContributions: false,
+                    observeSource: probe => reportSource(CreateSourceCheckResult(probe))
+                )
+                .ConfigureAwait(false);
+            return CreateCheckResult(resolved.Result);
+        }
+        catch (ConfiglueValidationException exception)
+        {
+            return ConfiglueCheckResult.Invalid(exception.Failures);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception exception)
+        {
+            return ConfiglueCheckResult.Faulted(exception);
+        }
+    }
+
+    private ConfiglueSourceCheckResult CreateSourceCheckResult(ResolvedSourceProbe<TFragment> probe)
+    {
+        var origin = probe.Result.PhysicalOrigin ?? probe.Source.PhysicalOrigin;
+        var details = DescribeSource(
+            probe.Source,
+            origin,
+            DescribeResolution(probe.ResourceContext, probe.ResourceId, origin)
+        );
+        return new ConfiglueSourceCheckResult(
+            details,
+            MapCheckStatus(probe.Result.Status, probe.Exception),
+            probe.Contributed,
+            probe.FallbackContinued,
+            exception: probe.Exception
+        );
+    }
+
+    private static ConfiglueCheckStatus MapCheckStatus(
+        StateReadStatus status,
+        Exception? exception
+    ) =>
+        exception is not null
+            ? ConfiglueCheckStatus.Faulted
+            : status switch
+            {
+                StateReadStatus.Success => ConfiglueCheckStatus.Success,
+                StateReadStatus.NotFound => ConfiglueCheckStatus.NotFound,
+                StateReadStatus.Unavailable => ConfiglueCheckStatus.Unavailable,
+                StateReadStatus.InvalidPayload => ConfiglueCheckStatus.Invalid,
+                _ => ConfiglueCheckStatus.Faulted,
+            };
+
+    private static ConfiglueCheckResult CreateCheckResult(StateReadResult<TModel> result) =>
+        result.Status switch
+        {
+            StateReadStatus.Success => ConfiglueCheckResult.Resolved(),
+            StateReadStatus.NotFound => ConfiglueCheckResult.NotFound(),
+            StateReadStatus.Unavailable => ConfiglueCheckResult.Unavailable(),
+            StateReadStatus.InvalidPayload => ConfiglueCheckResult.Invalid(),
+            _ => ConfiglueCheckResult.Faulted(
+                new InvalidOperationException(
+                    $"Configuration state check produced an unexpected status '{result.Status}'."
+                )
+            ),
+        };
+
+    internal async ValueTask<ConfiglueDetailsSnapshot> GetDetailsSnapshotAsync(
+        CancellationToken cancellationToken
+    )
+    {
+        var resolved = await _engine
+            .ResolveAsync(null, cancellationToken, captureContributions: true)
             .ConfigureAwait(false);
         EnsureResolvable(resolved, "Configuration details");
         return BuildDetailsSnapshot(resolved);
     }
 
-    /// <inheritdoc />
-    async ValueTask<StateSnapshot<TModel>> IConfiglueStateSnapshotRuntime<TModel>.GetSnapshotAsync(
+    internal async ValueTask<StateSnapshot<TModel>> GetSnapshotAsync(
         CancellationToken cancellationToken
     )
     {
-        var resolved = await ResolveCoreAsync(null, cancellationToken, captureContributions: true)
+        var resolved = await _engine
+            .ResolveAsync(null, cancellationToken, captureContributions: true)
             .ConfigureAwait(false);
         EnsureResolvable(resolved, "Configuration snapshot");
         return new StateSnapshot<TModel>(resolved.Result.Value!, BuildDetailsSnapshot(resolved));
     }
 
-    private static void EnsureResolvable(ResolvedState resolved, string description)
+    private static void EnsureResolvable(
+        ResolvedState<TModel, TFragment> resolved,
+        string description
+    )
     {
         if (resolved.Result.Status != StateReadStatus.Success || resolved.Result.Value is null)
         {
@@ -37,10 +196,12 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
         }
     }
 
-    private ConfiglueDetailsSnapshot BuildDetailsSnapshot(ResolvedState resolved)
+    internal ConfiglueDetailsSnapshot BuildDetailsSnapshot(
+        ResolvedState<TModel, TFragment> resolved
+    )
     {
         var value = resolved.Result.Value!;
-        var activeSources = GetActiveSources();
+        var activeSources = _topology.GetActiveSources();
         var descriptors = new ConfigSourceDetails[activeSources.Length + 1];
         var fragments = new IConfiglueFragment?[activeSources.Length + 1];
         var statuses = new StateReadStatus[activeSources.Length + 1];
@@ -95,12 +256,12 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
         }
 
         descriptors[^1] = DescribeModelDefaults();
-        fragments[^1] = _modelDefaultsFragment;
+        fragments[^1] = _engine.ModelDefaultsFragment;
         statuses[^1] = StateReadStatus.Success;
 
         var contributions = resolved.Contributions;
         return new ConfiglueDetailsSnapshot(
-            ModelSchema,
+            RuntimeModel<TModel, TFragment>.Schema,
             value,
             Array.AsReadOnly(descriptors),
             Array.AsReadOnly(fragments),
@@ -112,14 +273,14 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
 
     private ConfiglueEditability GetEditability(
         ConfiglueMemberPath propertyPath,
-        IReadOnlyList<ResolvedContribution> contributions
+        IReadOnlyList<ResolvedContribution<TFragment>> contributions
     )
     {
-        var targetId = _writePlan.ResolveSourceIdOrNull(propertyPath);
+        var targetId = _writes.Plan.ResolveSourceIdOrNull(propertyPath);
         StateSource<TFragment>? target;
         if (targetId is not null)
         {
-            target = GetActiveSources().FirstOrDefault(source => source.Id == targetId);
+            target = _topology.GetActiveSources().FirstOrDefault(source => source.Id == targetId);
             if (target is null)
             {
                 return ConfiglueEditability.NoWriteTarget;
@@ -144,7 +305,7 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
             return ConfiglueEditability.Editable;
         }
 
-        var activeSources = GetActiveSources();
+        var activeSources = _topology.GetActiveSources();
         var targetIndex = Array.FindIndex(activeSources, source => source.Id == target.Id);
         foreach (var contribution in contributions)
         {
@@ -168,7 +329,7 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
     private static IReadOnlyList<ConfigCollectionElementData> GetCollectionElementData(
         ConfiglueMemberPath propertyPath,
         TModel value,
-        IReadOnlyList<ResolvedContribution> contributions
+        IReadOnlyList<ResolvedContribution<TFragment>> contributions
     )
     {
         var effectiveValue = propertyPath.GetModelValue(value, out var member);
@@ -200,23 +361,9 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
             .ToArray();
     }
 
-    private string GetDetailsSourceKey(SourceId sourceId)
-    {
-        lock (_sourceGate)
-        {
-            if (!_detailsSourceKeys.TryGetValue(sourceId, out var key))
-            {
-                key = Guid.NewGuid().ToString("N");
-                _detailsSourceKeys.Add(sourceId, key);
-            }
-
-            return key;
-        }
-    }
-
     private ConfigSourceDetails DescribeModelDefaults() =>
         new(
-            GetDetailsSourceKey(_modelDefaultsSource.Id),
+            _topology.GetDetailsSourceKey(_engine.ModelDefaultsSourceId),
             "model-defaults",
             "Model defaults",
             null,
@@ -259,7 +406,7 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
         ConfigSourceResolutionDetails? resolution
     )
     {
-        var key = GetDetailsSourceKey(source.Id);
+        var key = _topology.GetDetailsSourceKey(source.Id);
         if (origin is not null)
         {
             const string environmentPrefix = "environment:";
