@@ -4,8 +4,11 @@ public sealed partial class FileResource
 {
     /// <summary>Acquires the exclusive in-process lock for this file resource.</summary>
     /// <remarks>Advanced lock primitive for custom journals and migration stores. The lease
-    /// serializes same-path writers within this process; across processes, writers rely on
-    /// revision-checked atomic replacement instead of a lock file.</remarks>
+    /// serializes same-path writers only within this process; it provides no cross-process mutual
+    /// exclusion. Two processes can hold this lease for the same path at the same time, so a
+    /// read-condition-write sequence guarded only by this lease remains check-then-act across
+    /// processes and can lose updates (see the reliability contract on <see cref="FileResource"/>).
+    /// Coordinate externally when cross-process exclusion is required.</remarks>
     [System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Advanced)]
     public async ValueTask<IDisposable> AcquireExclusiveLockAsync(
         CancellationToken cancellationToken

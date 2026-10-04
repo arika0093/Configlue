@@ -9,7 +9,10 @@ namespace Configlue.Migrations;
 /// <remarks>
 /// Progress files use XXH3 hashes of migration IDs as names, so IDs do not become path components. Writes use
 /// <see cref="FileResource"/> revision checks; concurrent writers based on stale progress fail instead of
-/// silently replacing a newer journal entry.
+/// silently replacing a newer journal entry when their read-modify-write sequences do not overlap across
+/// processes. The migration lease below excludes concurrent holders only within this process: two processes
+/// can hold the lease for the same migration ID at the same time, so cross-process multi-execution is not
+/// prevented. Coordinate externally when cross-process exclusion is required.
 /// </remarks>
 public sealed class FileStateStorageMigrationJournal
     : IStateStorageMigrationJournal,
@@ -33,6 +36,8 @@ public sealed class FileStateStorageMigrationJournal
     public string DirectoryPath => _directoryPath;
 
     /// <inheritdoc />
+    /// <remarks>The returned lease serializes migration execution only within this process. It is backed by
+    /// <see cref="FileResource.AcquireExclusiveLockAsync"/> and provides no cross-process exclusion.</remarks>
     public async ValueTask<IAsyncDisposable> AcquireMigrationLeaseAsync(
         string migrationId,
         CancellationToken cancellationToken = default

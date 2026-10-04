@@ -9,14 +9,26 @@ namespace Configlue.Resources;
 /// <para>Reliability contract for ordinary local settings:</para>
 /// <list type="bullet">
 /// <item>Writes are crash-safe where the platform supports it: new content is written to a temporary file in the destination directory, flushed to disk, and then atomically published over the target. Readers that already opened the previous file keep their snapshot.</item>
-/// <item>Concurrent writers use optimistic concurrency: every read carries a content revision, and a write with a revision condition fails with <see cref="StateConflictException"/> when the file changed after it was read. Same-path writes are additionally serialized within the process; across processes the last revision-checked writer wins.</item>
-/// <item>At most one previous-value backup is kept when <see cref="FileResourceOptions.CreateBackup"/> is set: <c>&lt;name&gt;.bak</c> beside the file, or under <see cref="FileResourceOptions.BackupDirectory"/> when configured. Backups are never restored automatically; use <see cref="RestoreLatestBackupAsync"/> to restore one explicitly.</item>
-/// <item>Change notifications use a filesystem watcher when one can be created and fall back to polling otherwise. While watching, the content revision is re-verified on every <see cref="FileResourceOptions.PollingInterval"/> tick so missed filesystem events still surface.</item>
+/// <item>Same-path writes are serialized only within this process. Across processes there is no mutual exclusion: the read-condition-write sequence is check-then-act, so two processes can read the same revision, both satisfy a revision condition, and both publish. The second publisher overwrites the first without a <see cref="StateConflictException"/> (lost update). A revision condition therefore guarantees conflict detection only for in-process concurrency and for sequential cross-process use; concurrent cross-process conditional writes are last-writer-wins, as unconditional writes always are. Processes that need cross-process exclusion must coordinate externally (for example a single writer process or an OS-level file lock).</item>
+/// <item>At most one previous-value backup is kept when <see cref="FileResourceOptions.CreateBackup"/> is set: <c>&lt;name&gt;.bak</c> beside the file, or under <see cref="FileResourceOptions.BackupDirectory"/> when configured. The single backup holds only the most recently replaced content; it is not a history. Cross-process concurrent writes can interleave backup and main-file replacement, so the backup may capture either writer's predecessor rather than a linear latest. Only the resolved single path is read or restored; multi-generation rotation and legacy backup locations are not discovered. Backups are never restored automatically; use <see cref="RestoreLatestBackupAsync"/> to restore one explicitly.</item>
+/// <item>Change notifications use a filesystem watcher when one can be created and fall back to polling otherwise. While watching, the content revision is re-verified on every <see cref="FileResourceOptions.PollingInterval"/> tick so missed filesystem events still surface. Each tick reads the full file content to compute its revision, so polling costs O(file size) I/O per interval with no signature fast-path; increase <see cref="FileResourceOptions.PollingInterval"/> for large files or wait-heavy scenarios.</item>
 /// </list>
 /// <para>
 /// Policies beyond this contract — multi-generation backup rotation, historical backup discovery,
-/// automatic backup recovery, and cross-process lock files — are intentionally not part of the
-/// default file path.
+/// automatic backup recovery, revision-verification throttling, and cross-process lock files — are
+/// intentionally not part of the default file path.
+/// </para>
+/// <para>
+/// Breaking changes from the previous generation, which callers relying on the removed policies must
+/// migrate from explicitly: <c>AutomaticBackupRecovery</c> and <c>TryRecoverLatestBackupAsync</c>
+/// (including the <c>IResourceBackupRecovery</c> surface) are gone, so corrupt or missing input is
+/// never repaired automatically — validate the content and call
+/// <see cref="RestoreLatestBackupAsync"/> explicitly instead. <c>BackupMaxCount</c>,
+/// <c>BackupDirectoryMode</c>, <c>BackupRootDirectory</c>, and related placement options are gone;
+/// only the single backup above is kept. <c>RevisionVerificationInterval</c> and the lightweight
+/// signature fast-path are gone; every polling tick is a full content read. The cross-process
+/// sidecar lock (<c>LockDirectory</c>, <c>LockAcquireTimeout</c>) is gone; same-path exclusion is
+/// in-process only as described above.
 /// </para>
 /// </remarks>
 /// <remarks>Advanced resource: ordinary application code uses provider file-source helpers instead of

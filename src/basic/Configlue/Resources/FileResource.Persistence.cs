@@ -53,6 +53,10 @@ public sealed partial class FileResource
     }
 
     /// <inheritdoc />
+    /// <remarks>The read-condition-write sequence below is serialized only within this process.
+    /// Across processes it is check-then-act: concurrent cross-process conditional writes can both
+    /// observe the same revision and both publish, with the last publisher winning silently. See the
+    /// reliability contract on <see cref="FileResource"/> for the guaranteed scope.</remarks>
     public async ValueTask<StateWriteResult> WriteBatchAsync(
         IReadOnlyList<ResourceWriteMutation> mutations,
         CancellationToken cancellationToken = default
@@ -132,7 +136,10 @@ public sealed partial class FileResource
     }
 
     /// <summary>Restores the single backup without creating another backup.</summary>
-    /// <remarks>Advanced recovery primitive; backups are never restored automatically.</remarks>
+    /// <remarks>Advanced recovery primitive; backups are never restored automatically. This method
+    /// replaces automatic backup recovery removed from the previous generation: callers must
+    /// validate the backup content themselves before restoring. Only the single resolved backup
+    /// path is considered; no historical generations or legacy locations are searched.</remarks>
     /// <exception cref="FileNotFoundException">No backup exists.</exception>
     [System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Advanced)]
     public async ValueTask<StateWriteResult> RestoreLatestBackupAsync(
