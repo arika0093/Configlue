@@ -20,6 +20,46 @@ dotnet run -c Release --project benchmarks/Configlue.Benchmarks -- --filter '*Fi
 
 Issue #210 single-pass metadata decode comparison (same machine, same filter run): `MessagePackCodecAllocationBenchmarks.SplitMetadataThenDeserialize` is the old split-path baseline (`ReadSchemaMetadata` + `Deserialize`, two scans) and `DeserializeWithMetadataSinglePass` calls `MessagePackStateCodec<T>.DeserializeWithMetadata` directly as the production fast path. `JsonCodecMetadataBenchmarks` does the same split-vs-single-pass pair for `JsonStateCodec<T>` with schema-bearing payloads in both `DocumentLayout.Simple` (`$version`) and `DocumentLayout.Detailed` (`$configlue`/`$value` envelope) layouts, so embedded metadata is always present. `MetadataSinglePassReaderBenchmarks.ReadSinglePassAsync` measures the end-to-end `SerializedStateReader<T>` path, which must select the `IStateCodecWithMetadata<T>` single-pass capability; a dispatch regression back to the split fallback shows up as higher allocated bytes and time. Compare the `Allocated` column within each class/layout between `Split*` (baseline) and `*SinglePass*` on the same run; do not compare across machines or runtimes. Third-party codec fallback coverage stays out of scope for this comparison.
 
+`GeneratedWriteRoutingBenchmarks.cs` (issue #211, follow-up of #170) measures the generated
+write-routing allocation path that `FragmentMergeBenchmarks` does not cover. It uses a
+16-member value-type-heavy generated model (`int`/`bool`/`long`/`double`, enums, nullable
+value types, `Guid`/`DateTime`/`TimeSpan` structs, one `string`) and `[Params(1, 4, 16)]`
+sparse patches built in setup. All storage I/O is pinned to `InMemoryStateSource<T>` so
+routing allocations are not hidden behind I/O. The three benchmarks all run production
+routing paths (plain `Merge`/`ToModel` is intentionally not measured here):
+
+- `RoutePatch`: generated `IConfiglueRoutablePatch.Route` partition, no I/O.
+- `SaveRoutedAsync`: `IWritableState.SaveAsync` through a two-source routed plan.
+- `SaveCompositeAsync`: `IWritableState.SaveAsync` through a `CompositeStateSource`
+  (single `child` component, mirroring the existing composite write tests) so the
+  composite component-patch path runs.
+
+```shell
+dotnet run -c Release --project benchmarks/Configlue.Benchmarks -- --filter '*GeneratedWriteRoutingBenchmarks*'
+```
+
+A fast smoke check that the group sets up and runs (numbers are not publishable):
+
+```shell
+dotnet run -c Release --project benchmarks/Configlue.Benchmarks -- --filter '*GeneratedWriteRoutingBenchmarks*' --job dry
+```
+
+To confirm the benchmarks detect a pre-#170 regression, temporarily route through the
+dynamic surface again (for example, implement the measurement with
+`patch.EnumeratePresentMembers().ToArray()` plus `object?` member values instead of the
+generated `Route`/`EnumeratePresentMembersFast` path, or box value-type members through
+`ConfiglueFragmentMember.Value`), re-run the filter above on the same machine, and
+compare the `Allocated` column: the reverted run allocates an iterator, a materialized
+array, and one box per value-type member on top of the baseline. Restore the generated
+path afterwards.
+
+Known limitation: the composite benchmark uses a single component because saving a patch
+through a two-component `CompositeStateSource` currently fails in
+`PrepareCompositePatchAsync` with `Component source ... changed while the patch batch was
+being prepared` (the composite nested revision vector holds one entry per component while
+the per-component re-read yields one entry, so `HaveSameRevisions` never matches). That
+is unrelated to #170/#211 routing allocations and is left for a separate follow-up.
+
 Before an allocation optimization, capture its relevant group at the parent revision and again at the candidate revision on the same machine and runtime. Keep the BenchmarkDotNet reports with the review notes; do not treat numbers from different machines or runtime versions as a regression threshold. For a focused comparison:
 
 Issue #165's same-machine before/after allocation results are recorded in [serialized-writer-allocation-results.md](serialized-writer-allocation-results.md). Issue #168's source-count scratch-pooling allocation comparison is recorded in [runtime-scratch-pooling-results.md](runtime-scratch-pooling-results.md).
