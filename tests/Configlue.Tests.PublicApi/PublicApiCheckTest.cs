@@ -13,13 +13,14 @@ using Configlue.Provider.Json;
 using Configlue.Provider.MessagePack;
 using Configlue.Provider.Xml;
 using Configlue.Provider.Yaml;
-using Configlue.Source.Http;
 using Configlue.Resource.Redis;
 using Configlue.Resource.S3;
 using Configlue.Resource.Vault;
 using Configlue.Resource.Zip;
 using Configlue.Source.CommandLine;
+using Configlue.Source.Consul;
 using Configlue.Source.Environment;
+using Configlue.Source.Http;
 using Configlue.Source.PostgreSql;
 using Configlue.Source.PostgreSql.Migrations;
 using Configlue.Source.Presets;
@@ -329,6 +330,9 @@ public sealed class PublicApiCheckTest
 
     [Test]
     public void Vault() => PublicApiCheck.Check<VaultKvSourceOptions>();
+
+    [Test]
+    public void Consul() => PublicApiCheck.Check<ConsulKvPrefixSourceOptions>();
 
     [Test]
     public void Testing() => PublicApiCheck.Check<InMemoryResource>();

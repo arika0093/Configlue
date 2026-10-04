@@ -1,0 +1,179 @@
+[assembly: System.Reflection.AssemblyMetadata("RepositoryUrl", "https://github.com/arika0093/Configlue")]
+namespace Configlue.Source.Consul
+{
+    public enum ConsulConsistencyMode
+    {
+        Default = 0,
+        Stale = 1,
+        Consistent = 2,
+    }
+    public sealed class ConsulKvEntry : System.IEquatable<Configlue.Source.Consul.ConsulKvEntry>
+    {
+        public ConsulKvEntry(string key, byte[]? value, ulong modifyIndex, ulong createIndex) { }
+        public ulong CreateIndex { get; }
+        public string Key { get; }
+        public ulong ModifyIndex { get; }
+        public byte[]? Value { get; }
+    }
+    public sealed class ConsulKvListOptions : System.IEquatable<Configlue.Source.Consul.ConsulKvListOptions>
+    {
+        public ConsulKvListOptions() { }
+        public Configlue.Source.Consul.ConsulConsistencyMode Consistency { get; init; }
+        public string? Datacenter { get; init; }
+        public string? Namespace { get; init; }
+        public string? Partition { get; init; }
+        public ulong? WaitIndex { get; init; }
+        public System.TimeSpan? WaitTimeout { get; init; }
+    }
+    public sealed class ConsulKvListResult : System.IEquatable<Configlue.Source.Consul.ConsulKvListResult>
+    {
+        public ConsulKvListResult(System.Collections.Generic.IReadOnlyList<Configlue.Source.Consul.ConsulKvEntry> entries, ulong consulIndex) { }
+        public ulong ConsulIndex { get; }
+        public System.Collections.Generic.IReadOnlyList<Configlue.Source.Consul.ConsulKvEntry> Entries { get; }
+    }
+    public sealed class ConsulKvObjectSourceOptions
+    {
+        public ConsulKvObjectSourceOptions() { }
+        public Configlue.Source.Consul.IConsulKvClient? Client { get; init; }
+        public System.Func<System.IServiceProvider?, Configlue.Source.Consul.IConsulKvClient>? ClientFactory { get; init; }
+        public required Configlue.Codecs.StateCodecBinding Codec { get; init; }
+        public Configlue.Codecs.StateCodecContext CodecContext { get; init; }
+        public Configlue.Sources.StateFallbackCondition FallbackCondition { get; init; }
+        public string? Id { get; init; }
+        public required string Key { get; init; }
+        public int Priority { get; init; }
+        public Configlue.Source.Consul.ConsulKvResourceOptions? ResourceOptions { get; init; }
+        public bool Writable { get; init; }
+    }
+    public sealed class ConsulKvPrefixOptions
+    {
+        public ConsulKvPrefixOptions() { }
+        public System.TimeSpan BlockingWaitTimeout { get; init; }
+        public Configlue.Source.Consul.ConsulConsistencyMode Consistency { get; init; }
+        public string? Datacenter { get; init; }
+        public System.Func<Configlue.Resources.ConfiglueResourceContext, string?>? DatacenterSelector { get; init; }
+        public Configlue.Resources.ResourceId? FixedResourceId { get; init; }
+        public System.Func<Configlue.Resources.ConfiglueResourceContext, string>? KeyPrefixSelector { get; init; }
+        public string? Namespace { get; init; }
+        public System.Func<Configlue.Resources.ConfiglueResourceContext, string?>? NamespaceSelector { get; init; }
+        public string? Partition { get; init; }
+        public System.Func<Configlue.Resources.ConfiglueResourceContext, string?>? PartitionSelector { get; init; }
+        public bool UseTransaction { get; init; }
+    }
+    public sealed class ConsulKvPrefixSourceOptions
+    {
+        public ConsulKvPrefixSourceOptions() { }
+        public Configlue.Source.Consul.IConsulKvClient? Client { get; init; }
+        public System.Func<System.IServiceProvider?, Configlue.Source.Consul.IConsulKvClient>? ClientFactory { get; init; }
+        public System.Func<System.IServiceProvider?, Configlue.RouteKey, Configlue.Source.Consul.IConsulKvClient>? ClientResolver { get; init; }
+        public Configlue.Sources.StateFallbackCondition FallbackCondition { get; init; }
+        public string? Id { get; init; }
+        public required string KeyPrefix { get; init; }
+        public Configlue.Source.Consul.ConsulKvPrefixOptions? PrefixOptions { get; init; }
+        public int Priority { get; init; }
+        public bool Writable { get; init; }
+    }
+    public sealed class ConsulKvResource : Configlue.Resources.IResourceIdentity, Configlue.Resources.IResourceReader, Configlue.Resources.IResourceWriter, Configlue.Sources.ISourceWatcher, Configlue.State.IPipelineResourceReader, System.IDisposable
+    {
+        public ConsulKvResource(Configlue.Source.Consul.IConsulKvClient client, string key, Configlue.Source.Consul.ConsulKvResourceOptions? options = null) { }
+        public bool IsPipelineReadPreferred { get; }
+        public string Key { get; }
+        public void Dispose() { }
+        public Configlue.Resources.ResourceId GetResourceId(Configlue.Resources.ConfiglueResourceContext context) { }
+        public System.Threading.Tasks.ValueTask<Configlue.Resources.ResourceReadResult> ReadAsync(Configlue.Resources.ConfiglueResourceContext context, System.Threading.CancellationToken cancellationToken = default) { }
+        public System.Threading.Tasks.ValueTask<Configlue.Resources.PipelineResourceReadResult> ReadPipelineAsync(Configlue.Resources.ConfiglueResourceContext context, System.Threading.CancellationToken cancellationToken = default) { }
+        public override string ToString() { }
+        public System.Threading.Tasks.ValueTask WaitForChangeAsync(Configlue.Resources.ConfiglueResourceContext context, string? observedRevision, System.Threading.CancellationToken cancellationToken = default) { }
+        public System.Threading.Tasks.ValueTask<Configlue.State.StateWriteResult> WriteAsync(Configlue.Resources.ConfiglueResourceContext context, Configlue.Resources.ResourceWriteRequest request, System.Threading.CancellationToken cancellationToken = default) { }
+    }
+    public sealed class ConsulKvResourceOptions
+    {
+        public ConsulKvResourceOptions() { }
+        public System.TimeSpan BlockingWaitTimeout { get; init; }
+        public System.Func<Configlue.Resources.ConfiglueResourceContext, Configlue.Source.Consul.IConsulKvClient>? ClientSelector { get; init; }
+        public Configlue.Source.Consul.ConsulConsistencyMode Consistency { get; init; }
+        public string? Datacenter { get; init; }
+        public System.Func<Configlue.Resources.ConfiglueResourceContext, string?>? DatacenterSelector { get; init; }
+        public Configlue.Resources.ResourceId? FixedResourceId { get; init; }
+        public System.Func<Configlue.Resources.ConfiglueResourceContext, string>? KeySelector { get; init; }
+        public string? Namespace { get; init; }
+        public System.Func<Configlue.Resources.ConfiglueResourceContext, string?>? NamespaceSelector { get; init; }
+        public string? Partition { get; init; }
+        public System.Func<Configlue.Resources.ConfiglueResourceContext, string?>? PartitionSelector { get; init; }
+    }
+    public static class ConsulKvSourceRegistration
+    {
+        public static Configlue.Extensibility.ConfiglueSourceRegistration FromConsul(this Configlue.ConfiglueSourceSetBuilder sources, Configlue.Source.Consul.ConsulKvPrefixSourceOptions options) { }
+        public static Configlue.Extensibility.ConfiglueSourceRegistration FromConsulObject(this Configlue.ConfiglueSourceSetBuilder sources, Configlue.Source.Consul.ConsulKvObjectSourceOptions options) { }
+    }
+    public sealed class ConsulKvSource<TFragment> : Configlue.Resources.IResourceBatchCompatibility, Configlue.Resources.IResourceIdentity, Configlue.Sources.IAsyncSourceWriteBatchParticipant<TFragment>, Configlue.Sources.ISourceCapabilities<TFragment>, Configlue.Sources.ISourceReader<TFragment>, Configlue.Sources.ISourceWatcher, Configlue.Sources.ISourceWriter<TFragment>, System.IDisposable
+        where TFragment :  class, Configlue.IConfiglueFragment<TFragment>
+    {
+        public ConsulKvSource(Configlue.Source.Consul.IConsulKvClient client, Configlue.ConfiglueModelSchema schema, string prefix, Configlue.Source.Consul.ConsulKvPrefixOptions? options = null, bool writable = true) { }
+        public ConsulKvSource(System.Func<Configlue.RouteKey, Configlue.Source.Consul.IConsulKvClient> clientResolver, Configlue.ConfiglueModelSchema schema, string prefix, Configlue.Source.Consul.ConsulKvPrefixOptions? options = null, bool writable = true) { }
+        public Configlue.Sources.ISourceWatcher? Watcher { get; }
+        public Configlue.Sources.ISourceWriter<TFragment>? Writer { get; }
+        public void Dispose() { }
+        public object? GetBatchCompatibilityToken(Configlue.Resources.ConfiglueResourceContext context) { }
+        public Configlue.Resources.ResourceId GetResourceId(Configlue.Resources.ConfiglueResourceContext context) { }
+        public System.Threading.Tasks.ValueTask<Configlue.State.StateReadResult<TFragment>> ReadAsync(Configlue.Resources.ConfiglueResourceContext context, System.Threading.CancellationToken cancellationToken = default) { }
+        public override string ToString() { }
+        public System.Threading.Tasks.ValueTask<Configlue.State.StateWriteBatchPlan?> TryCreateBatchWriteAsync(Configlue.Resources.ConfiglueResourceContext context, Configlue.State.StateWriteRequest<TFragment> request, System.Threading.CancellationToken cancellationToken = default) { }
+        public System.Threading.Tasks.ValueTask WaitForChangeAsync(Configlue.Resources.ConfiglueResourceContext context, string? observedRevision, System.Threading.CancellationToken cancellationToken = default) { }
+        public System.Threading.Tasks.ValueTask<Configlue.State.StateWriteResult> WriteAsync(Configlue.Resources.ConfiglueResourceContext context, Configlue.State.StateWriteRequest<TFragment> request, System.Threading.CancellationToken cancellationToken = default) { }
+    }
+    public sealed class ConsulKvWriteOptions : System.IEquatable<Configlue.Source.Consul.ConsulKvWriteOptions>
+    {
+        public ConsulKvWriteOptions() { }
+        public string? Datacenter { get; init; }
+        public string? Namespace { get; init; }
+        public string? Partition { get; init; }
+    }
+    public sealed class ConsulTxnOperation : System.IEquatable<Configlue.Source.Consul.ConsulTxnOperation>
+    {
+        public ConsulTxnOperation(string verb, string key, byte[]? value, ulong? cas) { }
+        public ulong? Cas { get; }
+        public string Key { get; }
+        public byte[]? Value { get; }
+        public string Verb { get; }
+        public static Configlue.Source.Consul.ConsulTxnOperation Delete(string key, ulong? cas = default) { }
+        public static Configlue.Source.Consul.ConsulTxnOperation Set(string key, byte[] value, ulong? cas = default) { }
+    }
+    public sealed class ConsulTxnResult : System.IEquatable<Configlue.Source.Consul.ConsulTxnResult>
+    {
+        public ConsulTxnResult(bool committed, ulong consulIndex, string[]? errors = null) { }
+        public bool Committed { get; }
+        public ulong ConsulIndex { get; }
+        public string[]? Errors { get; }
+    }
+    public sealed class HttpConsulKvClient : Configlue.Source.Consul.IConsulKvClient
+    {
+        public HttpConsulKvClient(System.Net.Http.HttpClient httpClient, string baseAddress, string? token = null) { }
+        [return: System.Runtime.CompilerServices.TupleElementNames(new string[] {
+                "Applied",
+                "NewIndex"})]
+        public System.Threading.Tasks.Task<System.ValueTuple<bool, ulong>> DeleteAsync(string key, ulong? cas, Configlue.Source.Consul.ConsulKvWriteOptions? options, System.Threading.CancellationToken cancellationToken) { }
+        public System.Threading.Tasks.Task<Configlue.Source.Consul.ConsulKvListResult> GetAsync(string key, Configlue.Source.Consul.ConsulKvListOptions? options, System.Threading.CancellationToken cancellationToken) { }
+        public System.Threading.Tasks.Task<Configlue.Source.Consul.ConsulKvListResult> ListAsync(string prefix, Configlue.Source.Consul.ConsulKvListOptions? options, System.Threading.CancellationToken cancellationToken) { }
+        [return: System.Runtime.CompilerServices.TupleElementNames(new string[] {
+                "Applied",
+                "NewIndex"})]
+        public System.Threading.Tasks.Task<System.ValueTuple<bool, ulong>> PutAsync(string key, System.ReadOnlyMemory<byte> value, ulong? cas, Configlue.Source.Consul.ConsulKvWriteOptions? options, System.Threading.CancellationToken cancellationToken) { }
+        public override string ToString() { }
+        public System.Threading.Tasks.Task<Configlue.Source.Consul.ConsulTxnResult> TransactAsync(System.Collections.Generic.IReadOnlyList<Configlue.Source.Consul.ConsulTxnOperation> operations, Configlue.Source.Consul.ConsulKvWriteOptions? options, System.Threading.CancellationToken cancellationToken) { }
+    }
+    public interface IConsulKvClient
+    {
+        [return: System.Runtime.CompilerServices.TupleElementNames(new string[] {
+                "Applied",
+                "NewIndex"})]
+        System.Threading.Tasks.Task<System.ValueTuple<bool, ulong>> DeleteAsync(string key, ulong? cas, Configlue.Source.Consul.ConsulKvWriteOptions? options, System.Threading.CancellationToken cancellationToken);
+        System.Threading.Tasks.Task<Configlue.Source.Consul.ConsulKvListResult> GetAsync(string key, Configlue.Source.Consul.ConsulKvListOptions? options, System.Threading.CancellationToken cancellationToken);
+        System.Threading.Tasks.Task<Configlue.Source.Consul.ConsulKvListResult> ListAsync(string prefix, Configlue.Source.Consul.ConsulKvListOptions? options, System.Threading.CancellationToken cancellationToken);
+        [return: System.Runtime.CompilerServices.TupleElementNames(new string[] {
+                "Applied",
+                "NewIndex"})]
+        System.Threading.Tasks.Task<System.ValueTuple<bool, ulong>> PutAsync(string key, System.ReadOnlyMemory<byte> value, ulong? cas, Configlue.Source.Consul.ConsulKvWriteOptions? options, System.Threading.CancellationToken cancellationToken);
+        System.Threading.Tasks.Task<Configlue.Source.Consul.ConsulTxnResult> TransactAsync(System.Collections.Generic.IReadOnlyList<Configlue.Source.Consul.ConsulTxnOperation> operations, Configlue.Source.Consul.ConsulKvWriteOptions? options, System.Threading.CancellationToken cancellationToken);
+    }
+}
