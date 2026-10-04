@@ -327,6 +327,9 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
             );
         }
 
+        // Seed the watch-loop baseline so a change racing watch-loop startup is
+        // still observed instead of being adopted silently as the baseline.
+        _watches.NoteReadBaseline(result);
         return result.Value!;
     }
 

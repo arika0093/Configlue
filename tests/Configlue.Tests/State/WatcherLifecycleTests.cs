@@ -191,6 +191,73 @@ public sealed partial class WatcherLifecycleTests
         await runtime.DisposeAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(5));
     }
 
+    [Test]
+    public async Task OnChange_ObservesExternalChangeThatRacesWatchLoopStartup()
+    {
+        // Regression test for the cold-start lost-wakeup window: an external change
+        // landing between subscription and the watch loop's first resolution read was
+        // adopted silently as the baseline and never reported. The first-read gate
+        // below forces that ordering deterministically: without baseline seeding the
+        // loop can only observe the post-change value and the notification is lost.
+        var store = new InMemoryStateSource<AppSettings.Fragment>(Fragment("before"));
+        var gate = new FirstReadGate<AppSettings.Fragment>(store);
+        await using var runtime = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
+            new StateSourceSet<AppSettings.Fragment>([
+                new StateSource<AppSettings.Fragment>(
+                    "store",
+                    gate,
+                    new StateSourceOptions<AppSettings.Fragment>
+                    {
+                        Writer = store,
+                        Watcher = store,
+                    }
+                ),
+            ]),
+            onChangeDebounce: TimeSpan.Zero
+        );
+
+        // Establish the watch baseline before subscribing; the seeded baseline keeps
+        // the change below observable however the watch-loop startup races.
+        (await runtime.GetValueAsync()).Label.ShouldBe("before");
+
+        var observed = new TaskCompletionSource<string?>(
+            TaskCreationOptions.RunContinuationsAsynchronously
+        );
+        using var subscription = runtime.OnChange(value =>
+            observed.TrySetResult(value.Label)
+        );
+
+        // No await between subscription and the external change, and every read
+        // past the seeding one is gated: without seeding, the loop inevitably adopts
+        // the post-change value as its baseline and this times out.
+        store.Set(Fragment("after"));
+
+        (await observed.Task.WaitAsync(TimeSpan.FromSeconds(10))).ShouldBe("after");
+    }
+
+    /// <summary>
+    /// Delays every resolution read after the seeding read so the watch loop cannot
+    /// win the startup race. The seed read itself stays fast.
+    /// </summary>
+    private sealed class FirstReadGate<T>(ISourceReader<T> inner) : ISourceReader<T>
+        where T : class
+    {
+        private int _reads;
+
+        public async ValueTask<StateReadResult<T>> ReadAsync(
+            ConfiglueResourceContext context,
+            CancellationToken cancellationToken = default
+        )
+        {
+            if (Interlocked.Increment(ref _reads) >= 2)
+            {
+                await Task.Delay(TimeSpan.FromMilliseconds(300), cancellationToken);
+            }
+
+            return await inner.ReadAsync(context, cancellationToken);
+        }
+    }
+
     private static AppSettings.Fragment Fragment(string? label) =>
         new() { Label = Optional<string?>.Present(label) };
 

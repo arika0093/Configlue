@@ -34,6 +34,22 @@ internal sealed class RuntimeWatchCoordinator<TModel, TFragment>
     private Task? _watchTask;
     private List<Task>? _watchWaitTasks;
 
+    /// <summary>
+    /// Baseline revisions captured from the most recent successful read, with the
+    /// ambient subject they were resolved for.
+    /// </summary>
+    /// <remarks>
+    /// The watch loop consumes this once instead of performing its own initial
+    /// resolution read. That closes the cold-start lost-wakeup window where an
+    /// external change landing between subscription and the loop's first read
+    /// would otherwise be adopted as the unobserved baseline and never reported.
+    /// Only revisions are retained (never model values), so there is no aliasing
+    /// with caller-held snapshots and no additional clone cost on the read path.
+    /// </remarks>
+    private BaselineSeed? _seedBaseline;
+
+    private sealed record BaselineSeed(StateRevisionVector Revisions, SubjectKey Subject);
+
     internal RuntimeWatchCoordinator(
         RuntimeResolutionEngine<TModel, TFragment> engine,
         RuntimeSourceTopology<TFragment> topology,
@@ -68,6 +84,46 @@ internal sealed class RuntimeWatchCoordinator<TModel, TFragment>
 
     /// <summary>Number of subject watchers whose complete lifetime has not yet been drained.</summary>
     internal int WatcherOperationCount => _watcherOperations.Count;
+
+    /// <summary>
+    /// Records the revisions of the most recent successful read as a candidate
+    /// baseline for a watch loop that has not performed its initial resolution yet.
+    /// </summary>
+    /// <remarks>
+    /// Consuming the seed is never worse than performing a fresh initial read: the
+    /// seed always predates (or coincides with) the loop startup, so waiting on it
+    /// detects a superset of the changes a fresh read would observe. A revision
+    /// difference without a retained baseline value is treated as a value change;
+    /// revision equality still suppresses notification, so a stale seed can only
+    /// cause one harmless extra reload cycle, never a missed update or a wrong value.
+    /// Seeds are scoped by subject and consumed once.
+    /// </remarks>
+    internal void NoteReadBaseline(StateReadResult<TModel> result)
+    {
+        if (result.Status != StateReadStatus.Success || result.Revisions is null)
+        {
+            return;
+        }
+
+        Volatile.Write(ref _seedBaseline, new BaselineSeed(result.Revisions, _subjects.CurrentKey));
+    }
+
+    private bool TryTakeSeedBaseline(out StateRevisionVector revisions)
+    {
+        var seed = Interlocked.Exchange(ref _seedBaseline, null);
+        if (
+            seed is not null
+            && seed.Subject.Equals(_subjects.CurrentKey)
+            && seed.Revisions is not null
+        )
+        {
+            revisions = seed.Revisions;
+            return true;
+        }
+
+        revisions = null!;
+        return false;
+    }
 
     internal IDisposable OnChange(Action<TModel> listener)
     {
@@ -182,22 +238,37 @@ internal sealed class RuntimeWatchCoordinator<TModel, TFragment>
             var reloadStarted = false;
             try
             {
+                StateRevisionVector? waitRevisions;
                 if (!hasPrevious)
                 {
-                    previous = await _engine
-                        .ReadPublicValueAsync(cancellationToken)
-                        .ConfigureAwait(false);
-                    if (previous.Status == StateReadStatus.Success)
+                    // Prefer a baseline seeded by the most recent read: it predates
+                    // loop startup, so an external change racing the first resolution
+                    // is still observed instead of being adopted silently.
+                    if (TryTakeSeedBaseline(out var seedRevisions))
                     {
-                        previousEffective = previous.Value!;
-                        hasEffective = true;
+                        waitRevisions = seedRevisions;
                     }
+                    else
+                    {
+                        previous = await _engine
+                            .ReadPublicValueAsync(cancellationToken)
+                            .ConfigureAwait(false);
+                        if (previous.Status == StateReadStatus.Success)
+                        {
+                            previousEffective = previous.Value!;
+                            hasEffective = true;
+                        }
 
-                    hasPrevious = true;
+                        hasPrevious = true;
+                        waitRevisions = previous.Revisions;
+                    }
+                }
+                else
+                {
+                    waitRevisions = previous.Revisions;
                 }
 
-                await WaitForAnyChangeAsync(previous.Revisions, cancellationToken)
-                    .ConfigureAwait(false);
+                await WaitForAnyChangeAsync(waitRevisions, cancellationToken).ConfigureAwait(false);
                 if (_onChangeDebounce > TimeSpan.Zero)
                 {
                     await DelayForChangeDebounceAsync(cancellationToken).ConfigureAwait(false);
@@ -212,7 +283,7 @@ internal sealed class RuntimeWatchCoordinator<TModel, TFragment>
                     .ConfigureAwait(false);
                 if (
                     current.Status == StateReadStatus.Success
-                    && !RuntimeState.HaveSameRevisions(previous.Revisions, current.Revisions)
+                    && !RuntimeState.HaveSameRevisions(waitRevisions, current.Revisions)
                 )
                 {
                     if (valueChanged)
