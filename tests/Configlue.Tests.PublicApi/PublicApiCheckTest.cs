@@ -26,7 +26,6 @@ using Configlue.Resource.Zip;
 using Configlue.Source.CommandLine;
 using Configlue.Source.Consul;
 using Configlue.Source.Environment;
-using Configlue.Source.Http;
 using Configlue.Source.PostgreSql;
 using Configlue.Source.PostgreSql.Migrations;
 using Configlue.Source.Presets;
@@ -328,7 +327,9 @@ public sealed class PublicApiCheckTest
     [Test]
     public void AwsAppConfig() =>
         PublicApiCheck.Check<Configlue.Resource.AwsAppConfig.AwsAppConfigSourceOptions>();
+    [Test]
     public void AzureBlob() => PublicApiCheck.Check<AzureBlobSourceOptions>();
+    [Test]
     public void Gcs() => PublicApiCheck.Check<GcsObjectSourceOptions>();
 
     [Test]
@@ -345,9 +346,12 @@ public sealed class PublicApiCheckTest
 
     [Test]
     public void Consul() => PublicApiCheck.Check<ConsulKvPrefixSourceOptions>();
+    [Test]
     public void Etcd() => PublicApiCheck.Check<EtcdStateSourceOptions>();
+    [Test]
     public void GoogleSecretManager() =>
         PublicApiCheck.Check<GoogleSecretManagerSourceOptions>();
+    [Test]
     public void Kubernetes() => PublicApiCheck.Check<KubernetesSourceOptions>();
 
     [Test]
