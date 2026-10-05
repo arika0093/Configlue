@@ -672,6 +672,39 @@ are retained in artifacts/xml-write-*; behavioral evidence is benchmark setup
 and unchanged writer/serialization bodies. The goal remains active; YAML decode,
 other codecs, and the broader remaining audit still require measurement.
 
+## Round 20: measure YAML fragment reads and reject a name cache (2026-10-05)
+
+Added reused-codec and new-codec fragment decoding for 4/16/64/128 members,
+with full or one-member sparse documents. Setup checks every present value and
+Simple-layout version metadata. NewCodec measures constructing a codec each
+operation; it does not establish that SharpYaml type/converter caches are cold.
+A separate mutable naming-policy fixture changes its prefix between reads and
+checks that each read resolves the current names.
+
+Reports: [baseline](reports/yaml-fragment/before.md),
+[rejected cache](reports/yaml-fragment/rejected-name-cache.md),
+[policy baseline](reports/yaml-fragment/policy-before.md), and
+[policy candidate](reports/yaml-fragment/rejected-name-cache-policy.md).
+All use three warmups and five measurements. The original first baseline failed
+setup because its metadata guard expected an ID in the Simple layout; that run
+is excluded. The corrected baseline completes all 16 cases, and the candidate
+completes all 17, including the changing-prefix guard.
+
+The candidate cached an ordinal member-name dictionary per converter only when
+no naming policy was configured. Custom policies retained a fresh dictionary
+per read. Contrary to the expected persistent lookup savings, allocation falls
+only about 56 B per operation across member counts; the mutable-policy case
+adds about 8 B. Reused-codec means rise from 14.427 to 14.844 us (4 full),
+43.406 to 45.295 us (16 full), 161.069 to 165.299 us (64 full), and
+8.078 to 8.847 us (128 sparse). Some timing intervals overlap, but the tiny
+allocation saving does not justify retaining this candidate. Production code
+was restored. No claim of persistent converter reuse is made.
+
+The candidate builds on all provider target frameworks with zero warnings or
+errors. The next candidate addresses fragment node buffering/reparsing using
+the reader's dictionary converter, retaining the configured conversion path.
+The broader goal remains active.
+
 ## Remaining audit
 
 
