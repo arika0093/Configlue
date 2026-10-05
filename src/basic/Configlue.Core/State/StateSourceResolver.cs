@@ -17,9 +17,11 @@ namespace Configlue.State;
 /// </para>
 /// <para>
 /// Per-subject resolutions are cached so routing and watcher fan-out stay stable across reads. The cache is
-/// bounded: entries are evicted once they have been idle for <see cref="SubjectResolutionIdleTimeout"/> and no
-/// active watch still references them. Eviction is opportunistic and performed on access, so the resolver does
-/// not run a timer or task per subject.
+/// a plain concurrent dictionary of immutable entries: reads replace the entry for their subject, watches
+/// capture an immutable snapshot without pinning residency, and idle entries are evicted opportunistically
+/// on access once they have been idle for <see cref="SubjectResolutionIdleTimeout"/>. Eviction never runs on
+/// a timer or per-subject task. A watch that races eviction simply falls back to the conservative full
+/// source list; captured snapshots stay valid after eviction (see issue #271).
 /// </para>
 /// </remarks>
 internal sealed class StateSourceResolver<T> : ISourceReader<T>
@@ -32,21 +34,15 @@ internal sealed class StateSourceResolver<T> : ISourceReader<T>
     /// <summary>The idle timeout applied to per-subject resolutions when none is supplied.</summary>
     public static readonly TimeSpan SubjectResolutionIdleTimeout = TimeSpan.FromMinutes(5);
 
-    /// <summary>The entry count at which opportunistic sweeps are considered even before the idle timeout.</summary>
-    public const int SubjectResolutionSweepThreshold = 256;
-
     private readonly StateSourceSet<T> _sourceSet;
     private readonly ILogger? _logger;
     private readonly Func<long> _getTimestamp;
     private Resolution? _resolution;
     private readonly ConcurrentDictionary<
         (SubjectKey SubjectKey, RouteKey Route),
-        SubjectResolution
+        SubjectEntry
     > _subjectResolutions = new();
     private readonly long _subjectResolutionIdleTicks;
-    private readonly int _subjectResolutionSweepThreshold;
-    private int _subjectResolutionCount;
-    private int _subjectResolutionSweepCountdown;
     private long _subjectResolutionLastSweepTimestamp;
 
     /// <summary>Creates a source resolver.</summary>
@@ -57,24 +53,15 @@ internal sealed class StateSourceResolver<T> : ISourceReader<T>
     /// <see cref="SubjectResolutionIdleTimeout"/>. Use <see cref="TimeSpan.Zero"/> to evict any entry that was
     /// not touched since the previous access.
     /// </param>
-    /// <param name="subjectResolutionSweepThreshold">
-    /// The approximate cached entry count at which sweeps are attempted on access even before the idle timeout
-    /// elapses. Defaults to <see cref="SubjectResolutionSweepThreshold"/>.
-    /// </param>
     /// <param name="getTimestamp">An optional monotonic timestamp source in Stopwatch ticks.</param>
     public StateSourceResolver(
         StateSourceSet<T> sourceSet,
         ILogger? logger = null,
         TimeSpan? subjectResolutionIdleTimeout = null,
-        int subjectResolutionSweepThreshold = SubjectResolutionSweepThreshold,
         Func<long>? getTimestamp = null
     )
     {
         ArgumentNullException.ThrowIfNull(sourceSet);
-        if (subjectResolutionSweepThreshold <= 0)
-        {
-            throw new ArgumentOutOfRangeException(nameof(subjectResolutionSweepThreshold));
-        }
 
         var idleTimeout = subjectResolutionIdleTimeout ?? SubjectResolutionIdleTimeout;
         if (idleTimeout < TimeSpan.Zero)
@@ -85,22 +72,17 @@ internal sealed class StateSourceResolver<T> : ISourceReader<T>
         _sourceSet = sourceSet;
         _logger = logger;
         _getTimestamp = getTimestamp ?? Stopwatch.GetTimestamp;
-        _subjectResolutionSweepThreshold = subjectResolutionSweepThreshold;
         _subjectResolutionIdleTicks = (long)(
             idleTimeout.TotalMilliseconds * Stopwatch.Frequency / 1000.0
         );
-        _subjectResolutionSweepCountdown = subjectResolutionSweepThreshold;
         _subjectResolutionLastSweepTimestamp = _getTimestamp();
     }
 
     /// <summary>The source that most recently supplied a value.</summary>
     public StateSource<T>? ActiveSource => Volatile.Read(ref _resolution)?.ActiveSource;
 
-    /// <summary>The approximate number of cached per-subject resolutions.</summary>
-    internal int SubjectResolutionCount => Volatile.Read(ref _subjectResolutionCount);
-
-    /// <summary>Test-only synchronization hooks used to force cache residency interleavings.</summary>
-    internal SubjectResolutionCacheTestHooks? SubjectResolutionTestHooks { get; set; }
+    /// <summary>The number of cached per-subject resolutions.</summary>
+    internal int SubjectResolutionCount => _subjectResolutions.Count;
 
     /// <inheritdoc />
     public ValueTask<StateReadResult<T>> ReadAsync(
@@ -410,7 +392,7 @@ internal sealed class StateSourceResolver<T> : ISourceReader<T>
             return null;
         }
 
-        return entry.TryPeek();
+        return entry.Resolution;
     }
 
     internal ResolverWatchTopology<T>? GetWatchTopologyForTest(
@@ -428,7 +410,7 @@ internal sealed class StateSourceResolver<T> : ISourceReader<T>
             return null;
         }
 
-        return entry.TryPeek()?.Topology;
+        return entry.Resolution.Topology;
     }
 
     private async ValueTask<StateReadResult<T>> ReadSourceAsync(
@@ -482,31 +464,21 @@ internal sealed class StateSourceResolver<T> : ISourceReader<T>
         string? fallbackRevision
     )
     {
+        // A watch captures an immutable snapshot. The entry may be replaced or evicted concurrently;
+        // either snapshot is a valid routing/observation pair, and a missing entry falls back to the
+        // conservative full source list. Watches deliberately do not pin residency (issue #271).
         Resolution? resolution;
-        IDisposable? watchLease = null;
         if (subject is null)
         {
             resolution = Volatile.Read(ref _resolution);
         }
+        else if (_subjectResolutions.TryGetValue((subject.Key, route), out var entry))
+        {
+            resolution = entry.Resolution;
+        }
         else
         {
-            var key = (subject.Key, route);
-            while (true)
-            {
-                if (!_subjectResolutions.TryGetValue(key, out var entry))
-                {
-                    resolution = null;
-                    break;
-                }
-
-                SubjectResolutionTestHooks?.AfterWatchLookup?.Invoke();
-                if (entry.TryAcquireWatchLease(out var leasedResolution, out var lease))
-                {
-                    resolution = leasedResolution;
-                    watchLease = lease;
-                    break;
-                }
-            }
+            resolution = null;
         }
 
         var active = resolution?.ActiveSource;
@@ -539,7 +511,7 @@ internal sealed class StateSourceResolver<T> : ISourceReader<T>
             }
         }
 
-        return new StateSourceWatchTargets<T>(sources, watchLease);
+        return new StateSourceWatchTargets<T>(sources);
     }
 
     private void SetResolution(
@@ -556,62 +528,30 @@ internal sealed class StateSourceResolver<T> : ISourceReader<T>
 
         var key = (subject.Key, context.Route);
         var now = _getTimestamp();
-        while (true)
-        {
-            // The dictionary never hands out an entry we may mutate without re-proving residency.
-            // The entry's lock makes "still resident" and "still updatable" the same decision.
-            if (_subjectResolutions.TryGetValue(key, out var entry))
-            {
-                SubjectResolutionTestHooks?.AfterUpdateLookup?.Invoke();
-                if (entry.TryUpdate(resolution, now))
-                {
-                    break;
-                }
-
-                continue;
-            }
-
-            var candidate = new SubjectResolution(this, key, resolution);
-            if (!_subjectResolutions.TryAdd(key, candidate))
-            {
-                continue;
-            }
-
-            if (candidate.TryPublish(now))
-            {
-                break;
-            }
-        }
+        // Immutable replacement: concurrent readers/watches each hold a complete snapshot, so the
+        // last writer simply wins. The indexer assignment is a single atomic update; no residency
+        // protocol is needed to prove an update is current.
+        _subjectResolutions[key] = new SubjectEntry(resolution, now);
 
         MaybeSweepSubjectResolutions(now);
     }
 
     private void MaybeSweepSubjectResolutions(long now)
     {
-        var idleElapsed =
-            now - Volatile.Read(ref _subjectResolutionLastSweepTimestamp)
-            > _subjectResolutionIdleTicks;
-        var atCapacity =
-            Volatile.Read(ref _subjectResolutionCount) >= _subjectResolutionSweepThreshold;
-        if (!idleElapsed && !atCapacity)
-        {
-            return;
-        }
-
-        // Capacity-driven sweeps are amortized so a large live set is not rescanned on every access.
+        // Idle-only eviction: a sweep runs at most once per idle timeout, so the hot path is a
+        // single timestamp comparison and never scales with the cached entry count. A separate
+        // capacity trigger was measured (issue #271) to only rescan without evicting anything the
+        // next idle sweep would not: entries that are individually idle while the global timeout has
+        // not elapsed are evicted at most one idle timeout later, which is immaterial for an
+        // opportunistic bound.
         if (
-            atCapacity
-            && !idleElapsed
-            && Interlocked.Decrement(ref _subjectResolutionSweepCountdown) > 0
+            now - Volatile.Read(ref _subjectResolutionLastSweepTimestamp)
+            <= _subjectResolutionIdleTicks
         )
         {
             return;
         }
 
-        Interlocked.Exchange(
-            ref _subjectResolutionSweepCountdown,
-            _subjectResolutionSweepThreshold
-        );
         Volatile.Write(ref _subjectResolutionLastSweepTimestamp, now);
         SweepSubjectResolutions(now);
     }
@@ -619,10 +559,22 @@ internal sealed class StateSourceResolver<T> : ISourceReader<T>
     private int SweepSubjectResolutions(long now)
     {
         var idleTicks = _subjectResolutionIdleTicks;
+        // Remove by exact key/value pair so an entry replaced concurrently (with a fresh timestamp)
+        // is never evicted on behalf of the stale snapshot enumerated here. SubjectEntry is an
+        // immutable reference type without value equality, so the pair removal is a reference
+        // comparison against the currently resident entry.
+        var entries =
+            (ICollection<KeyValuePair<(SubjectKey SubjectKey, RouteKey Route), SubjectEntry>>)
+                _subjectResolutions;
         var evicted = 0;
         foreach (var pair in _subjectResolutions)
         {
-            if (!pair.Value.TryEvict(now, idleTicks))
+            if (now - pair.Value.LastAccessTimestamp <= idleTicks)
+            {
+                continue;
+            }
+
+            if (!entries.Remove(pair))
             {
                 continue;
             }
@@ -636,17 +588,6 @@ internal sealed class StateSourceResolver<T> : ISourceReader<T>
 
     /// <summary>Test-only hook that forces an idle sweep at the current timestamp.</summary>
     internal int EvictIdleSubjectResolutionsForTest() => SweepSubjectResolutions(_getTimestamp());
-
-    /// <summary>
-    /// Test-only hook that evicts a resident entry even while a watch lease is held so the behavior of stale
-    /// leases can be observed.
-    /// </summary>
-    internal bool ForceEvictSubjectResolutionForTest(IConfiglueSubject subject, RouteKey route)
-    {
-        ArgumentNullException.ThrowIfNull(subject);
-        return _subjectResolutions.TryGetValue((subject.Key, route), out var entry)
-            && entry.ForceEvictForTest();
-    }
 
     private static bool CanFallBack(StateFallbackCondition condition, StateReadStatus status) =>
         status switch
@@ -727,246 +668,34 @@ internal sealed class StateSourceResolver<T> : ISourceReader<T>
         }
     }
 
-    private enum SubjectResolutionState
-    {
-        Active,
-        Evicting,
-        Evicted,
-    }
-
     /// <summary>
-    /// A resident-or-detached per-subject resolution. Residency, updating and watch leases are all decided under
-    /// <c>_gate</c> so a caller holding a reference to an evicted entry can never mutate or lease it.
+    /// One immutable cached per-subject resolution. Reads publish a new instance via dictionary
+    /// replacement; watches and reads each observe one complete snapshot, so no entry-level locking,
+    /// residency state machine, or watch reference counting is required.
     /// </summary>
-    private sealed class SubjectResolution
+    private sealed class SubjectEntry(Resolution resolution, long lastAccessTimestamp)
     {
-        private readonly StateSourceResolver<T> _owner;
-        private readonly (SubjectKey SubjectKey, RouteKey Route) _key;
-        private readonly object _gate = new();
-        private Resolution _resolution;
-        private long _lastAccessTimestamp;
-        private int _watchReferenceCount;
-        private bool _counted;
-        private SubjectResolutionState _state = SubjectResolutionState.Active;
-
-        public SubjectResolution(
-            StateSourceResolver<T> owner,
-            (SubjectKey SubjectKey, RouteKey Route) key,
-            Resolution resolution
-        )
-        {
-            _owner = owner;
-            _key = key;
-            _resolution = resolution;
-            _lastAccessTimestamp = _owner._getTimestamp();
-        }
-
-        /// <summary>Counts a freshly added entry once it is proven to still be resident.</summary>
-        public bool TryPublish(long timestamp)
-        {
-            lock (_gate)
-            {
-                if (_state != SubjectResolutionState.Active)
-                {
-                    return false;
-                }
-
-                if (!_counted)
-                {
-                    _counted = true;
-                    Interlocked.Increment(ref _owner._subjectResolutionCount);
-                }
-
-                _lastAccessTimestamp = timestamp;
-                return true;
-            }
-        }
-
-        /// <summary>Updates the entry only while it is still the resident entry for its key.</summary>
-        public bool TryUpdate(Resolution resolution, long timestamp)
-        {
-            lock (_gate)
-            {
-                if (_state != SubjectResolutionState.Active)
-                {
-                    return false;
-                }
-
-                _resolution = resolution;
-                _lastAccessTimestamp = timestamp;
-                return true;
-            }
-        }
-
-        /// <summary>Acquires a watch lease on the resident entry, failing once eviction has begun.</summary>
-        public bool TryAcquireWatchLease(out Resolution resolution, out IDisposable lease)
-        {
-            lock (_gate)
-            {
-                if (_state != SubjectResolutionState.Active)
-                {
-                    resolution = null!;
-                    lease = null!;
-                    return false;
-                }
-
-                _watchReferenceCount++;
-                _lastAccessTimestamp = _owner._getTimestamp();
-                resolution = _resolution;
-                lease = new WatchLease(this);
-                return true;
-            }
-        }
-
-        /// <summary>
-        /// Returns the current resolution without acquiring a watch lease. The returned topology is
-        /// immutable, so reusing it for the next read is safe even if this entry is evicted concurrently.
-        /// </summary>
-        public Resolution? TryPeek()
-        {
-            lock (_gate)
-            {
-                if (_state != SubjectResolutionState.Active)
-                {
-                    return null;
-                }
-
-                return _resolution;
-            }
-        }
-
-        public bool TryEvict(long now, long idleTicks)
-        {
-            lock (_gate)
-            {
-                if (_state != SubjectResolutionState.Active)
-                {
-                    return false;
-                }
-
-                if (_watchReferenceCount != 0)
-                {
-                    return false;
-                }
-
-                if (now - _lastAccessTimestamp <= idleTicks)
-                {
-                    return false;
-                }
-
-                return Detach();
-            }
-        }
-
-        /// <summary>Test-only eviction that ignores live watch leases to exercise stale lease release.</summary>
-        public bool ForceEvictForTest()
-        {
-            lock (_gate)
-            {
-                if (_state != SubjectResolutionState.Active)
-                {
-                    return false;
-                }
-
-                return Detach();
-            }
-        }
-
-        /// <summary>
-        /// Marks the entry evicting and removes it from the cache under the entry lock, so residency and state
-        /// transition together and no caller can observe an evicting entry as still updatable or leasable.
-        /// </summary>
-        private bool Detach()
-        {
-            _state = SubjectResolutionState.Evicting;
-
-            // Decrement before handing the key off so the replacement entry cannot be counted while this one is
-            // still counted; that keeps the approximate count from over-reporting during a key handoff.
-            var wasCounted = _counted;
-            if (wasCounted)
-            {
-                _counted = false;
-                Interlocked.Decrement(ref _owner._subjectResolutionCount);
-            }
-
-            // The state machine and this lock prove this entry is the resident value for the key (only Detach
-            // removes entries), so the key-only removal cannot detach a replacement entry.
-            if (!_owner._subjectResolutions.TryRemove(_key, out _))
-            {
-                _state = SubjectResolutionState.Active;
-                if (wasCounted)
-                {
-                    _counted = true;
-                    Interlocked.Increment(ref _owner._subjectResolutionCount);
-                }
-
-                return false;
-            }
-
-            _state = SubjectResolutionState.Evicted;
-            return true;
-        }
-
-        private void ReleaseWatchReference()
-        {
-            _owner.SubjectResolutionTestHooks?.BeforeWatchLeaseRelease?.Invoke();
-            lock (_gate)
-            {
-                _watchReferenceCount--;
-            }
-        }
-
-        private sealed class WatchLease(SubjectResolution owner) : IDisposable
-        {
-            private SubjectResolution? _owner = owner;
-
-            public void Dispose() =>
-                Interlocked.Exchange(ref _owner, null)?.ReleaseWatchReference();
-        }
+        public Resolution Resolution { get; } = resolution;
+        public long LastAccessTimestamp { get; } = lastAccessTimestamp;
     }
-}
-
-/// <summary>Internal synchronization hooks used by tests to force cache residency interleavings.</summary>
-internal sealed class SubjectResolutionCacheTestHooks
-{
-    /// <summary>Invoked after a resolver update has looked up a resident entry and before it updates it.</summary>
-    public Action? AfterUpdateLookup { get; set; }
-
-    /// <summary>Invoked after a watcher has looked up a resident entry and before it leases it.</summary>
-    public Action? AfterWatchLookup { get; set; }
-
-    /// <summary>Invoked before a watch lease releases its reference to the entry.</summary>
-    public Action? BeforeWatchLeaseRelease { get; set; }
 }
 
 /// <summary>
-/// A captured set of watch targets plus an optional lease that keeps the underlying subject resolution cached
-/// while a watcher is still using it. Disposing the lease releases the active-watch reference.
+/// A captured set of watch targets. The targets are an immutable snapshot copied from the resolution
+/// observed when the watch started, so the list remains valid even if the underlying subject entry is
+/// replaced or evicted while the watch is in flight.
 /// </summary>
 internal sealed class StateSourceWatchTargets<T> : IDisposable
 {
-    private IDisposable? _lease;
-    private int _disposed;
-
-    public StateSourceWatchTargets(
-        IReadOnlyList<StateSourceWatchTarget<T>> targets,
-        IDisposable? lease
-    )
+    public StateSourceWatchTargets(IReadOnlyList<StateSourceWatchTarget<T>> targets)
     {
         Targets = targets;
-        _lease = lease;
     }
 
     /// <summary>The captured watch targets. The list remains valid after disposal.</summary>
     public IReadOnlyList<StateSourceWatchTarget<T>> Targets { get; }
 
-    public void Dispose()
-    {
-        if (Interlocked.Exchange(ref _disposed, 1) == 0)
-        {
-            Interlocked.Exchange(ref _lease, null)?.Dispose();
-        }
-    }
+    public void Dispose() { }
 }
 
 internal readonly record struct StateSourceWatchTarget<T>

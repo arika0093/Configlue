@@ -60,7 +60,7 @@ public sealed class StateSourceWatcherTests
     }
 
     [Test]
-    public async Task WaitForChangeAsync_HoldsSubjectWatchLeaseUntilLosersDrain()
+    public async Task WaitForChangeAsync_SnapshotSurvivesIdleEvictionWhileLosersDrain()
     {
         var higherPriorityWatcher = new ControlledWatcher(
             delayCancellationCleanup: true
@@ -98,7 +98,9 @@ public sealed class StateSourceWatcherTests
         await Task.Delay(TimeSpan.FromMilliseconds(20));
         (await resolver.ReadAsync(higherPrioritySource.GetResourceContext(new WatchSubject("subject-two"))))
             .Status.ShouldBe(StateReadStatus.Success);
-        resolver.SubjectResolutionCount.ShouldBe(2);
+        // Watches hold an immutable snapshot, not residency (issue #271): the idle entry for the
+        // watched subject is evicted while its losers still drain, and the watch still completes.
+        resolver.SubjectResolutionCount.ShouldBe(1);
 
         higherPriorityWatcher.ReleaseCleanup();
         await waiting;

@@ -42,12 +42,7 @@ public sealed class StateSourceResolverCacheTests
     {
         var clock = new CacheClock();
         var source = CreateSource();
-        var resolver = CreateResolver(
-            source,
-            clock,
-            TimeSpan.FromMilliseconds(20),
-            sweepThreshold: 8
-        );
+        var resolver = CreateResolver(source, clock, TimeSpan.FromMilliseconds(20));
 
         for (var index = 0; index < 60; index++)
         {
@@ -60,7 +55,7 @@ public sealed class StateSourceResolverCacheTests
     }
 
     [Test]
-    public async Task ActiveWatchReference_PreventsIdleEvictionUntilReleased()
+    public async Task ActiveWatch_SnapshotRemainsValidAfterIdleEviction()
     {
         var clock = new CacheClock();
         var source = CreateSource();
@@ -69,18 +64,19 @@ public sealed class StateSourceResolverCacheTests
         await resolver.ReadAsync(Context(source, 0));
         await resolver.ReadAsync(Context(source, 1));
 
-        using (resolver.GetSourcesForWatch(Subject(0), RouteKey.Default, "revision"))
+        using (var watch = resolver.GetSourcesForWatch(Subject(0), RouteKey.Default, "revision"))
         {
             clock.Advance(TimeSpan.FromMilliseconds(150));
             await resolver.ReadAsync(Context(source, 2));
-            // The watched entry survives its idle period while the watch lease is held; the unwatched
-            // entry is evicted.
-            resolver.SubjectResolutionCount.ShouldBe(2);
+            // Watches capture an immutable snapshot and deliberately do not pin residency (issue
+            // #271): both idle entries are evicted while the captured targets stay valid.
+            resolver.SubjectResolutionCount.ShouldBe(1);
+            watch.Targets.Count.ShouldBe(1);
+            watch.Targets[0].ObservedRevision.ShouldBe("1");
         }
 
         clock.Advance(TimeSpan.FromMilliseconds(150));
         await resolver.ReadAsync(Context(source, 3));
-        // After release the previously watched entry is evictable again.
         resolver.SubjectResolutionCount.ShouldBe(1);
     }
 
@@ -117,13 +113,11 @@ public sealed class StateSourceResolverCacheTests
     private static StateSourceResolver<AppSettings.Fragment> CreateResolver(
         StateSource<AppSettings.Fragment> source,
         CacheClock clock,
-        TimeSpan idleTimeout,
-        int sweepThreshold = 1_000_000
+        TimeSpan idleTimeout
     ) =>
         new(
             new StateSourceSet<AppSettings.Fragment>([source]),
             subjectResolutionIdleTimeout: idleTimeout,
-            subjectResolutionSweepThreshold: sweepThreshold,
             getTimestamp: () => clock.Timestamp
         );
 
