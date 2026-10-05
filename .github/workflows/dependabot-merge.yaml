@@ -24,6 +24,13 @@ jobs:
 
       # Run only the necessary ones.
       # Action updates can affect both the product CI and the docs CI.
+      # NOTE: dependabot/fetch-metadata reports ecosystem names with
+      # underscores (npm_and_yarn, github_actions) and per-project
+      # directories for nuget (e.g. /src/devtools/... instead of /),
+      # so match on ecosystem with a directory wildcard where the
+      # selected checks are not directory-sensitive.
+      # Observed values: nuget:/src/..., npm_and_yarn:/docs-site,
+      # github_actions:/
       - name: Select checks
         id: checks
         shell: bash
@@ -37,13 +44,13 @@ jobs:
           echo "run-npm=false" >> "$GITHUB_OUTPUT"
 
           case "$PACKAGE_ECOSYSTEM:$DIRECTORY" in
-            nuget:/)
+            nuget:*)
               echo "run-dotnet=true" >> "$GITHUB_OUTPUT"
               ;;
-            npm:/docs-site)
+            npm_and_yarn:/docs-site)
               echo "run-npm=true" >> "$GITHUB_OUTPUT"
               ;;
-            github-actions:/)
+            github_actions:*)
               echo "run-dotnet=true" >> "$GITHUB_OUTPUT"
               echo "run-npm=true" >> "$GITHUB_OUTPUT"
               ;;
