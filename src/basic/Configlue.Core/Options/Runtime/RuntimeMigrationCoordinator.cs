@@ -6,24 +6,33 @@ namespace Configlue;
 /// <summary>
 /// Owns schema and storage migration for one runtime.
 ///
-/// Fragment migration runs through the resolution engine's diagnostics-wrapped
-/// path; storage migration (source-to-source and source-to-targets copies with
-/// revision verification and optional retirement) is orchestrated here over the
-/// topology, write coordinator, and validation pipeline. Narrow resolution
-/// snapshots are passed explicitly instead of sharing mutable resolve state.
+/// Orchestration only: fragment migration runs through the resolution engine's
+/// diagnostics-wrapped path, while storage migration is decomposed into explicit
+/// phases with clear ownership:
+/// <list type="bullet">
+/// <item>source selection and baseline capture (<see cref="RuntimeMigrationSourceStage{TModel,TFragment}"/>);</item>
+/// <item>target projection and persistence (<see cref="RuntimeMigrationTargetStage{TModel,TFragment}"/>);</item>
+/// <item>source revision/conflict validation before destructive actions (<see cref="RuntimeMigrationSnapshotGuard{TModel,TFragment}"/>);</item>
+/// <item>source retirement and post-retirement verification (<see cref="RuntimeMigrationRetirementStage{TModel,TFragment}"/>);</item>
+/// <item>journaled progress over declarative definitions (<see cref="StateStorageMigrationExtensions"/>).</item>
+/// </list>
+/// Planning (pure projection of merged fragments onto targets) never performs I/O;
+/// every write funnels through one verified conditional-write pipeline, and
+/// retirement runs only after the effective-model invariant is re-proved.
+/// Narrow resolution snapshots are passed explicitly instead of sharing mutable
+/// resolve state.
 /// </summary>
 internal sealed class RuntimeMigrationCoordinator<TModel, TFragment>
     where TModel : IConfiglueModel<TModel, TFragment>
     where TFragment : class, IConfiglueFragment<TFragment>
 {
     private readonly RuntimeResolutionEngine<TModel, TFragment> _engine;
-    private readonly RuntimeSourceTopology<TFragment> _topology;
-    private readonly RuntimeWriteCoordinator<TModel, TFragment> _writes;
-    private readonly RuntimeValidationPipeline<TModel, TFragment> _validation;
     private readonly RuntimeDiagnosticRecorder _diagnostics;
     private readonly RuntimeLifetime _lifetime;
-    private readonly StateSource<TFragment>[] _migrationSources;
-    private readonly Dictionary<SourceId, StateSource<TFragment>> _migrationSourceById;
+    private readonly RuntimeMigrationSourceStage<TModel, TFragment> _sources;
+    private readonly RuntimeMigrationTargetStage<TModel, TFragment> _targets;
+    private readonly RuntimeMigrationSnapshotGuard<TModel, TFragment> _guard;
+    private readonly RuntimeMigrationRetirementStage<TModel, TFragment> _retirement;
 
     internal RuntimeMigrationCoordinator(
         RuntimeResolutionEngine<TModel, TFragment> engine,
@@ -36,76 +45,40 @@ internal sealed class RuntimeMigrationCoordinator<TModel, TFragment>
     )
     {
         _engine = engine;
-        _topology = topology;
-        _writes = writes;
-        _validation = validation;
         _diagnostics = diagnostics;
         _lifetime = lifetime;
-        var declared = migrationSources?.ToArray() ?? [];
-        if (declared.Any(static source => source is null))
-        {
-            throw new ArgumentException(
-                "A migration-only source collection cannot contain null sources.",
-                nameof(migrationSources)
-            );
-        }
-
-        var duplicate = declared
-            .GroupBy(static source => source.Id)
-            .FirstOrDefault(static group => group.Count() > 1);
-        if (duplicate is not null)
-        {
-            throw new ArgumentException(
-                $"Migration-only source id '{duplicate.Key}' is registered more than once.",
-                nameof(migrationSources)
-            );
-        }
-
-        var colliding = declared.FirstOrDefault(source =>
-            topology.SourceSet.Sources.Any(candidate => candidate.Id == source.Id)
+        _sources = new RuntimeMigrationSourceStage<TModel, TFragment>(
+            engine,
+            topology,
+            migrationSources
         );
-        if (colliding is not null)
-        {
-            throw new ArgumentException(
-                $"Migration-only source '{colliding.Id}' is already registered as an active runtime source.",
-                nameof(migrationSources)
-            );
-        }
-
-        _migrationSources = declared;
-        _migrationSourceById = declared.ToDictionary(
-            static source => source.Id,
-            static source => source
+        _targets = new RuntimeMigrationTargetStage<TModel, TFragment>(
+            engine,
+            writes,
+            diagnostics,
+            _sources
+        );
+        _guard = new RuntimeMigrationSnapshotGuard<TModel, TFragment>(engine, diagnostics);
+        _retirement = new RuntimeMigrationRetirementStage<TModel, TFragment>(
+            engine,
+            topology,
+            validation,
+            diagnostics
         );
     }
 
     /// <summary>Migration-only sources, invisible to normal resolution.</summary>
-    internal IReadOnlyList<StateSource<TFragment>> MigrationSources => _migrationSources;
+    internal IReadOnlyList<StateSource<TFragment>> MigrationSources => _sources.MigrationSources;
 
     /// <summary>
     /// Resolves a migration participant from the active topology first and from the
     /// migration-only definitions second.
     /// </summary>
-    internal StateSource<TFragment> FindMigrationSource(SourceId sourceId)
-    {
-        var active = _topology.SourceSet.Sources.FirstOrDefault(candidate =>
-            candidate.Id == sourceId
-        );
-        if (active is not null)
-        {
-            return active;
-        }
-
-        if (_migrationSourceById.TryGetValue(sourceId, out var migrationOnly))
-        {
-            return migrationOnly;
-        }
-
-        throw new InvalidOperationException($"State source '{sourceId}' is not registered.");
-    }
+    internal StateSource<TFragment> FindMigrationSource(SourceId sourceId) =>
+        _sources.FindMigrationSource(sourceId);
 
     internal bool IsMigrationOnlySource(SourceId sourceId) =>
-        _migrationSourceById.ContainsKey(sourceId);
+        _sources.IsMigrationOnlySource(sourceId);
 
     internal async ValueTask<StateSourceMigrationResult> MigrateSourceAsync(
         SourceId sourceId,
@@ -157,103 +130,75 @@ internal sealed class RuntimeMigrationCoordinator<TModel, TFragment>
     )
     {
         using var operation = _lifetime.EnterOperation();
-        if (sourceId.IsDefault || targetId.IsDefault)
-        {
-            throw new ArgumentException("Source IDs must be non-empty.");
-        }
         cancellationToken.ThrowIfCancellationRequested();
 
-        var source = FindMigrationSource(sourceId);
-        var target = FindMigrationSource(targetId);
-        if (target.Writer is null)
-        {
-            throw new InvalidOperationException(
-                $"State source '{target.Id}' does not support writes."
-            );
-        }
+        var (source, target) = _sources.ResolveSinglePair(sourceId, targetId);
+        _sources.EnsureTargetWritable(target);
 
-        if (!IsMigrationOnlySource(target.Id) && !_topology.IsSourceActive(target.Id))
-        {
-            throw new InvalidOperationException(
-                $"State source '{target.Id}' has been retired from this state instance."
-            );
-        }
-
-        var sourceResult = await _engine
-            .ReadMigrationSourceAsync(source, cancellationToken)
+        var contribution = await _sources
+            .ReadContributionAsync(source, allowNotFound: false, cancellationToken)
             .ConfigureAwait(false);
-        if (sourceResult.Status != StateReadStatus.Success)
+
+        if (IsIdentityMigration(source, target, contribution.Result))
         {
-            throw new InvalidOperationException(
-                $"Source '{source.Id}' could not be migrated: {sourceResult.Status}."
+            return new StateSourceMigrationResult(
+                source.Id,
+                target.Id,
+                contribution.Result.Revision,
+                contribution.Result.Revision
             );
         }
 
-        var sourceFragment =
-            sourceResult.Value
-            ?? throw new InvalidOperationException(
-                $"State source '{source.Id}' returned a null configuration fragment."
-            );
-        if (sourceResult.Schema is { } schema)
-        {
-            sourceFragment = await _engine
-                .MigrateFragmentAsync(sourceFragment, schema, cancellationToken)
-                .ConfigureAwait(false);
-        }
+        var baseRevision = await ResolveSingleWriteBaseAsync(
+                source,
+                target,
+                contribution,
+                cancellationToken
+            )
+            .ConfigureAwait(false);
+        var write = await _targets
+            .WriteVerifiedAsync(target, contribution.Fragment, baseRevision, cancellationToken)
+            .ConfigureAwait(false);
+        return new StateSourceMigrationResult(
+            source.Id,
+            target.Id,
+            contribution.Result.Revision,
+            write.Revision
+        );
+    }
 
+    private static bool IsIdentityMigration(
+        StateSource<TFragment> source,
+        StateSource<TFragment> target,
+        StateReadResult<TFragment> sourceResult
+    )
+    {
+        // Same instance already at the current schema: nothing to copy.
         var currentSchema = RuntimeModel<TModel, TFragment>.Schema.ToMetadata();
-        if (
-            ReferenceEquals(source, target)
-            && (sourceResult.Schema is null || sourceResult.Schema == currentSchema)
-        )
+        return ReferenceEquals(source, target)
+            && (sourceResult.Schema is null || sourceResult.Schema == currentSchema);
+    }
+
+    /// <summary>
+    /// Single shared write-base pipeline: same-instance and same-physical-resource
+    /// migrations reuse the source revision captured through the old codec; only
+    /// cross-resource migrations pre-read the target through its own codec.
+    /// </summary>
+    private async ValueTask<string?> ResolveSingleWriteBaseAsync(
+        StateSource<TFragment> source,
+        StateSource<TFragment> target,
+        MigrationSourceContribution<TModel, TFragment> contribution,
+        CancellationToken cancellationToken
+    )
+    {
+        if (ReferenceEquals(source, target) || _sources.SharesPhysicalResource(source, target))
         {
-            return new StateSourceMigrationResult(
-                source.Id,
-                target.Id,
-                sourceResult.Revision,
-                sourceResult.Revision
-            );
+            return contribution.Result.Revision;
         }
 
-        StateReadResult<TFragment> targetResult;
-        var isSamePhysicalResource =
-            !ReferenceEquals(source, target) && SharesPhysicalResource(source, target);
-        if (ReferenceEquals(source, target))
-        {
-            targetResult = sourceResult;
-        }
-        else if (isSamePhysicalResource)
-        {
-            targetResult = default;
-        }
-        else
-        {
-            targetResult = await _engine
-                .ReadMigrationSourceAsync(target, cancellationToken)
-                .ConfigureAwait(false);
-        }
-
-        if (isSamePhysicalResource)
-        {
-            // Same physical resource, different codecs (in-place representation replacement):
-            // the target reader would classify the old bytes as invalid payload, so the
-            // conditional replace is based on the original physical revision captured through
-            // the old codec instead of a target pre-read.
-            var sameResourceWrite = await WriteVerifiedMigrationAsync(
-                    target,
-                    sourceFragment,
-                    sourceResult.Revision,
-                    cancellationToken
-                )
-                .ConfigureAwait(false);
-            return new StateSourceMigrationResult(
-                source.Id,
-                target.Id,
-                sourceResult.Revision,
-                sameResourceWrite.Revision
-            );
-        }
-
+        var targetResult = await _engine
+            .ReadMigrationSourceAsync(target, cancellationToken)
+            .ConfigureAwait(false);
         if (targetResult.Status == StateReadStatus.Unavailable)
         {
             throw new InvalidOperationException($"Target source '{target.Id}' is unavailable.");
@@ -266,134 +211,7 @@ internal sealed class RuntimeMigrationCoordinator<TModel, TFragment>
             );
         }
 
-        var write = await WriteVerifiedMigrationAsync(
-                target,
-                sourceFragment,
-                targetResult.Revision,
-                cancellationToken
-            )
-            .ConfigureAwait(false);
-        var migrationResult = new StateSourceMigrationResult(
-            source.Id,
-            target.Id,
-            sourceResult.Revision,
-            write.Revision
-        );
-        return migrationResult;
-    }
-
-    /// <summary>
-    /// Whether two migration participants address the same physical resource (in-place
-    /// representation replacement with old/new codecs over one backing store).
-    /// </summary>
-    private bool SharesPhysicalResource(
-        StateSource<TFragment> source,
-        StateSource<TFragment> target
-    )
-    {
-        if (ReferenceEquals(source, target))
-        {
-            return true;
-        }
-
-        var sourceId = _engine.GetResourceId(source);
-        var targetId = _engine.GetResourceId(target);
-        return sourceId is { IsDefault: false } left
-            && targetId is { IsDefault: false } right
-            && left == right;
-    }
-
-    /// <summary>
-    /// Resolves the in-place replacement base for a target that shares its physical resource
-    /// with a selected migration source but cannot be pre-read through its own codec.
-    /// </summary>
-    private TFragment ResolveSameResourceBase(
-        StateSource<TFragment> target,
-        StateReadStatus targetStatus,
-        IReadOnlyList<(
-            StateSource<TFragment> Source,
-            StateReadResult<TFragment> Result,
-            TFragment Fragment
-        )> sourceContributions,
-        out string? baseRevision
-    )
-    {
-        var match = sourceContributions.FirstOrDefault(contribution =>
-            SharesPhysicalResource(contribution.Source, target)
-        );
-        if (match.Source is not null)
-        {
-            baseRevision = match.Result.Revision;
-            return RuntimeModel<TModel, TFragment>.EmptyFragment;
-        }
-
-        throw new InvalidOperationException(
-            $"Target source '{target.Id}' could not be read: {targetStatus}."
-        );
-    }
-
-    /// <summary>
-    /// Writes a migrated fragment with revision protection and verifies it by re-reading
-    /// through the target codec.
-    /// </summary>
-    /// <returns>The written target revision.</returns>
-    private async ValueTask<StateWriteResult> WriteVerifiedMigrationAsync(
-        StateSource<TFragment> target,
-        TFragment desiredFragment,
-        string? baseRevision,
-        CancellationToken cancellationToken
-    )
-    {
-        var currentSchema = RuntimeModel<TModel, TFragment>.Schema.ToMetadata();
-        var write = await _writes
-            .WriteObservedAsync(
-                target,
-                target.Writer!,
-                new StateWriteRequest<TFragment>(
-                    desiredFragment,
-                    Condition: RevisionCondition.FromRevision(baseRevision)
-                ),
-                cancellationToken
-            )
-            .ConfigureAwait(false);
-        var verification = await _engine
-            .ReadMigrationSourceAsync(target, cancellationToken)
-            .ConfigureAwait(false);
-        if (
-            verification.Status != StateReadStatus.Success
-            || !string.Equals(verification.Revision, write.Revision, StringComparison.Ordinal)
-        )
-        {
-            throw RuntimeState.NewConflict(
-                _diagnostics,
-                $"Target source '{target.Id}' changed before migration verification completed."
-            );
-        }
-
-        var verifiedFragment =
-            verification.Value
-            ?? throw new InvalidOperationException(
-                $"State source '{target.Id}' returned a null configuration fragment after migration."
-            );
-        if (verification.Schema is { } verificationSchema)
-        {
-            verifiedFragment = await _engine
-                .MigrateFragmentAsync(verifiedFragment, verificationSchema, cancellationToken)
-                .ConfigureAwait(false);
-        }
-
-        if (
-            (verification.Schema is { } actualSchema && actualSchema != currentSchema)
-            || !ConfiglueFragmentComparer.AreEqual(verifiedFragment, desiredFragment)
-        )
-        {
-            throw RuntimeState.NewConflict(
-                _diagnostics,
-                $"Target source '{target.Id}' did not retain the migrated fragment."
-            );
-        }
-
-        return write;
+        return targetResult.Revision;
     }
 
     /// <summary>
@@ -481,20 +299,8 @@ internal sealed class RuntimeMigrationCoordinator<TModel, TFragment>
         CancellationToken cancellationToken
     )
     {
-        var canonical = FindMigrationSource(canonicalTargetId);
-        if (canonical.Writer is null)
-        {
-            throw new InvalidOperationException(
-                $"State source '{canonical.Id}' does not support writes."
-            );
-        }
-
-        if (!IsMigrationOnlySource(canonical.Id) && !_topology.IsSourceActive(canonical.Id))
-        {
-            throw new InvalidOperationException(
-                $"State source '{canonical.Id}' has been retired from this state instance."
-            );
-        }
+        var canonical = _sources.FindMigrationSource(canonicalTargetId);
+        _sources.EnsureTargetWritable(canonical);
 
         var canonicalResult = await _engine
             .ReadMigrationSourceAsync(canonical, cancellationToken)
@@ -512,85 +318,120 @@ internal sealed class RuntimeMigrationCoordinator<TModel, TFragment>
 
         foreach (var legacyId in legacyIds)
         {
-            cancellationToken.ThrowIfCancellationRequested();
-            var legacy = FindMigrationSource(legacyId);
-            var legacyResult = await _engine
-                .ReadMigrationSourceAsync(legacy, cancellationToken)
+            var adopted = await TryAdoptOneLegacyAsync(canonical, legacyId, cancellationToken)
                 .ConfigureAwait(false);
-            if (legacyResult.Status == StateReadStatus.Unavailable)
+            if (adopted is not null)
             {
-                throw new InvalidOperationException(
-                    $"Source '{legacy.Id}' could not be migrated because it is unavailable."
-                );
+                return adopted;
             }
+        }
 
-            if (legacyResult.Status != StateReadStatus.Success)
-            {
-                // NotFound or InvalidPayload: probe the next representation.
-                continue;
-            }
+        return null;
+    }
 
-            var fragment =
-                legacyResult.Value
-                ?? throw new InvalidOperationException(
-                    $"State source '{legacy.Id}' returned a null configuration fragment."
-                );
-            if (legacyResult.Schema is { } schema)
-            {
-                fragment = await _engine
-                    .MigrateFragmentAsync(fragment, schema, cancellationToken)
-                    .ConfigureAwait(false);
-            }
+    /// <summary>
+    /// Probes one legacy representation; returns null when it holds no migratable
+    /// state so the caller continues with the next representation.
+    /// </summary>
+    private async ValueTask<StateSourceMigrationResult?> TryAdoptOneLegacyAsync(
+        StateSource<TFragment> canonical,
+        SourceId legacyId,
+        CancellationToken cancellationToken
+    )
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        var legacy = _sources.FindMigrationSource(legacyId);
+        var legacyResult = await _engine
+            .ReadMigrationSourceAsync(legacy, cancellationToken)
+            .ConfigureAwait(false);
+        if (legacyResult.Status == StateReadStatus.Unavailable)
+        {
+            throw new InvalidOperationException(
+                $"Source '{legacy.Id}' could not be migrated because it is unavailable."
+            );
+        }
 
-            if (!ReferenceEquals(legacy, canonical) && SharesPhysicalResource(legacy, canonical))
-            {
-                var sameResourceWrite = await WriteVerifiedMigrationAsync(
-                        canonical,
-                        fragment,
-                        legacyResult.Revision,
-                        cancellationToken
-                    )
-                    .ConfigureAwait(false);
-                return new StateSourceMigrationResult(
-                    legacy.Id,
-                    canonical.Id,
-                    legacyResult.Revision,
-                    sameResourceWrite.Revision
-                );
-            }
+        if (legacyResult.Status != StateReadStatus.Success)
+        {
+            // NotFound or InvalidPayload: probe the next representation.
+            return null;
+        }
 
+        var fragment =
+            legacyResult.Value
+            ?? throw new InvalidOperationException(
+                $"State source '{legacy.Id}' returned a null configuration fragment."
+            );
+        if (legacyResult.Schema is { } schema)
+        {
+            fragment = await _engine
+                .MigrateFragmentAsync(fragment, schema, cancellationToken)
+                .ConfigureAwait(false);
+        }
+
+        string? baseRevision;
+        if (
+            !ReferenceEquals(legacy, canonical)
+            && _sources.SharesPhysicalResource(legacy, canonical)
+        )
+        {
+            baseRevision = legacyResult.Revision;
+        }
+        else
+        {
             // Re-read the canonical target so a concurrent canonical write wins over legacy input.
-            var current = await _engine
-                .ReadMigrationSourceAsync(canonical, cancellationToken)
+            var canonicalBase = await ReadCanonicalBaseForAdoptionAsync(
+                    canonical,
+                    cancellationToken
+                )
                 .ConfigureAwait(false);
-            if (current.Status == StateReadStatus.Unavailable)
-            {
-                throw new InvalidOperationException(
-                    $"Target source '{canonical.Id}' is unavailable."
-                );
-            }
-
-            if (current.Status == StateReadStatus.Success)
+            if (!canonicalBase.ShouldAdopt)
             {
                 return null;
             }
 
-            var write = await WriteVerifiedMigrationAsync(
-                    canonical,
-                    fragment,
-                    current.Revision,
-                    cancellationToken
-                )
-                .ConfigureAwait(false);
-            return new StateSourceMigrationResult(
-                legacy.Id,
-                canonical.Id,
-                legacyResult.Revision,
-                write.Revision
-            );
+            baseRevision = canonicalBase.BaseRevision;
         }
 
-        return null;
+        var write = await _targets
+            .WriteVerifiedAsync(canonical, fragment, baseRevision, cancellationToken)
+            .ConfigureAwait(false);
+        return new StateSourceMigrationResult(
+            legacy.Id,
+            canonical.Id,
+            legacyResult.Revision,
+            write.Revision
+        );
+    }
+
+    /// <summary>
+    /// Re-reads the canonical target before adopting legacy input. Yields
+    /// <c>ShouldAdopt: false</c> when canonical state appeared concurrently
+    /// (adoption must not overwrite it); otherwise yields the write base revision,
+    /// which is itself null when the canonical target is still absent.
+    /// </summary>
+    private async ValueTask<(
+        bool ShouldAdopt,
+        string? BaseRevision
+    )> ReadCanonicalBaseForAdoptionAsync(
+        StateSource<TFragment> canonical,
+        CancellationToken cancellationToken
+    )
+    {
+        var current = await _engine
+            .ReadMigrationSourceAsync(canonical, cancellationToken)
+            .ConfigureAwait(false);
+        if (current.Status == StateReadStatus.Unavailable)
+        {
+            throw new InvalidOperationException($"Target source '{canonical.Id}' is unavailable.");
+        }
+
+        if (current.Status == StateReadStatus.Success)
+        {
+            return (ShouldAdopt: false, BaseRevision: null);
+        }
+
+        return (ShouldAdopt: true, BaseRevision: current.Revision);
     }
 
     internal ValueTask<StateStorageMigrationResult> MigrateSourcesToTargetsAsync(
@@ -699,10 +540,56 @@ internal sealed class RuntimeMigrationCoordinator<TModel, TFragment>
     )
     {
         using var operation = _lifetime.EnterOperation();
+        var requestedSourceIds = ValidateBulkSelection(sourceIds, targetProjections);
+
+        object? resolvedBeforeMigration = retireSources
+            ? await _retirement
+                .CaptureResolvedBaselineAsync(cancellationToken)
+                .ConfigureAwait(false)
+            : null;
+
+        var orderedSources = _sources.SelectOrderedSources(
+            requestedSourceIds,
+            targetProjections,
+            retireSources
+        );
+        var baseline = await _sources
+            .ReadBaselineAsync(orderedSources, cancellationToken)
+            .ConfigureAwait(false);
+
+        var merged = RuntimeMigrationSourceStage<TModel, TFragment>.MergeContributions(
+            baseline.Contributions
+        );
+        var targetPlans = _targets.BuildTargetPlans(merged, targetProjections);
+
+        var targetResults = await PersistTargetsAsync(baseline, targetPlans, cancellationToken)
+            .ConfigureAwait(false);
+        var retiredSourceIds = retireSources
+            ? await RetireSourcesAsync(
+                    resolvedBeforeMigration!,
+                    baseline,
+                    targetPlans,
+                    targetResults,
+                    cancellationToken
+                )
+                .ConfigureAwait(false)
+            : [];
+
+        return new StateStorageMigrationResult(
+            baseline.Contributions.Select(static contribution => contribution.Source.Id),
+            new StateRevisionVector(baseline.Revisions),
+            targetResults,
+            retiredSourceIds
+        );
+    }
+
+    private static SourceId[] ValidateBulkSelection(
+        IEnumerable<SourceId> sourceIds,
+        IReadOnlyDictionary<SourceId, Func<TFragment, TFragment>> targetProjections
+    )
+    {
         ArgumentNullException.ThrowIfNull(sourceIds);
         ArgumentNullException.ThrowIfNull(targetProjections);
-        cancellationToken.ThrowIfCancellationRequested();
-
         var requestedSourceIds = sourceIds.ToArray();
         if (requestedSourceIds.Length == 0)
         {
@@ -742,546 +629,105 @@ internal sealed class RuntimeMigrationCoordinator<TModel, TFragment>
             ArgumentNullException.ThrowIfNull(target.Value);
         }
 
-        object? resolvedBeforeMigration = null;
-        if (retireSources)
-        {
-            var before = await _engine.ResolveAsync(null, cancellationToken).ConfigureAwait(false);
-            if (before.Result.Status != StateReadStatus.Success)
-            {
-                throw new InvalidOperationException(
-                    $"Configuration state could not be read before source retirement: {before.Result.Status}."
-                );
-            }
+        return requestedSourceIds;
+    }
 
-            resolvedBeforeMigration = before.Result.Value;
-        }
-
-        var selectedIds = requestedSourceIds.ToHashSet();
-        var overlappingTarget = targetProjections.Keys.FirstOrDefault(selectedIds.Contains);
-        if (!overlappingTarget.IsDefault)
-        {
-            throw new ArgumentException(
-                $"Target '{overlappingTarget}' is also a selected source. Use MigrateSourceAsync for an in-place source migration.",
-                nameof(targetProjections)
-            );
-        }
-
-        if (retireSources)
-        {
-            var migrationOnlySelected = requestedSourceIds.FirstOrDefault(IsMigrationOnlySource);
-            if (!migrationOnlySelected.IsDefault)
-            {
-                throw new InvalidOperationException(
-                    $"Migration-only source '{migrationOnlySelected}' cannot be retired because it is not part of the active runtime topology."
-                );
-            }
-        }
-
-        var orderedSources = requestedSourceIds
-            .Select((id, index) => (Source: FindMigrationSource(id), Index: index))
-            .OrderByDescending(static item => item.Source.Priority)
-            .ThenBy(static item => item.Index)
-            .Select(static item => item.Source)
-            .ToArray();
-        var sourceContributions =
-            new List<(
-                StateSource<TFragment> Source,
-                StateReadResult<TFragment> Result,
-                TFragment Fragment
-            )>();
-        var sourceRevisions = new List<StateRevision>();
-        foreach (var source in orderedSources)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            var result = await _engine
-                .ReadMigrationSourceAsync(source, cancellationToken)
-                .ConfigureAwait(false);
-            sourceRevisions.Add(new StateRevision(source.Id, result.Revision));
-            if (result.Status == StateReadStatus.Unavailable)
-            {
-                throw new InvalidOperationException(
-                    $"Source '{source.Id}' could not be migrated because it is unavailable."
-                );
-            }
-
-            var fragment = result.Status switch
-            {
-                StateReadStatus.NotFound => RuntimeModel<TModel, TFragment>.EmptyFragment,
-                StateReadStatus.Success => result.Value
-                    ?? throw new InvalidOperationException(
-                        $"State source '{source.Id}' returned a null configuration fragment."
-                    ),
-                _ => throw new InvalidOperationException(
-                    $"Source '{source.Id}' could not be migrated: {result.Status}."
-                ),
-            };
-            if (result.Schema is { } schema)
-            {
-                fragment = await _engine
-                    .MigrateFragmentAsync(fragment, schema, cancellationToken)
-                    .ConfigureAwait(false);
-            }
-
-            sourceContributions.Add((source, result, fragment));
-        }
-
-        var merged = RuntimeModel<TModel, TFragment>.EmptyFragment;
-        for (var index = sourceContributions.Count - 1; index >= 0; index--)
-        {
-            merged = merged.Merge(sourceContributions[index].Fragment);
-        }
-
-        var currentSchema = RuntimeModel<TModel, TFragment>.Schema.ToMetadata();
-        async ValueTask VerifySourceSnapshotsAsync()
-        {
-            for (var index = 0; index < sourceContributions.Count; index++)
-            {
-                var contribution = sourceContributions[index];
-                var latest = await _engine
-                    .ReadMigrationSourceAsync(contribution.Source, cancellationToken)
-                    .ConfigureAwait(false);
-                if (
-                    latest.Status == contribution.Result.Status
-                    && latest.Schema == contribution.Result.Schema
-                    && string.Equals(
-                        latest.Revision,
-                        contribution.Result.Revision,
-                        StringComparison.Ordinal
-                    )
-                )
-                {
-                    continue;
-                }
-
-                if (
-                    latest.Status != contribution.Result.Status
-                    || latest.Schema != contribution.Result.Schema
-                )
-                {
-                    throw RuntimeState.NewConflict(
-                        _diagnostics,
-                        $"Source '{contribution.Source.Id}' changed while the storage migration was running."
-                    );
-                }
-
-                var latestFragment = latest.Status switch
-                {
-                    StateReadStatus.NotFound => RuntimeModel<TModel, TFragment>.EmptyFragment,
-                    StateReadStatus.Success => latest.Value
-                        ?? throw new InvalidOperationException(
-                            $"State source '{contribution.Source.Id}' returned a null configuration fragment."
-                        ),
-                    _ => throw RuntimeState.NewConflict(
-                        _diagnostics,
-                        $"Source '{contribution.Source.Id}' became unavailable during migration."
-                    ),
-                };
-                if (latest.Schema is { } latestSchema)
-                {
-                    latestFragment = await _engine
-                        .MigrateFragmentAsync(latestFragment, latestSchema, cancellationToken)
-                        .ConfigureAwait(false);
-                }
-
-                if (!ConfiglueFragmentComparer.AreEqual(latestFragment, contribution.Fragment))
-                {
-                    throw RuntimeState.NewConflict(
-                        _diagnostics,
-                        $"Source '{contribution.Source.Id}' changed while the storage migration was running."
-                    );
-                }
-
-                sourceContributions[index] = (contribution.Source, latest, latestFragment);
-                sourceRevisions[index] = new StateRevision(contribution.Source.Id, latest.Revision);
-            }
-        }
-
-        var targetPlans = new List<(
-            StateSource<TFragment> Target,
-            ISourceWriter<TFragment> Writer,
-            TFragment Desired
-        )>(targetProjections.Count);
-        foreach (var (targetId, project) in targetProjections)
-        {
-            var target = FindMigrationSource(targetId);
-            if (!IsMigrationOnlySource(target.Id) && !_topology.IsSourceActive(target.Id))
-            {
-                throw new InvalidOperationException(
-                    $"State source '{target.Id}' has been retired from this state instance."
-                );
-            }
-
-            if (target.Writer is null)
-            {
-                throw new InvalidOperationException(
-                    $"State source '{target.Id}' does not support writes."
-                );
-            }
-
-            var desired =
-                project(merged)
-                ?? throw new InvalidOperationException(
-                    $"The migration projection for target '{target.Id}' returned null."
-                );
-            targetPlans.Add((target, target.Writer, desired));
-        }
-
+    /// <summary>Persists every planned target with snapshot validation around each write.</summary>
+    private async ValueTask<List<StateStorageMigrationTargetResult>> PersistTargetsAsync(
+        MigrationBaseline<TModel, TFragment> baseline,
+        List<MigrationTargetPlan<TModel, TFragment>> targetPlans,
+        CancellationToken cancellationToken
+    )
+    {
         var targetResults = new List<StateStorageMigrationTargetResult>(targetPlans.Count);
-        foreach (var (target, writer, desired) in targetPlans)
+        foreach (var plan in targetPlans)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            await VerifySourceSnapshotsAsync().ConfigureAwait(false);
-            var current = await _engine
-                .ReadMigrationSourceAsync(target, cancellationToken)
+            await _guard.VerifyUnchangedAsync(baseline, cancellationToken).ConfigureAwait(false);
+            var result = await MigrateOneTargetAsync(baseline, plan, cancellationToken)
                 .ConfigureAwait(false);
-            if (current.Status == StateReadStatus.Unavailable)
-            {
-                throw new InvalidOperationException($"Target source '{target.Id}' is unavailable.");
-            }
+            targetResults.Add(result);
+        }
 
-            string? sameResourceBaseRevision = null;
-            var currentFragment = current.Status switch
-            {
-                StateReadStatus.NotFound => RuntimeModel<TModel, TFragment>.EmptyFragment,
-                StateReadStatus.Success => current.Value
-                    ?? throw new InvalidOperationException(
-                        $"State source '{target.Id}' returned a null configuration fragment."
-                    ),
-                _ => ResolveSameResourceBase(
-                    target,
-                    current.Status,
-                    sourceContributions,
-                    out sameResourceBaseRevision
-                ),
-            };
-            if (
-                current.Schema is { } targetSchema
-                && current.Status != StateReadStatus.InvalidPayload
+        return targetResults;
+    }
+
+    private async ValueTask<StateStorageMigrationTargetResult> MigrateOneTargetAsync(
+        MigrationBaseline<TModel, TFragment> baseline,
+        MigrationTargetPlan<TModel, TFragment> plan,
+        CancellationToken cancellationToken
+    )
+    {
+        var currentModelSchema = RuntimeModel<TModel, TFragment>.Schema.ToMetadata();
+        var current = await _targets
+            .ReadCurrentAsync(plan.Target, baseline.Contributions, cancellationToken)
+            .ConfigureAwait(false);
+
+        if (
+            RuntimeMigrationTargetStage<TModel, TFragment>.IsAlreadyCurrent(
+                current,
+                plan.Desired,
+                current.Result.Schema,
+                currentModelSchema
             )
-            {
-                currentFragment = await _engine
-                    .MigrateFragmentAsync(currentFragment, targetSchema, cancellationToken)
-                    .ConfigureAwait(false);
-            }
-
-            var targetSchemaIsCurrent = current.Schema is null || current.Schema == currentSchema;
-            var targetIsAlreadyCurrent =
-                current.Status == StateReadStatus.Success
-                || (current.Status == StateReadStatus.NotFound && desired.IsEmpty);
-            if (
-                targetIsAlreadyCurrent
-                && targetSchemaIsCurrent
-                && ConfiglueFragmentComparer.AreEqual(currentFragment, desired)
-            )
-            {
-                var confirmation = await _engine
-                    .ReadMigrationSourceAsync(target, cancellationToken)
-                    .ConfigureAwait(false);
-                if (
-                    confirmation.Status != current.Status
-                    || !string.Equals(
-                        confirmation.Revision,
-                        current.Revision,
-                        StringComparison.Ordinal
-                    )
-                )
-                {
-                    throw RuntimeState.NewConflict(
-                        _diagnostics,
-                        $"Target source '{target.Id}' changed during migration verification."
-                    );
-                }
-
-                if (confirmation.Status == StateReadStatus.Success)
-                {
-                    var confirmedFragment =
-                        confirmation.Value
-                        ?? throw new InvalidOperationException(
-                            $"State source '{target.Id}' returned a null configuration fragment."
-                        );
-                    if (confirmation.Schema is { } confirmationSchema)
-                    {
-                        confirmedFragment = await _engine
-                            .MigrateFragmentAsync(
-                                confirmedFragment,
-                                confirmationSchema,
-                                cancellationToken
-                            )
-                            .ConfigureAwait(false);
-                    }
-
-                    if (
-                        (
-                            confirmation.Schema is { } confirmedSchema
-                            && confirmedSchema != currentSchema
-                        ) || !ConfiglueFragmentComparer.AreEqual(confirmedFragment, desired)
-                    )
-                    {
-                        throw RuntimeState.NewConflict(
-                            _diagnostics,
-                            $"Target source '{target.Id}' changed during migration verification."
-                        );
-                    }
-                }
-
-                await VerifySourceSnapshotsAsync().ConfigureAwait(false);
-                targetResults.Add(
-                    new StateStorageMigrationTargetResult(
-                        target.Id,
-                        current.Revision,
-                        current.Revision,
-                        WasAlreadyCurrent: true
-                    )
-                );
-                continue;
-            }
-
-            await VerifySourceSnapshotsAsync().ConfigureAwait(false);
-            var write = await _writes
-                .WriteObservedAsync(
-                    target,
-                    writer,
-                    new StateWriteRequest<TFragment>(
-                        desired,
-                        Condition: RevisionCondition.FromRevision(
-                            sameResourceBaseRevision ?? current.Revision
-                        )
-                    ),
+        )
+        {
+            await _targets
+                .ConfirmAlreadyCurrentAsync(
+                    plan.Target,
+                    current,
+                    plan.Desired,
+                    currentModelSchema,
                     cancellationToken
                 )
                 .ConfigureAwait(false);
-            var verification = await _engine
-                .ReadMigrationSourceAsync(target, cancellationToken)
-                .ConfigureAwait(false);
-            if (
-                verification.Status != StateReadStatus.Success
-                || !string.Equals(verification.Revision, write.Revision, StringComparison.Ordinal)
-            )
-            {
-                throw RuntimeState.NewConflict(
-                    _diagnostics,
-                    $"Target source '{target.Id}' changed before migration verification completed."
-                );
-            }
-
-            var verifiedFragment =
-                verification.Value
-                ?? throw new InvalidOperationException(
-                    $"State source '{target.Id}' returned a null configuration fragment after migration."
-                );
-            if (verification.Schema is { } verificationSchema)
-            {
-                verifiedFragment = await _engine
-                    .MigrateFragmentAsync(verifiedFragment, verificationSchema, cancellationToken)
-                    .ConfigureAwait(false);
-            }
-
-            if (
-                (verification.Schema is { } actualSchema && actualSchema != currentSchema)
-                || !ConfiglueFragmentComparer.AreEqual(verifiedFragment, desired)
-            )
-            {
-                throw RuntimeState.NewConflict(
-                    _diagnostics,
-                    $"Target source '{target.Id}' did not retain the migrated fragment."
-                );
-            }
-
-            targetResults.Add(
-                new StateStorageMigrationTargetResult(
-                    target.Id,
-                    current.Revision,
-                    write.Revision,
-                    WasAlreadyCurrent: false
-                )
+            await _guard.VerifyUnchangedAsync(baseline, cancellationToken).ConfigureAwait(false);
+            return new StateStorageMigrationTargetResult(
+                plan.Target.Id,
+                current.Result.Revision,
+                current.Result.Revision,
+                WasAlreadyCurrent: true
             );
         }
 
-        SourceId[] retiredSourceIds = [];
-        if (retireSources)
-        {
-            await VerifySourceSnapshotsAsync().ConfigureAwait(false);
-            await VerifyRetirementPreservesResolvedModelAsync(
-                    resolvedBeforeMigration!,
-                    sourceContributions,
-                    targetPlans,
-                    targetResults,
-                    cancellationToken
-                )
-                .ConfigureAwait(false);
-            await VerifySourceSnapshotsAsync().ConfigureAwait(false);
-            retiredSourceIds = sourceContributions
-                .Select(static contribution => contribution.Source.Id)
-                .ToArray();
-            var active = _topology.RetireSources(retiredSourceIds);
-            if (active is not null)
-            {
-                _diagnostics.SetActiveSources(active.Select(static source => source.Id));
-            }
-        }
-
-        return new StateStorageMigrationResult(
-            sourceContributions.Select(static contribution => contribution.Source.Id),
-            new StateRevisionVector(sourceRevisions),
-            targetResults,
-            retiredSourceIds
+        await _guard.VerifyUnchangedAsync(baseline, cancellationToken).ConfigureAwait(false);
+        var write = await _targets
+            .WriteVerifiedAsync(
+                plan.Target,
+                plan.Desired,
+                current.WriteBaseRevision,
+                cancellationToken
+            )
+            .ConfigureAwait(false);
+        return new StateStorageMigrationTargetResult(
+            plan.Target.Id,
+            current.Result.Revision,
+            write.Revision,
+            WasAlreadyCurrent: false
         );
     }
 
-    private async ValueTask VerifyRetirementPreservesResolvedModelAsync(
-        object baselineModel,
-        IReadOnlyList<(
-            StateSource<TFragment> Source,
-            StateReadResult<TFragment> Result,
-            TFragment Fragment
-        )> sourceContributions,
-        IReadOnlyList<(
-            StateSource<TFragment> Target,
-            ISourceWriter<TFragment> Writer,
-            TFragment Desired
-        )> targetPlans,
+    /// <summary>Re-validates snapshots and targets, then retires sources.</summary>
+    private async ValueTask<SourceId[]> RetireSourcesAsync(
+        object resolvedBeforeMigration,
+        MigrationBaseline<TModel, TFragment> baseline,
+        IReadOnlyList<MigrationTargetPlan<TModel, TFragment>> targetPlans,
         IReadOnlyList<StateStorageMigrationTargetResult> targetResults,
         CancellationToken cancellationToken
     )
     {
-        var currentSchema = RuntimeModel<TModel, TFragment>.Schema.ToMetadata();
-        var replacements = new Dictionary<SourceId, StateReadResult<TFragment>>();
-        foreach (var (source, result, _) in sourceContributions)
-        {
-            replacements.Add(
-                source.Id,
-                StateReadResult<TFragment>
-                    .Success(
-                        RuntimeModel<TModel, TFragment>.EmptyFragment,
-                        result.Revision,
-                        currentSchema
-                    )
-                    .FromSource(source.Id, source.PhysicalOrigin)
-            );
-        }
-
-        foreach (var (target, _, desired) in targetPlans)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            var outcome = targetResults.First(result => result.TargetId == target.Id);
-            var current = (
-                await _engine.ReadSourceAsync(target, cancellationToken).ConfigureAwait(false)
-            ).FromSource(target.Id, target.PhysicalOrigin);
-            if (
-                current.Status == StateReadStatus.Unavailable
-                || !string.Equals(
-                    current.Revision,
-                    outcome.TargetRevision,
-                    StringComparison.Ordinal
-                )
+        await _guard.VerifyUnchangedAsync(baseline, cancellationToken).ConfigureAwait(false);
+        var retired = await _retirement
+            .VerifyAndRetireAsync(
+                resolvedBeforeMigration,
+                baseline,
+                targetPlans,
+                targetResults,
+                cancellationToken
             )
-            {
-                throw RuntimeState.NewConflict(
-                    _diagnostics,
-                    $"Target source '{target.Id}' changed before source retirement."
-                );
-            }
-
-            var currentFragment = current.Status switch
-            {
-                StateReadStatus.NotFound when desired.IsEmpty => RuntimeModel<
-                    TModel,
-                    TFragment
-                >.EmptyFragment,
-                StateReadStatus.Success => current.Value
-                    ?? throw new InvalidOperationException(
-                        $"State source '{target.Id}' returned a null configuration fragment."
-                    ),
-                _ => throw RuntimeState.NewConflict(
-                    _diagnostics,
-                    $"Target source '{target.Id}' is not available for source retirement."
-                ),
-            };
-            if (current.Schema is { } schema)
-            {
-                currentFragment = await _engine
-                    .MigrateFragmentAsync(currentFragment, schema, cancellationToken)
-                    .ConfigureAwait(false);
-            }
-
-            if (
-                (current.Schema is { } actualSchema && actualSchema != currentSchema)
-                || !ConfiglueFragmentComparer.AreEqual(currentFragment, desired)
-            )
-            {
-                throw RuntimeState.NewConflict(
-                    _diagnostics,
-                    $"Target source '{target.Id}' no longer contains the verified migration result."
-                );
-            }
-
-            replacements.Add(
-                target.Id,
-                StateReadResult<TFragment>
-                    .Success(desired, current.Revision, currentSchema)
-                    .FromSource(target.Id, target.PhysicalOrigin)
-            );
-        }
-
-        var proposed = await _engine
-            .ResolveAsync(replacements, cancellationToken)
             .ConfigureAwait(false);
-        if (
-            proposed.Result.Status != StateReadStatus.Success
-            || baselineModel is not TModel before
-            || !RuntimeModel<TModel, TFragment>.Diff(before, proposed.Result.Value!).IsEmpty
-        )
-        {
-            throw RuntimeState.NewConflict(
-                _diagnostics,
-                "The migrated targets cannot replace the selected sources without changing the effective configuration."
-            );
-        }
-
-        _validation.Validate(proposed.Result.Value!);
-        foreach (var (target, _, desired) in targetPlans)
-        {
-            var outcome = targetResults.First(result => result.TargetId == target.Id);
-            var latest = (
-                await _engine.ReadSourceAsync(target, cancellationToken).ConfigureAwait(false)
-            ).FromSource(target.Id, target.PhysicalOrigin);
-            if (!string.Equals(latest.Revision, outcome.TargetRevision, StringComparison.Ordinal))
-            {
-                throw RuntimeState.NewConflict(
-                    _diagnostics,
-                    $"Target source '{target.Id}' changed while source retirement was being verified."
-                );
-            }
-
-            if (latest.Status == StateReadStatus.NotFound && desired.IsEmpty)
-            {
-                continue;
-            }
-
-            if (latest.Status != StateReadStatus.Success || latest.Value is null)
-            {
-                throw RuntimeState.NewConflict(
-                    _diagnostics,
-                    $"Target source '{target.Id}' is not available for source retirement."
-                );
-            }
-
-            var latestFragment = latest.Schema is { } latestSchema
-                ? await _engine
-                    .MigrateFragmentAsync(latest.Value, latestSchema, cancellationToken)
-                    .ConfigureAwait(false)
-                : latest.Value;
-            if (
-                (latest.Schema is { } actualSchema && actualSchema != currentSchema)
-                || !ConfiglueFragmentComparer.AreEqual(latestFragment, desired)
-            )
-            {
-                throw RuntimeState.NewConflict(
-                    _diagnostics,
-                    $"Target source '{target.Id}' no longer contains the verified migration result."
-                );
-            }
-        }
+        await _guard.VerifyUnchangedAsync(baseline, cancellationToken).ConfigureAwait(false);
+        return retired;
     }
 
     private static void ValidateSourceKey(SourceKey<TModel> sourceKey, string parameterName)
