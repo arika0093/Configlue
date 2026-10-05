@@ -728,10 +728,18 @@ public sealed class ConfiglueFacadeTests
     [Test]
     [Arguments(false)]
     [Arguments(true)]
-    public async Task DisposalStartedInsideNotification_ExternalWaitIncludesThatNotification(
+    public async Task DisposalStartedInsideNotification_ExternalDisposeDoesNotWaitForInFlightNotification(
         bool useCoreRegistry
     )
     {
+        // Simplified registry contract (#284, see IConfiglueStateRegistry remarks):
+        // each operation delivers only its own transitions and never waits for
+        // another operation's callbacks; DisposeAsync neither waits for in-flight
+        // notifications nor aggregates concurrent operations, and returns the same
+        // task once disposal has started. The inner dispose therefore completes
+        // (including its own StateRemoved delivery) before the blocked StateAdded
+        // handler signals, and the external dispose observes that completed task
+        // instead of waiting for the in-flight notification.
         var services = new ServiceCollection();
         services.AddConfiglue(builder =>
         {
@@ -779,8 +787,8 @@ public sealed class ConfiglueFacadeTests
         {
             await reentrantCompleted.Task.WaitAsync(TimeSpan.FromSeconds(5));
             var external = registry.DisposeAsync().AsTask();
-            external.IsCompleted.ShouldBeFalse();
-            removed.ShouldBeFalse();
+            external.IsCompleted.ShouldBeTrue();
+            removed.ShouldBeTrue();
             release.SetResult();
             await external.WaitAsync(TimeSpan.FromSeconds(5));
             removed.ShouldBeTrue();
