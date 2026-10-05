@@ -11,13 +11,22 @@ public sealed class TextAssignmentBinderTests
 
         var fromText = TextAssignmentBinder.Bind(
             schema,
-            [new TextAssignment(["RetryCount"], "8", "env"), new TextAssignment(["Enabled"], "false", "env")],
+            [
+                new TextAssignment(["RetryCount"], "8", "env"),
+                new TextAssignment(["Enabled"], "false", "env"),
+            ],
             new TextAssignmentBinderOptions()
         );
         var fromTyped = TextAssignmentBinder.Bind(
             schema,
-            [new TextAssignment(["RetryCount"], 8, "cli"), new TextAssignment(["Enabled"], false, "cli")],
-            new TextAssignmentBinderOptions { DuplicatePolicy = TextAssignmentDuplicatePolicy.LastWins }
+            [
+                new TextAssignment(["RetryCount"], 8, "cli"),
+                new TextAssignment(["Enabled"], false, "cli"),
+            ],
+            new TextAssignmentBinderOptions
+            {
+                DuplicatePolicy = TextAssignmentDuplicatePolicy.LastWins,
+            }
         );
 
         (fromText.MatchedAny).ShouldBeTrue();
@@ -92,7 +101,10 @@ public sealed class TextAssignmentBinderTests
         var fromTyped = TextAssignmentBinder.Bind(
             appSchema,
             [new TextAssignment(["Plugins"], new[] { "nord", "dracula" }, "cli")],
-            new TextAssignmentBinderOptions { DuplicatePolicy = TextAssignmentDuplicatePolicy.LastWins }
+            new TextAssignmentBinderOptions
+            {
+                DuplicatePolicy = TextAssignmentDuplicatePolicy.LastWins,
+            }
         );
 
         var jsonFragment = (AppSettings.Fragment)fromJson.Fragment;
@@ -113,7 +125,10 @@ public sealed class TextAssignmentBinderTests
                 new TextAssignment(["SetValues"], """["x","y","x"]""", "env"),
                 new TextAssignment(["Children"], """[{"Name":"first"}]""", "env"),
             ],
-            new TextAssignmentBinderOptions { DuplicatePolicy = TextAssignmentDuplicatePolicy.LastWins }
+            new TextAssignmentBinderOptions
+            {
+                DuplicatePolicy = TextAssignmentDuplicatePolicy.LastWins,
+            }
         );
         var owned = (OwnershipSettings.Fragment)ownership.Fragment;
         (owned.ArrayValues.Value!).ShouldBe(["a", "b"]);
@@ -140,7 +155,9 @@ public sealed class TextAssignmentBinderTests
             }
         );
 
-        ((OwnershipSettings.Fragment)bound.Fragment).Children.Value!.Single().Name.ShouldBe("lower");
+        ((OwnershipSettings.Fragment)bound.Fragment)
+            .Children.Value!.Single()
+            .Name.ShouldBe("lower");
         await Task.CompletedTask;
     }
 
@@ -191,14 +208,20 @@ public sealed class TextAssignmentBinderTests
             TextAssignmentBinder.Bind(
                 schema,
                 assignments,
-                new TextAssignmentBinderOptions { DuplicatePolicy = TextAssignmentDuplicatePolicy.Throw }
+                new TextAssignmentBinderOptions
+                {
+                    DuplicatePolicy = TextAssignmentDuplicatePolicy.Throw,
+                }
             )
         );
 
         var lastWins = TextAssignmentBinder.Bind(
             schema,
             assignments,
-            new TextAssignmentBinderOptions { DuplicatePolicy = TextAssignmentDuplicatePolicy.LastWins }
+            new TextAssignmentBinderOptions
+            {
+                DuplicatePolicy = TextAssignmentDuplicatePolicy.LastWins,
+            }
         );
         ((AppSettings.Fragment)lastWins.Fragment).RetryCount.Value.ShouldBe(2);
         await Task.CompletedTask;
@@ -319,4 +342,79 @@ public sealed class TextAssignmentBinderTests
             )
         );
     }
+
+    [Test]
+    public void MemberIndexesAreScopedToSchemaIdentity()
+    {
+        var template = AppSettings.ConfiglueSchema;
+        var counter = template.Members.Single(member => member.Name == "RetryCount");
+        var first = CreateSchema(template, counter with { Name = "First" });
+        var second = CreateSchema(template, counter with { Name = "Second" });
+        var initial = TextAssignmentBinder.Bind(first, [new(["FIRST"], 7, "first")]);
+        ((AppSettings.Fragment)initial.Fragment).RetryCount.Value.ShouldBe(7);
+
+        TextAssignmentBinder.Bind(second, [new(["First"], 8, "stale")]).MatchedAny.ShouldBeFalse();
+        var changed = TextAssignmentBinder.Bind(second, [new(["SECOND"], 9, "second")]);
+        changed.MatchedAny.ShouldBeTrue();
+        ((AppSettings.Fragment)changed.Fragment).RetryCount.Value.ShouldBe(9);
+    }
+
+    [Test]
+    public void NestedSchemaFactoriesRemainFreshBetweenBinds()
+    {
+        var template = AppSettings.ConfiglueSchema;
+        var database = template.Members.Single(member => member.Name == "Database");
+        var nestedTemplate = database.NestedSchemaFactory!();
+        var host = nestedTemplate.Members.Single(member => member.Name == "Host");
+        var current = CreateSchema(nestedTemplate, host with { Name = "Primary" });
+        var root = CreateSchema(template, database with { NestedSchemaFactory = () => current });
+        var initial = TextAssignmentBinder.Bind(
+            root,
+            [new(["Database", "PRIMARY"], "first", "first")]
+        );
+        ((AppSettings.Fragment)initial.Fragment).Database.Value!.Host.Value.ShouldBe("first");
+
+        current = CreateSchema(nestedTemplate, host with { Name = "Secondary" });
+        TextAssignmentBinder
+            .Bind(root, [new(["Database", "Primary"], "stale", "stale")])
+            .MatchedAny.ShouldBeFalse();
+        var changed = TextAssignmentBinder.Bind(
+            root,
+            [new(["Database", "SECONDARY"], "second", "second")]
+        );
+        changed.MatchedAny.ShouldBeTrue();
+        ((AppSettings.Fragment)changed.Fragment).Database.Value!.Host.Value.ShouldBe("second");
+    }
+
+    [Test]
+    public void ConcurrentBindingKeepsValuesAndRevisionsIndependent()
+    {
+        var template = AppSettings.ConfiglueSchema;
+        var counter = template.Members.Single(member => member.Name == "RetryCount");
+        var schema = CreateSchema(template, counter with { Name = "Count" });
+        var revisions = new string[64];
+        Parallel.For(
+            0,
+            revisions.Length,
+            index =>
+            {
+                var bound = TextAssignmentBinder.Bind(schema, [new(["COUNT"], index, "parallel")]);
+                ((AppSettings.Fragment)bound.Fragment).RetryCount.Value.ShouldBe(index);
+                revisions[index] = bound.Revision;
+            }
+        );
+        revisions.Distinct().Count().ShouldBe(revisions.Length);
+    }
+
+    private static ConfiglueModelSchema CreateSchema(
+        ConfiglueModelSchema template,
+        params ConfiglueMemberSchema[] members
+    ) =>
+        new(
+            template.ModelType,
+            template.Id,
+            template.Version,
+            members,
+            template.CreateEmptyFragment
+        );
 }

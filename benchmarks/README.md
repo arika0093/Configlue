@@ -5,6 +5,10 @@ The ongoing measurement and optimization audit is recorded in [performance-audit
 `TransformerPipelineAllocationBenchmarks` also includes an empty payload so destination
 buffer changes are measured for zero-byte inputs as well as 100 B, 4 KiB, and 64 KiB.
 
+`TextAssignmentBindingBenchmarks` measures binding 1, 4, and 16 assignments with
+a reused schema and with a newly constructed schema on each operation. Setup
+checks that every assignment resolves; cold measurements include schema creation.
+
 `CollectionCloneBenchmarks` isolates generated fragment deep cloning for lists, sets,
 dictionaries, and a combined collection model at 0, 16, and 4,096 elements. It checks
 structural equality in setup and measures allocations without storage or resolver costs.
