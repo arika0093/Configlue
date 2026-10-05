@@ -11,6 +11,11 @@ model at 0, 16, and 4,096 elements against direct model cloning. A cached in-mem
 reader isolates managed runtime and clone costs; setup checks that mutating a returned
 collection cannot affect subsequent reads.
 
+`MutableCollectionCloneBenchmarks` covers model and fragment clones of shared mutable
+children in lists, arrays, dictionaries, and sets. It checks that the result isolates
+children and preserves their aliases across all four collections, then measures
+the recursive clone path at 16 and 256 elements.
+
 Run every benchmark in Release mode:
 
 ```shell
