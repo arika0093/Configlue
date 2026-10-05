@@ -348,7 +348,7 @@ jobs:
           retention-days: 7
 
   # Standalone SparseFragments NativeAOT contract (#317): a packed-package
-  # consumer using only SparseFragments (+ SparseFragments.JsonPatch) published
+  # consumer using only SparseFragments published
   # with NativeAOT. It exercises fragment construction/From, merge, diff/patch
   # application, deep clone, and JSON Patch conversion through an explicit
   # source-generated JsonSerializerContext, fails on any IL trim/AOT diagnostic
@@ -424,7 +424,7 @@ jobs:
           ILC : Trim analysis warning IL2026: SparseFragments.SparseCollectionMerger.Merge[T](SparseFragments.Optional`1[T],SparseFragments.Optional`1[T]): Using member 'System.Reflection.MethodInfo.Invoke' which has 'RequiresUnreferencedCodeAttribute' can break functionality when trimming application code. [/home/runner/work/Configlue/Configlue/tests/fixtures/consumers/sparse-aot/SparseAot.Consumer.csproj]
           EOF
           cat > "$tmp/negative-jsonpatch.log" <<'EOF'
-          ILC : AOT analysis warning IL3050: SparseFragments.JsonPatch.JsonPatchEngine.Apply(System.Text.Json.Nodes.JsonNode,Boolean,SparseFragments.JsonPatch.JsonPatchDocument,System.StringComparison): Using member 'System.Text.Json.JsonSerializer.Deserialize' which has 'RequiresDynamicCodeAttribute' can break functionality when AOT compiling. The native code for this instantiation might not be available at runtime. [/home/runner/work/Configlue/Configlue/tests/fixtures/consumers/sparse-aot/SparseAot.Consumer.csproj]
+          ILC : AOT analysis warning IL3050: SparseFragments.JsonPatchEngine.Apply(System.Text.Json.Nodes.JsonNode,Boolean,SparseFragments.JsonPatchDocument,System.StringComparison): Using member 'System.Text.Json.JsonSerializer.Deserialize' which has 'RequiresDynamicCodeAttribute' can break functionality when AOT compiling. The native code for this instantiation might not be available at runtime. [/home/runner/work/Configlue/Configlue/tests/fixtures/consumers/sparse-aot/SparseAot.Consumer.csproj]
           EOF
           if ! bash "$gate" "$tmp/empty.log"; then
             echo "Gate rejected a diagnostic-free log; it should have passed." >&2
@@ -435,7 +435,7 @@ jobs:
             exit 1
           fi
           if bash "$gate" "$tmp/negative-jsonpatch.log"; then
-            echo "Gate accepted a SparseFragments.JsonPatch IL3050 diagnostic; it should have failed." >&2
+            echo "Gate accepted a SparseFragments JSON Patch IL3050 diagnostic; it should have failed." >&2
             exit 1
           fi
           echo "SparseFragments diagnostic-gate self-test passed (positive/negative controls)."

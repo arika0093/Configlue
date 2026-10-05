@@ -1,6 +1,5 @@
 using System.Text;
 using SparseFragments;
-using SparseFragments.JsonPatch;
 
 // Canonical compile-checked mirror of src/fragments/SparseFragments/README.md.
 // Each block below corresponds to a README Usage section. Keep the model shapes
@@ -86,13 +85,13 @@ var jsonPatch = Settings.Patch.FromJsonPatch(
     Optional<Settings.Fragment?>.Present(baseline),
     document);
 var updatedFromJson = baseline.Apply(jsonPatch);
-Require(updatedFromJson.Label.Value == "patched", "SparseFragments.JsonPatch import");
+Require(updatedFromJson.Label.Value == "patched", "JSON Patch import");
 
 var baselineOpt = Optional<Settings.Fragment?>.Present(baseline);
 var exported = jsonPatch.ToJsonPatch(baselineOpt);
 var exportedText = Encoding.UTF8.GetString(exported.ToArray());
-Require(exportedText.Contains("/Label"), "SparseFragments.JsonPatch export");
-Require(exportedText.Contains("patched"), "SparseFragments.JsonPatch export value");
+Require(exportedText.Contains("/Label"), "JSON Patch export");
+Require(exportedText.Contains("patched"), "JSON Patch export value");
 
 Console.WriteLine("SparseFragments README consumer passed.");
 

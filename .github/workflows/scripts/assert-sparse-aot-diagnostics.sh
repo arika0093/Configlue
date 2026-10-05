@@ -8,7 +8,7 @@
 # fragment converters plus an explicit source-generated resolver path with no
 # reflection fallback), so there is intentionally no allowlist here: any
 # diagnostic — including any SparseFragments-origin (SparseFragments.*,
-# SparseFragments.JsonPatch, or consumer code) diagnostic — fails the gate.
+# or consumer code) diagnostic — fails the gate.
 set -euo pipefail
 
 publish_log="${1:?publish log path required}"

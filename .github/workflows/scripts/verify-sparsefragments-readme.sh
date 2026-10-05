@@ -5,7 +5,7 @@
 # tests/fixtures/consumers/package-sparse-readme/Program.cs, which mirrors the
 # Usage sections of src/fragments/SparseFragments/README.md (model shape,
 # sparse construction, nested fragments, merge, typed patch, deep clone, and
-# one SparseFragments.JsonPatch round-trip). This script guards against drift
+# one JSON Patch round-trip). This script guards against drift
 # between the README and that canonical source, then builds and runs the
 # fixture against the packed packages so CI fails when the public generated
 # API breaks the documented samples.
@@ -79,10 +79,6 @@ fi
 version="$(basename "${package}" | sed -E 's/^SparseFragments\.(.+)\.nupkg$/\1/')"
 if [[ -z "${version}" ]]; then
     echo "Could not resolve package version from '$(basename "${package}")'." >&2
-    exit 1
-fi
-if [[ ! -f "${package_directory}/SparseFragments.JsonPatch.${version}.nupkg" ]]; then
-    echo "No SparseFragments.JsonPatch package version '${version}' found in '${package_directory}'." >&2
     exit 1
 fi
 feed="$(realpath "${package_directory}")"

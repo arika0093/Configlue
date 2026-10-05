@@ -12,7 +12,6 @@
   </ItemGroup>
   <ItemGroup Condition="'$(ConfigluePackageVersion)' == ''">
     <ProjectReference Include="../../../../src/fragments/SparseFragments/SparseFragments.csproj" />
-    <ProjectReference Include="../../../../src/fragments/SparseFragments.JsonPatch/SparseFragments.JsonPatch.csproj" />
     <ProjectReference
       Include="../../../../src/fragments/SparseFragments.Generator/SparseFragments.Generator.csproj"
       OutputItemType="Analyzer"
@@ -21,6 +20,5 @@
   </ItemGroup>
   <ItemGroup Condition="'$(ConfigluePackageVersion)' != ''">
     <PackageReference Include="SparseFragments" Version="$(ConfigluePackageVersion)" />
-    <PackageReference Include="SparseFragments.JsonPatch" Version="$(ConfigluePackageVersion)" />
   </ItemGroup>
 </Project>

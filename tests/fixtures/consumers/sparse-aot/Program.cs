@@ -4,7 +4,7 @@ using System.Text.Json.Serialization;
 using SparseFragments;
 
 // Standalone SparseFragments NativeAOT smoke (#317).
-// Exercises only SparseFragments (+ SparseFragments.JsonPatch) with no Configlue
+// Exercises only SparseFragments with no Configlue
 // facade dependency: fragment construction/From, merge, diff/patch application,
 // deep clone, and JSON Patch conversion through a source-generated
 // JsonSerializerContext (the supported NativeAOT resolver path).
@@ -106,12 +106,12 @@ var baselineOpt = Optional<SparseAotSettings.Fragment?>.Present(baseline);
 var document = Encoding.UTF8.GetBytes("""[{"op":"replace","path":"/Label","value":"patched"}]""");
 var jsonPatch = SparseAotSettings.Patch.FromJsonPatch(baselineOpt, document, options);
 var updatedFromJson = baseline.Apply(jsonPatch);
-Require(updatedFromJson.Label.Value == "patched", "SparseFragments.JsonPatch import");
+Require(updatedFromJson.Label.Value == "patched", "JSON Patch import");
 
 var exported = jsonPatch.ToJsonPatch(baselineOpt, options);
 var exportedText = Encoding.UTF8.GetString(exported.ToArray());
-Require(exportedText.Contains("/Label"), "SparseFragments.JsonPatch export path");
-Require(exportedText.Contains("patched"), "SparseFragments.JsonPatch export value");
+Require(exportedText.Contains("/Label"), "JSON Patch export path");
+Require(exportedText.Contains("patched"), "JSON Patch export value");
 
 // Round-trip: re-importing the export onto the same baseline is semantically identical.
 var reimported = SparseAotSettings.Patch.FromJsonPatch(baselineOpt, exported.ToArray(), options);
@@ -119,7 +119,7 @@ var viaOriginal = baseline.Apply(jsonPatch);
 var viaExport = baseline.Apply(reimported);
 Require(
     viaExport.Label.Value == viaOriginal.Label.Value,
-    "SparseFragments.JsonPatch export round-trip");
+    "JSON Patch export round-trip");
 
 Console.WriteLine("SPARSE_AOT_SMOKE_PASS");
 

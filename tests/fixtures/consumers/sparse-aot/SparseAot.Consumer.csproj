@@ -14,7 +14,7 @@
     <InvariantGlobalization>true</InvariantGlobalization>
     <!--
       Standalone SparseFragments NativeAOT smoke (#317): uses only
-      SparseFragments (+ SparseFragments.JsonPatch) with no Configlue
+      SparseFragments with no Configlue
       facade dependency. Report every trim warning individually instead of
       the per-assembly IL2104 summary so new trimming regressions fail this
       gate. This consumer intentionally carries no WarningsNotAsErrors
@@ -32,7 +32,6 @@
   <!-- Restores SparseFragments from a local NuGet feed when ConfigluePackageVersion is provided. -->
   <ItemGroup Condition="'$(ConfigluePackageVersion)' == ''">
     <ProjectReference Include="../../../../src/fragments/SparseFragments/SparseFragments.csproj" />
-    <ProjectReference Include="../../../../src/fragments/SparseFragments.JsonPatch/SparseFragments.JsonPatch.csproj" />
     <ProjectReference
       Include="../../../../src/fragments/SparseFragments.Generator/SparseFragments.Generator.csproj"
       OutputItemType="Analyzer"
@@ -41,6 +40,5 @@
   </ItemGroup>
   <ItemGroup Condition="'$(ConfigluePackageVersion)' != ''">
     <PackageReference Include="SparseFragments" Version="$(ConfigluePackageVersion)" />
-    <PackageReference Include="SparseFragments.JsonPatch" Version="$(ConfigluePackageVersion)" />
   </ItemGroup>
 </Project>
