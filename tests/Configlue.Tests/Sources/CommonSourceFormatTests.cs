@@ -1,6 +1,7 @@
 using System.Buffers;
 using Configlue;
 using Configlue.Provider.Json;
+using Configlue.Provider.MessagePack;
 using Configlue.Provider.Xml;
 using Configlue.Provider.Yaml;
 using Configlue.Source.Presets;
@@ -210,6 +211,27 @@ public sealed partial class CommonSourceFormatTests
     }
 
     [Test]
+    public async Task CommonSourceBuilder_SelectsMessagePackProviderExplicitly()
+    {
+        using var directory = new TemporaryDirectory();
+        var messagePackPath = Path.Combine(directory.FullPath, "selected.msgpack");
+        await WriteMessagePackFragmentAsync(
+            messagePackPath,
+            new AppSettings.Fragment { RetryCount = Optional<int>.Present(42) }
+        );
+
+        await using var context = ConfiglueApp.CreateContext(builder =>
+            builder.UseCommonSources(sources =>
+            {
+                sources.WithExplicit(messagePackPath).MessagePack();
+                sources.Add<AppSettings>();
+            })
+        );
+
+        (await context.GetState<AppSettings>().GetValueAsync()).RetryCount.ShouldBe(42);
+    }
+
+    [Test]
     public async Task CommonSourceBuilder_AllowsWritingToANonDefaultFileBySelector()
     {
         using var directory = new TemporaryDirectory();
@@ -261,6 +283,17 @@ public sealed partial class CommonSourceFormatTests
             output,
             default
         );
+        await File.WriteAllBytesAsync(path, output.WrittenMemory.ToArray());
+    }
+
+    private static async Task WriteMessagePackFragmentAsync(
+        string path,
+        AppSettings.Fragment fragment
+    )
+    {
+        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+        var output = new ArrayBufferWriter<byte>();
+        new MessagePackStateCodec<AppSettings.Fragment>().Serialize(fragment, output, default);
         await File.WriteAllBytesAsync(path, output.WrittenMemory.ToArray());
     }
 
