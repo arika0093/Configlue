@@ -1,0 +1,106 @@
+---
+title: Troubleshooting
+description: Move from an observable symptom to the likely Configlue cause, diagnostic signal, and safe correction.
+---
+
+Each entry starts from words you are likely to search for and follows the same shape: **Symptom**, **Likely causes**, **How to diagnose**, **How to fix**, **Related**. For exact semantics behind any entry, see [Reference](../reference/); for setup changes, see [Guides](../guides/); for mental-model issues, see [Concepts](../concepts/).
+
+This page covers core first-run, read, write, and layering failure modes. It is not an exhaustive exception catalog, and provider-specific failures belong with their [integration](../integrations/) once a dedicated page warrants it.
+
+## My settings file does not exist
+
+**Symptom.** `settings.json` is missing and you are unsure whether something failed.
+
+**Likely causes.** Expected first-run state — nothing has been saved yet.
+
+**How to diagnose.** Call `GetValueAsync()`. If it returns model defaults without throwing, the runtime is behaving as designed: a missing file reads as defaults.
+
+**How to fix.** No fix is needed. The file (including its directory) is created on the first successful `SaveAsync`. Distinguish this from an I/O failure, which throws instead of returning defaults.
+
+**Related.** [Reference](../reference/) for local-file defaults; [Getting Started](../getting-started/) for the first-save flow.
+
+## The settings file is malformed
+
+**Symptom.** Reads throw a JSON format exception, or the state stops updating after a bad edit.
+
+**Likely causes.** The document on disk is not valid JSON (truncated write from another tool, bad merge, stray bytes).
+
+**How to diagnose.** Read the exception from `GetValueAsync()` — Configlue propagates the format failure instead of silently returning defaults. Check whether the failure coincides with an external edit, and whether the watcher reported a reload failure through diagnostics.
+
+**How to fix.** Repair the document so it is valid JSON again; the watcher recovers on the next valid document. Do not work around corruption by swallowing the exception or reverting to defaults silently — fix the bytes.
+
+**Related.** [Reference](../reference/) for malformed-document behavior.
+
+## A save fails validation
+
+**Symptom.** `SaveAsync` throws `ConfiglueValidationException`.
+
+**Likely causes.** A DataAnnotations rule on the model (or a custom `IConfiglueValidator<T>`) rejected the patch.
+
+**How to diagnose.** Read the exception to identify which value or rule failed. Compare the rejected patch members against the model's attributes; see [Guides](../guides/) for the validation recipe.
+
+**How to fix.** Correct the values and save again. Do not suppress validation as the default fix — the stored document keeps its previous valid content, which is the safe outcome.
+
+**Related.** [Guides](../guides/) for the validation workflow; [Reference](../reference/) for validation guarantees.
+
+## A save conflicts with another change
+
+**Symptom.** `SaveAsync` throws `StateConflictException`.
+
+**Likely causes.** The state changed underneath the edit — a concurrent write, an external file change, or a higher-priority contribution that prevents the patch from producing its requested effective values.
+
+**How to diagnose.** Re-read with `GetValueAsync()`, inspect diagnostics to see which contribution moved, and determine whether the conflicting change is legitimate (another writer, environment override) or stale state in your edit session.
+
+**How to fix.** Rebase the edit onto the fresh value and save again. Do not disable conflict detection to make the error disappear; the failure protected the winning contribution from a silent overwrite.
+
+**Related.** [Concepts](../concepts/) for reads-vs-writes asymmetry; [Reference](../reference/) for conflict behavior.
+
+## An external file edit is not reflected
+
+**Symptom.** You edited `settings.json` in another program but `OnChange` never fired and reads look stale.
+
+**Likely causes.** One of: the state was not created through the standard watched local-file path; the new document is invalid; or the `OnChange` subscription was already disposed.
+
+**How to diagnose.** In order: (1) confirm the setup uses `UseLocalJson` (the watched path); (2) validate the edited document parses as JSON — a malformed document fails reads and recovers only on the next valid write; (3) confirm the `IDisposable` from `OnChange` is still alive and the process still runs.
+
+**How to fix.** Fix whichever step failed: use the watched path, repair the document, or re-subscribe. Do not assume watcher timing is instantaneous — no exact timing is guaranteed.
+
+**Related.** [Reference](../reference/) for the change-observation contract; [Guides](../guides/) for the observation recipe.
+
+## The value I read is not the value in my local file
+
+**Symptom.** `GetValueAsync()` returns something different from what is written in `settings.json`.
+
+**Likely causes.** A higher-priority contribution is winning — typically an environment override, remote policy, or another layered source.
+
+**How to diagnose.** Inspect provenance through the diagnostics surface rather than guessing from files:
+
+```csharp
+var diagnostics = ((IConfiglueDiagnostics<AppSettings>)settings).GetDiagnostics();
+foreach (var source in diagnostics.Sources)
+{
+    Console.WriteLine($"{source.Id} (priority {source.Priority}): read={source.CanRead} write={source.CanWrite} active={source.IsActive}");
+}
+```
+
+**How to fix.** Change or remove the winning contribution (for example, unset the overriding environment variable), or keep it and treat the file value as correctly shadowed. This is the standard answer for environment/remote overrides — not manual file inspection.
+
+**Related.** [Concepts](../concepts/) for effective value and provenance; [Guides](../guides/) for inspecting contributions.
+
+## I can read the state but cannot save it
+
+**Symptom.** Reads work, but `SaveAsync` fails or reports no writable destination.
+
+**Likely causes.** The layered state has readable contributions but no configured writable path — or the writable path rejects this particular patch (validation, conflict, read-only higher layer shadowing the requested outcome).
+
+**How to diagnose.** Check diagnostics for which sources report `write=True` versus read-only. Confirm the setup registers a writable contribution (for example, `UseLocalJson` or another writable source) and that the failure exception is validation versus conflict versus misconfiguration.
+
+**How to fix.** Configure or repair the writable path with the current public API, then retry with a patch that the winning layers can actually produce. Keep configuration aligned with [Integrations](../integrations/) for the backend in use.
+
+**Related.** [Concepts](../concepts/) for the readable-vs-writable distinction; [Reference](../reference/) for write-target semantics.
+
+## Where to go next
+
+- Re-learn the failing workflow: [Getting Started](../getting-started/).
+- Change the setup that caused it: [Guides](../guides/).
+- Check the backend you are using: [Integrations](../integrations/).

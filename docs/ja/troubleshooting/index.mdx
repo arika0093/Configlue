@@ -1,0 +1,106 @@
+---
+title: トラブルシューティング
+description: 観測された症状から、可能性の高い Configlue 側の原因・診断シグナル・安全な対処へ進む。
+---
+
+各項目は検索されそうな言葉から入り、**症状**・**可能性の高い原因**・**診断方法**・**対処**・**関連** の順で統一しています。背景の正確な意味は[リファレンス](../reference/)、構成変更は[ガイド](../guides/)、考え方は[概念](../concepts/)を見てください。
+
+このページは初回実行・読み取り・書き込み・層構成の代表的失敗を扱います。例外の網羅カタログではなく、provider 固有の障害は専用ページができるまでは[インテグレーション](../integrations/)側に譲ります。
+
+## 設定ファイルが存在しない
+
+**症状。** `settings.json` が無く、何か失敗したのか分からない。
+
+**可能性の高い原因。** まだ何も保存していない、期待された初回状態。
+
+**診断方法。** `GetValueAsync()` を呼びます。throw せずモデル既定値が返れば設計通りです。ファイルが無ければ既定値として読み取ります。
+
+**対処。** 対処は不要です。ファイル（親ディレクトリーを含む）は初回の `SaveAsync` 成功時に作られます。throw する I/O 障害とは区別してください。こちらは既定値を返しません。
+
+**関連。** ローカルファイル既定値は[リファレンス](../reference/)、初回保存の流れは[はじめる](../getting-started/)。
+
+## 設定ファイルが壊れている
+
+**症状。** 読み取りで JSON 形式例外が出る、または不正な編集後に state が更新されなくなる。
+
+**可能性の高い原因。** ディスク上のドキュメントが有効な JSON ではない（他ツールの書きかけ、bad merge、不正バイト）。
+
+**診断方法。** `GetValueAsync()` の例外を読みます。Configlue は既定値を黙って返さず形式失敗を伝播させます。失敗が外部編集と同時か、watcher が diagnostics 経路でリロード失敗を報告したかを確認します。
+
+**対処。** ドキュメントを有効な JSON に直します。watcher は次の有効なドキュメントで回復します。例外を握りつぶしたり黙って既定値に戻したりしてごまかさず、バイト列を直してください。
+
+**関連。** 不正ドキュメント動作は[リファレンス](../reference/)。
+
+## 保存が validation で失敗する
+
+**症状。** `SaveAsync` が `ConfiglueValidationException` を throw する。
+
+**可能性の高い原因。** モデルの DataAnnotations 規則（または custom `IConfiglueValidator<T>`）が patch を拒否した。
+
+**診断方法。** どの値・規則が失敗したか例外を読みます。拒否された patch メンバーをモデルの属性と見比べます。validation レシピは[ガイド](../guides/)にあります。
+
+**対処。** 値を直して再保存します。validation の抑制を既定の対処にしないでください。保存ドキュメントは以前の有効な内容を保っており、それが安全な結果です。
+
+**関連。** validation 手順は[ガイド](../guides/)、validation 保証は[リファレンス](../reference/)。
+
+## 保存が他の変更と競合する
+
+**症状。** `SaveAsync` が `StateConflictException` を throw する。
+
+**可能性の高い原因。** 編集中に state が変わった。同時書き込み、外部ファイル変更、または patch の要求 effective value を実現できない上位寄与。
+
+**診断方法。** `GetValueAsync()` で読み直し、diagnostics でどの寄与が動いたかを見て、競合が正当なもの（他の writer、環境変数 override）か、編集セッションの古い state かを切り分けます。
+
+**対処。** 新しい値に編集を載せ直して再保存します。エラーを消すために conflict 検出を無効化しないでください。この失敗は勝っている寄与を黙った上書きから守っています。
+
+**関連。** 読み取りと書き込みの非対称は[概念](../concepts/)、conflict 動作は[リファレンス](../reference/)。
+
+## 外部ファイル編集が反映されない
+
+**症状。** `settings.json` を別プログラムで編集したのに `OnChange` が発火せず、読み取りも古いまま。
+
+**可能性の高い原因。** 次のいずれか。state が標準の監視ローカルファイル経路で作られていない。新しいドキュメントが不正。`OnChange` の subscription を既に dispose した。
+
+**診断方法。** 順に確認します。(1) 構成が `UseLocalJson`（監視経路）か。(2) 編集後ドキュメントが JSON として解析できるか。不正ドキュメントは読み取り失敗し、次の有効な書き込みでのみ回復します。(3) `OnChange` の `IDisposable` が生存し、プロセスも継続しているか。
+
+**対処。** 失敗した箇所を直します。監視経路を使う、ドキュメントを直す、再購読する。watcher タイミングが瞬時と思い込まないでください。正確なタイミングの保証はありません。
+
+**関連。** 変更観測の契約は[リファレンス](../reference/)、観測レシピは[ガイド](../guides/)。
+
+## 読み値がローカルファイルと違う
+
+**症状。** `GetValueAsync()` が `settings.json` の内容と違う値を返す。
+
+**可能性の高い原因。** 優先度の高い寄与が勝っている。通常は環境変数 override、remote policy、他の層 source。
+
+**診断方法。** ファイル推測ではなく diagnostics surface で provenance を調べます。
+
+```csharp
+var diagnostics = ((IConfiglueDiagnostics<AppSettings>)settings).GetDiagnostics();
+foreach (var source in diagnostics.Sources)
+{
+    Console.WriteLine($"{source.Id} (priority {source.Priority}): read={source.CanRead} write={source.CanWrite} active={source.IsActive}");
+}
+```
+
+**対処。** 勝っている寄与を変更・除去します（例: 上書き環境変数の unset）。またはそれを残し、ファイル値が正しく覆い隠されているものとして扱います。これが環境/remote override 系の標準回答であり、手作業のファイル見比べではありません。
+
+**関連。** effective value と provenance の考え方は[概念](../concepts/)、寄与の調べ方は[ガイド](../guides/)。
+
+## 読み取りはできるが保存できない
+
+**症状。** 読み取りは動くが、`SaveAsync` が失敗する、または書き込み先が無いと言われる。
+
+**可能性の高い原因。** 層状 state に読み取り可能な寄与はあるが、構成された書き込み経路が無い。または書き込み経路がこの patch を拒否している（validation、conflict、要求結果を覆い隠す読み取り専用上位層）。
+
+**診断方法。** diagnostics で `write=True` の source と読み取り専用を確認します。構成が書き込み可能な寄与（例: `UseLocalJson` や他の writable source）を登録しているか、失敗例外が validation・conflict・設定不備のどれかを確認します。
+
+**対処。** 現在の公開 API で書き込み経路を構成・修復し、勝っている層が実現できる patch で再試行します。使っている backend の構成は[インテグレーション](../integrations/)に合わせてください。
+
+**関連。** 読み取り可と書き込み可の区別は[概念](../concepts/)、書き込み先意味論は[リファレンス](../reference/)。
+
+## 次に進む
+
+- 失敗したワークフローを学び直す: [はじめる](../getting-started/)。
+- 原因の構成を変える: [ガイド](../guides/)。
+- 使っている backend を確認する: [インテグレーション](../integrations/)。

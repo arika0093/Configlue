@@ -37,6 +37,41 @@ export default defineConfig({
         en: { label: 'English', lang: 'en' },
         ja: { label: '日本語', lang: 'ja' },
       },
+      // Top-level order is explicit and stable (#321). Each section owns one
+      // directory; future child pages inside a section are picked up via
+      // autogenerate without reordering the top level.
+      sidebar: [
+        {
+          label: 'Getting Started',
+          translations: { ja: 'はじめる' },
+          items: [{ autogenerate: { directory: 'getting-started' } }],
+        },
+        {
+          label: 'Concepts',
+          translations: { ja: '概念' },
+          items: [{ autogenerate: { directory: 'concepts' } }],
+        },
+        {
+          label: 'Guides',
+          translations: { ja: 'ガイド' },
+          items: [{ autogenerate: { directory: 'guides' } }],
+        },
+        {
+          label: 'Integrations',
+          translations: { ja: 'インテグレーション' },
+          items: [{ autogenerate: { directory: 'integrations' } }],
+        },
+        {
+          label: 'Reference',
+          translations: { ja: 'リファレンス' },
+          items: [{ autogenerate: { directory: 'reference' } }],
+        },
+        {
+          label: 'Troubleshooting',
+          translations: { ja: 'トラブルシューティング' },
+          items: [{ autogenerate: { directory: 'troubleshooting' } }],
+        },
+      ],
       components: {
         PageTitle: './src/components/PageTitle.astro',
         ThemeProvider: 'starlight-theme-nova/components/ThemeProvider.astro',

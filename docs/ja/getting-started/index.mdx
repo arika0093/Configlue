@@ -1,0 +1,125 @@
+---
+title: はじめる
+description: 新しい .NET プロジェクトからローカル JSON に支えられた型付き設定 state を作り、読み取りと保存を 1 回ずつ成功させる。
+---
+
+このチュートリアルでは、新しい .NET プロジェクトから単一のローカル JSON ファイルに支えられた型付き設定 state を作ります。最終的に次の流れを実行できます。
+
+```text
+POCO モデル
+  → UseLocalJson(...)
+  → IWritableState<T>
+  → GetValueAsync / SaveAsync
+```
+
+source ID、優先度、書き込みルーティング、Resource/Codec 用語、subject/profile API の理解はここでは不要です。単純な state モデルが動いてから学べば十分です。
+
+## 前提条件
+
+- .NET 10 以降（`dotnet --version` で確認）。
+- コンソールプロジェクト（`dotnet new console` で可）。
+
+通常のアプリケーション設定向けのプライマリパッケージをインストールします。ランタイム、JSON/ファイル対応、environment source、共通プリセット、ジェネレーターを含みます。
+
+```bash
+dotnet add package Configlue
+```
+
+これが通常のアプリケーション設定のつもりのパッケージです。`Configlue.Core` から始めないでください。あちらは高度な用途やパッケージ作者向けの土台です。
+
+## 1. 設定モデルを定義する
+
+モデルは小さく保ちます。プロパティは 2〜3 個で十分です。
+
+```csharp
+[ConfiglueModel("sample.settings", Version = 1)]
+public partial class AppSettings
+{
+    public string Name { get; set; } = "World";
+    public string Theme { get; set; } = "System";
+}
+```
+
+モデルは `partial` にします。ジェネレーターが patch 型（`AppSettings.Patch`）と下で使う `SaveAsync(patch => ...)` オーバーロードを生成するためです。`Version = 1` により、保存ドキュメントに初日から安定した schema identity が付きます。
+
+## 2. ローカル JSON で初期化する
+
+起動時に 1 回だけ構成します。
+
+```csharp
+using Configlue;
+
+ConfiglueApp.Initialize(config =>
+{
+    config.Add<AppSettings>().UseLocalJson("settings.json");
+});
+```
+
+`UseLocalJson` は通常のアプリケーション設定向けに調整されています。
+
+- ファイルが無くてもモデル既定値として読み取れます。初回実行で失敗しません。
+- ファイル（親ディレクトリーを含む）は初回保存時に作成されます。
+- ドキュメントは `{ "$version": 1, ... }` のような素直な JSON です。読み取り時はコメントも受け付けます。
+
+## 3. 型付き state を読み取る
+
+アプリケーションコードはファイルを直接読むのではなく、型付き state を読みます。
+
+```csharp
+var settings = ConfiglueApp.GetState<AppSettings>();
+var current = await settings.GetValueAsync();
+Console.WriteLine($"Hello, {current.Name}. Theme: {current.Theme}");
+```
+
+`settings` は `IWritableState<AppSettings>` です。読み取り専用で扱いたい場所では `IReadOnlyState<AppSettings>` としても使えます。
+
+## 4. 変更を保存する
+
+モデル全体を書き換えるのではなく、生成された疎な patch を通して保存します。
+
+```csharp
+await settings.SaveAsync(patch =>
+{
+    patch.Name = "Alice";
+    patch.Theme = "Dark";
+});
+```
+
+patch 内で設定したメンバーのみが書き込まれます。触れなかったメンバーは既定値で上書きされず、層構造上の動作を保ちます。
+
+## 5. 変更を観測する（任意）
+
+同じ surface でもうひとつ便利な使い方です。
+
+```csharp
+using var _ = settings.OnChange(changed =>
+{
+    Console.WriteLine($"Theme is now {changed.Theme}");
+});
+```
+
+listener は解決済みの effective value が実際に変わったときに発火します。標準のローカルファイルパスは `settings.json` を監視するため、外部エディターでの変更も観測できます。通知が必要な間は subscription を保持し、不要になったら dispose します。
+
+## 6. 終了する
+
+plain .NET のライフサイクルを正しく終えます。
+
+```csharp
+await ConfiglueApp.ShutdownAsync();
+```
+
+## 観測ポイント
+
+1. 初回実行では `settings.json` が無くても既定値が表示されます（`Hello, World. Theme: System`）。
+2. 保存後は patch の値と `$version` マーカーを持つ `settings.json` が作られます。
+3. 別エディターで `settings.json` を編集すると、観測されたリロードで `OnChange` listener が発火します。
+
+## 次に進む
+
+- 今何が起きたか理解する: [概念](../concepts/)。
+- 目的別の操作をする: [ガイド](../guides/)（環境変数 override、validation、schema 移行、provenance）。
+- 別のホストで使う（DI、ASP.NET Core、Blazor、desktop、MAUI、Unity、Godot）: [インテグレーション](../integrations/)。
+- 正確な動作を調べる（ファイル既定値、presence 意味論、conflict）: [リファレンス](../reference/)。
+- 失敗したときは: [トラブルシューティング](../troubleshooting/)。
+
+小さなファイルから始めても、後から別のライブラリーへ移行する必要はありません。アプリケーションが成長して層が増えても、`GetValueAsync` / `SaveAsync` 側のコードはそのまま動き続けます。

@@ -1,0 +1,91 @@
+---
+title: Reference
+description: Behavioral contracts for Configlue's user-visible state, layering, presence, change, file, and schema semantics.
+---
+
+This page is a lookup reference for behavioral contracts that method signatures alone cannot express. It states what Configlue **does**, **does not**, **throws**, and **writes to** — only where the behavior is an intentional contract. Tutorials live in [Getting Started](../getting-started/); procedures live in [Guides](../guides/); background lives in [Concepts](../concepts/).
+
+When behavior differs by source or provider, the boundary is stated and the relevant [integration](../integrations/) documentation takes precedence over any generalization here. Full member-level API documentation is a separate future concern (generated from XML documentation); nothing here reproduces it.
+
+## State surface
+
+| Abstraction | Role | Operations |
+| --- | --- | --- |
+| `IReadOnlyState<T>` | Application read boundary. | `GetValueAsync()` returns the current effective value, throwing when no usable state can be read. `OnChange()` subscribes to effective-value changes and returns an `IDisposable` subscription. |
+| `IWritableState<T>` | Application read/write boundary (extends `IReadOnlyState<T>`). | `SaveAsync(patch)` applies a generated sparse patch to the configured write source and returns a `StateWriteReceipt`. The generated `SaveAsync(configure)` overload builds the patch from `Action<T.Patch>`. |
+
+- Read-only consumers **should** accept `IReadOnlyState<T>`; editing consumers **should** accept `IWritableState<T>`.
+- Diagnostics and provenance are exposed through the diagnostics service (`IConfiglueDiagnostics<T>.GetDiagnostics()`); DevTools surfaces the same information interactively where available.
+- The process-wide path (`ConfiglueApp.Initialize` / `GetState<T>` / `ShutdownAsync`) is the plain .NET lifecycle. DI-hosted applications resolve the same state abstractions from the container instead.
+
+## Resolution semantics
+
+Layered state resolution follows the public configuration (source ordering and priority as configured, e.g. `UseCommonSources` with local plus environment):
+
+- **Ordering.** Higher-priority contributions are tried first. The exact priority values are configuration, not a global constant.
+- **Absent vs present.** An absent contribution carries no opinion for that member, so lower layers show through. A present value — including an explicit `null` where supported — overrides lower layers.
+- **Effective value.** `GetValueAsync()` returns the single merged `T` after all contributions resolve. It does not report which layer won; use diagnostics for that.
+- **Fallback and errors.** A malformed local document fails reads (the format exception propagates) instead of silently returning defaults. Background reload failures are reported through the watcher/diagnostics path and recover on the next valid document.
+
+Only the semantics above are guaranteed. Resolver algorithms, caches, coordinators, and retry timings are implementation details.
+
+## Presence and write semantics
+
+User-visible patch semantics:
+
+| Term | Meaning |
+| --- | --- |
+| Missing / absent | The patch member carries no opinion. Layered resolution falls through to lower contributions. |
+| Explicit value | The patch sets the member at the write destination. |
+| Explicit `null` | Where the member type supports it, sets null. Distinct from absent. |
+| Unset / removal | Clears a previously set value at the write destination. |
+
+Write-target behavior:
+
+- **Writes to** the configured writable contribution (for example, the local file), not necessarily the source that won the read.
+- **Does not** silently overwrite a winning higher layer. When higher-priority contributions prevent the patch from producing its requested effective values, `SaveAsync` throws `StateConflictException`.
+- **Does not** rewrite untouched members. Members absent from the patch keep their layered behavior.
+- Concurrent-write conflicts fail instead of overwriting. Do not disable conflict detection to make the error disappear.
+
+## Change observation
+
+- `OnChange` fires when the resolved effective value actually changes.
+- External edits through the standard watched local-file path are observable through the same listener.
+- Source reloads whose changed contribution is shadowed (leaving the effective value unchanged) do **not** fire.
+- The subscription lives until its `IDisposable` is disposed. No polling or debounce timing is guaranteed.
+
+## Standard local-file behavior (`UseLocalJson`)
+
+Operational contract for the normal single-file path:
+
+- **Does:** read a missing file as model defaults.
+- **Does:** create the file (including its directory) on the first save.
+- **Does:** replace the file atomically (temporary file plus rename) and keep one backup generation.
+- **Does:** watch the file; external edits reload and `OnChange` listeners observe new effective values.
+- **Does:** accept comments on read; persist plain simple-layout JSON (`{ "$version": 1, ... }`).
+- **Throws:** the JSON format exception on malformed-document reads instead of silently returning defaults; the watcher reports the failure and recovers on the next valid write.
+- **Throws:** `ConfiglueValidationException` on validation failures; `StateConflictException` on conflicting concurrent writes.
+
+These are the defaults that matter operationally. Every `UseLocalJson` option beyond this path is opt-in configuration, not part of the getting-started contract.
+
+## Model and schema contract
+
+- Models are declared with `[ConfiglueModel("<identity>", Version = N)]` and must be `partial` for generation.
+- The stable identity plus version travels with the persisted document (for example, `$version` in JSON) so old schemas are recognized rather than misread.
+- Schema evolution uses `AddMigration<TFragment>(IStateSchemaMigration<TFragment>)` over the generated fragment type (`ToBuilder()` / `Optional<T>.Present(...)` shape). Migration keeps old documents usable; it does not change application read/write code.
+- Validation: DataAnnotations attributes are enforced before writes where dynamic code is supported (enabled by default); failures throw `ConfiglueValidationException`. Custom validators use `AddValidator(IConfiglueValidator<TModel>)`.
+- JSON Schema export is available through the schema tooling; it describes the model, not runtime behavior.
+
+## Package and runtime compatibility
+
+This page does not duplicate the compatibility tables. The authoritative contract is the single shared file:
+
+- [Compiler/Runtime Compatibility Matrix](https://github.com/arika0093/Configlue/blob/main/docs/compat-matrix.md) — supported TFMs, Unity/Godot/desktop hosts, Roslyn 4.3.1 baseline, shim map, test map, net48 policy, and the supported collection matrix.
+
+English and Japanese reference pages intentionally share that one file rather than maintaining two drifting copies.
+
+## Where to go next
+
+- Apply these contracts: [Guides](../guides/).
+- Find the package a contract applies to: [Integrations](../integrations/).
+- Diagnose a contract violation by symptom: [Troubleshooting](../troubleshooting/).

@@ -1,0 +1,111 @@
+---
+title: Concepts
+description: The public mental model for reasoning about Configlue correctly — state, layers, reads vs writes, presence, schema, and composition.
+---
+
+This page explains the public mental model you need in order to reason about Configlue correctly. It is explanation, not a tutorial: for the first runnable path, see [Getting Started](../getting-started/); for task recipes, see [Guides](../guides/).
+
+Concepts are ordered from application-facing to lower-level. Ordinary application code usually stops after the first few sections.
+
+## Typed state is the application boundary
+
+Application code depends on one of two abstractions:
+
+- `IReadOnlyState<T>` — reads the current configuration value and observes changes.
+- `IWritableState<T>` — everything above, plus saving a sparse change.
+
+Storage, serialization, layering, migration, validation, encryption, and hosting integration can all change without changing normal consumer code:
+
+```csharp
+var current = await settings.GetValueAsync();
+
+await settings.SaveAsync(patch =>
+{
+    patch.Theme = "Dark";
+});
+```
+
+If a method only reads settings, accept `IReadOnlyState<T>`. If it edits settings, accept `IWritableState<T>`. That choice is the main boundary Configlue asks application code to respect.
+
+## Contributions, layers, and the effective value
+
+Multiple sources can contribute partial state. Configlue resolves them into the single typed value the application sees — the **effective value**.
+
+A common layering is local settings plus an environment override:
+
+```csharp
+config.UseCommonSources(sources =>
+{
+    sources.WithLocal("settings.json");
+    sources.WithEnvironment("APP_");
+    sources.Add<AppSettings>();
+});
+```
+
+Two terms matter here:
+
+- **Effective value**: the resolved `T` returned by `GetValueAsync()` after all contributions are merged.
+- **Provenance**: the record of *where each value came from* — which contribution won, and whether it can be edited.
+
+"Where a value came from" stays relevant even after the application sees one merged model. When the value on screen differs from the value in the local file, the answer is almost always a higher-priority contribution. [Guides](../guides/) shows how to inspect it; [Reference](../reference/) defines the resolution contract.
+
+## Reads and writes are not symmetric
+
+Resolving an effective read value and choosing where a change is persisted are separate concerns:
+
+- **Reads** merge contributions from all layers into one effective value.
+- **Writes** go to a configured writable contribution (for example, the local file), even when the value you just read partly came from elsewhere.
+
+So "the source that wins a read" and "the place a change is persisted" can differ by design. A read-only higher layer (say, managed policy or environment) can shadow the local file on reads while saves still target the local file. Saves that cannot produce their requested effective values fail with a conflict instead of silently overwriting the winning layer.
+
+## Sparse writes and presence semantics
+
+Configlue saves through generated fragments/patches instead of blindly serializing a whole model, because whole-model serialization cannot distinguish these cases:
+
+- **Absent / missing**: the member carries no opinion here, so lower layers show through.
+- **Explicit value**: this layer sets the member.
+- **Explicit `null`** (where the member type supports it): this layer sets null, which is different from absent.
+- **Unset / removal**: this layer clears a previously set value.
+
+Example: an absent higher-layer member falls through to the local file, but an explicitly present higher-layer value overrides it — even if that explicit value looks "empty" to a whole-model serializer. Keep this distinction in mind whenever layered behavior surprises you; the precise contract lives in [Reference](../reference/).
+
+## Schema identity and evolution
+
+Configlue models carry stable identity and version metadata (for example, `[ConfiglueModel("sample.settings", Version = 1)]`). The version travels with the persisted document (such as `$version` in JSON) so old schemas can be recognized and migrated instead of silently misread.
+
+Conceptually: **migration** keeps existing persisted configuration usable after the model changes, and **validation** refuses writes that violate the model's rules. Both are configured once; application read/write code does not change. Procedures belong in [Guides](../guides/); exact guarantees belong in [Reference](../reference/).
+
+## Change observation
+
+A state can change because of local writes or because an external source changed (for example, another process editing the watched local file). Consumers observe the *effective state* rather than polling storage:
+
+```csharp
+using var _ = settings.OnChange(changed =>
+{
+    // Runs when the effective value actually changes.
+});
+```
+
+Listeners do not fire for source reloads whose changed contribution is shadowed and leaves the effective value unchanged. Only rely on guarantees documented in [Reference](../reference/); internal polling or debounce timings are not public contracts.
+
+## Lower-level serialized composition (advanced)
+
+Most application code never works at this level. Provider and extension authors compose serialized sources along this path:
+
+```text
+Resource → optional Transformers → Codec → typed Source capabilities
+```
+
+- **Resource**: where bytes live (file, browser storage, database, cloud).
+- **Transformer**: optional byte-level wrapping such as encryption or compression.
+- **Codec**: how bytes become structured data (JSON, YAML, MessagePack, XML).
+- **Source**: the typed capabilities exposed to state resolution (readable, writable, observable, and so on).
+
+Not every integration fits this linear pipeline (HTTP policy or command-line sources, for example, are not file-like), so treat it as the canonical *serialized* path rather than a universal law. Start from observable behavior described above, reach for this vocabulary only when you author or diagnose a provider, and look up packages in [Integrations](../integrations/).
+
+## Where to go next
+
+- Turn concepts into action: [Guides](../guides/).
+- Find the package for your host, storage, or format: [Integrations](../integrations/).
+- Settle exact semantics: [Reference](../reference/).
+- Diagnose a surprise: [Troubleshooting](../troubleshooting/).

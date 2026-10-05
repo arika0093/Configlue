@@ -1,0 +1,169 @@
+---
+title: ガイド
+description: 代表的な Configlue ワークフローのための目的別レシピ — 層構成、変更観測、validation、schema 移行、provenance。
+---
+
+このレシピ集は「X をどうやるか」に答えます。[はじめる](../getting-started/) を終え、同じ小さな設定モデルを使う前提です。背景の考え方は[概念](../concepts/)、正確な保証は[リファレンス](../reference/)を見てください。
+
+各レシピは **目的**・**開始点**・**コード**・**動作**・**関連** の順で統一しています。
+
+大きな end-to-end アプリはここに埋め込まず、実行可能な `examples/` ツリーに置きます。以下のスニペットは意図的に小さくしています。
+
+## 環境変数でローカル設定を override する
+
+**目的。** アプリの読み書きコードを変えずに、環境変数でローカルファイルを override する。
+
+**開始点。** [はじめる](../getting-started/) のローカル JSON 構成。
+
+**コード。** どちらも既定の `Configlue` パッケージに含まれます。
+
+```csharp
+config.UseCommonSources(sources =>
+{
+    sources.WithLocal("settings.json");
+    sources.WithEnvironment("APP_");
+    sources.Add<AppSettings>();
+});
+```
+
+環境変数 `APP_Theme=Light` があると、ファイルが `"Dark"` でも `GetValueAsync()` は `Theme = "Light"` を返します。
+
+**動作。** 読み取りは 1 つの effective value に解決され、環境変数の寄与がローカルファイルに勝ちます。保存は構成された書き込み可能な寄与（ローカルファイル）に向かうため、環境変数を除去するまでファイルへの影は続きます。[概念](../concepts/) の「読み取りと書き込みは非対称」がそのまま現れます。
+
+**関連。** 層と provenance は[概念](../concepts/)、解決の契約は[リファレンス](../reference/)、読み値がファイルと違うときは[トラブルシューティング](../troubleshooting/)。
+
+## 変更を観測する
+
+**目的。** 自プロセスの変更か外部ファイル編集かにかかわらず、effective な設定値の変化に反応する。
+
+**開始点。** [はじめる](../getting-started/) の読み取り可能な state。
+
+**コード。**
+
+```csharp
+using var _ = settings.OnChange(changed =>
+{
+    Console.WriteLine($"Theme is now {changed.Theme}");
+});
+```
+
+**動作。** effective value が実際に変わったときに listener が実行されます。標準のローカルファイルパスは `settings.json` を監視するため、新しい effective value を生む外部編集でも同じ listener が発火します。変化した寄与が覆い隠されて effective value が変わらないリロードでは発火しません。通知が必要な間は返された `IDisposable` を保持します。
+
+**関連。** 変更観測の考え方は[概念](../concepts/)、通知契約は[リファレンス](../reference/)。
+
+## 保存前に設定を検証する
+
+**目的。** 不正な設定を保存せず、明確な失敗として拒否する。
+
+**開始点。** `System.ComponentModel.DataAnnotations` の規則を持つモデル。動的コードが使える環境では書き込み前 validation が既定で有効です。
+
+```csharp
+[ConfiglueModel("sample.settings", Version = 1)]
+public partial class AppSettings
+{
+    [Required, MinLength(1)]
+    public string Name { get; set; } = "World";
+
+    [RegularExpression("^(System|Light|Dark)$")]
+    public string Theme { get; set; } = "System";
+}
+```
+
+**コード。**
+
+```csharp
+try
+{
+    await settings.SaveAsync(patch => { patch.Theme = "Neon"; });
+}
+catch (ConfiglueValidationException ex)
+{
+    Console.WriteLine($"Rejected: {ex.Message}");
+}
+```
+
+**動作。** 何も保存される前に書き込みが拒否され、保存ドキュメントは以前の有効な内容を保ちます。どの値・規則が失敗したかは例外で特定します。通常経路として catch して無視しないでください。
+
+**関連。** 「保存が validation で失敗する」症状は[トラブルシューティング](../troubleshooting/)、validation の保証は[リファレンス](../reference/)。
+
+## 保存した設定 schema を成長させる
+
+**目的。** モデル変更後も既存の保存設定を使い続けられるようにする。
+
+**開始点。** `Version = 1` で出荷済みのモデルと、既にディスクにあるドキュメント。
+
+**コード。** version を上げ、identity は保ち、生成された fragment 型に対する migration を登録します。
+
+```csharp
+[ConfiglueModel("sample.settings", Version = 2)]
+public partial class AppSettings
+{
+    public string Name { get; set; } = "World";
+    public string Theme { get; set; } = "System";
+    public bool Notifications { get; set; } = true;
+}
+```
+
+```csharp
+using Configlue.Migrations;
+
+public sealed class AppSettingsV1ToV2 : IStateSchemaMigration<AppSettings.Fragment>
+{
+    public StateSchemaMetadata SourceSchema => new("sample.settings", 1);
+    public StateSchemaMetadata TargetSchema => new("sample.settings", 2);
+
+    public ValueTask<AppSettings.Fragment> MigrateAsync(
+        AppSettings.Fragment value,
+        CancellationToken cancellationToken = default)
+    {
+        var builder = value.ToBuilder();
+        builder.Notifications = Optional<bool>.Present(true);
+        return ValueTask.FromResult(builder.Build());
+    }
+}
+```
+
+```csharp
+config.Add<AppSettings>(model =>
+{
+    model.AddMigration<AppSettings.Fragment>(new AppSettingsV1ToV2());
+});
+```
+
+ネストした `Fragment` 型、`ToBuilder()`、`Optional<T>.Present(...)` はモデルのジェネレーター生成物です。推測せず生成された形を使ってください。目的は「古いドキュメントが動き続けること」であり、全 migration API の紹介ではありません。
+
+**動作。** version 1 で保存されたドキュメントは保存済み version マーカーで認識され、読み込み時に現在の形へ移行して、以後は通常の現在値として振る舞います。移行後も validation は適用されます。
+
+**関連。** schema identity の考え方は[概念](../concepts/)、モデル/schema 契約は[リファレンス](../reference/)。
+
+## effective value の出どころを調べる
+
+**目的。** ファイルを推測で見比べず、層状 state で勝った寄与を特定する。
+
+**開始点。** ローカルファイル＋環境変数 override などの層構成。
+
+**コード。** state の diagnostics surface を使います。
+
+```csharp
+var diagnostics = ((IConfiglueDiagnostics<AppSettings>)settings).GetDiagnostics();
+foreach (var source in diagnostics.Sources)
+{
+    Console.WriteLine($"{source.Id} (priority {source.Priority}): read={source.CanRead} write={source.CanWrite} active={source.IsActive}");
+}
+```
+
+プロパティ名は公開 diagnostics API に従います。これをプログラム上の契約として扱ってください。利用可能なら DevTools で同じ effective state と寄与を対話的に確認できます。
+
+**動作。** 各 source の寄与とどれが effective value を作ったかが見えるため、「読み値がファイルと違うのはなぜか」をファイル・変数・remote policy の手作業見比べなしに解決できます。
+
+**関連。** effective value と provenance の考え方は[概念](../concepts/)、層がらみの症状は[トラブルシューティング](../troubleshooting/)。
+
+## 完全なサンプル
+
+スニペットに収まらない規模（完全な UI フロー、client/server 往復、database 付き state）では、埋め込みを増やすよりリポジトリ `examples/` ツリー（Aspire Playground）の実行可能な完全アプリを使ってください。
+
+## 次に進む
+
+- ホスト・storage・形式を追加する: [インテグレーション](../integrations/)。
+- 正確な意味を確定する: [リファレンス](../reference/)。
+- 失敗を直す: [トラブルシューティング](../troubleshooting/)。

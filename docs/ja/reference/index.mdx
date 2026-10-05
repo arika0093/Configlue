@@ -1,0 +1,91 @@
+---
+title: リファレンス
+description: Configlue のユーザー可視の state・層・presence・変更・ファイル・schema 意味論の動作契約。
+---
+
+このページは、メソッドシグネチャだけでは伝わらない動作契約の逆引きリファレンスです。意図的な契約である場合に限り、Configlue が何を **する**・**しない**・**throw する**・どこへ **書き込む**かを明示します。チュートリアルは[はじめる](../getting-started/)、手順は[ガイド](../guides/)、背景は[概念](../concepts/)にあります。
+
+source や provider で動作が異なる場合は境界を明示し、このページの一般化より[インテグレーション](../integrations/)側の説明を優先します。メンバー単位の API 文書は将来の生成物であり、ここでは再現しません。
+
+## state surface
+
+| 抽象 | 役割 | 操作 |
+| --- | --- | --- |
+| `IReadOnlyState<T>` | アプリケーションの読み取り境界。 | `GetValueAsync()` は現在の effective value を返し、読み取り可能な state が無いときは throw する。`OnChange()` は effective value の変化を購読し、`IDisposable` の subscription を返す。 |
+| `IWritableState<T>` | アプリケーションの読み書き境界（`IReadOnlyState<T>` を継承）。 | `SaveAsync(patch)` は生成された疎な patch を構成済み書き込み先に適用し、`StateWriteReceipt` を返す。生成された `SaveAsync(configure)` オーバーロードは `Action<T.Patch>` から patch を組み立てる。 |
+
+- 読むだけの consumer は `IReadOnlyState<T>` を、編集する consumer は `IWritableState<T>` を受けてください。
+- diagnostics と provenance は diagnostics service（`IConfiglueDiagnostics<T>.GetDiagnostics()`）で公開されます。利用可能なら DevTools でも対話的に確認できます。
+- プロセス全体の経路（`ConfiglueApp.Initialize` / `GetState<T>` / `ShutdownAsync`）は plain .NET の lifecycle です。DI ホストでは同じ state 抽象を container から解決します。
+
+## 解決の意味論
+
+層状 state の解決は公開構成（`UseCommonSources` の local＋環境変数のような source 順序と優先度）に従います。
+
+- **順序。** 優先度の高い寄与から試されます。具体的な優先度値は global 定数ではなく構成です。
+- **absent と present。** absent な寄与はそのメンバーに意見を持たないため、下位層が透けて見えます。present な値（対応する場合の明示 `null` を含む）は下位層を上書きします。
+- **effective value。** `GetValueAsync()` は全寄与の解決後にマージされた単一の `T` を返します。どの層が勝ったかは報告しません。それは diagnostics で調べます。
+- **フォールバックとエラー。** 不正なローカルドキュメントの読み取りは既定値を黙って返さず失敗します（形式例外が伝播します）。background リロード失敗は watcher/diagnostics 経路で報告され、次の有効なドキュメントで回復します。
+
+保証されるのは上記だけです。resolver アルゴリズム、cache、coordinator、retry タイミングは実装詳細です。
+
+## presence と書き込みの意味論
+
+ユーザー可視の patch 意味論:
+
+| 用語 | 意味 |
+| --- | --- |
+| missing / absent | patch メンバーは意見を持たない。層解決は下位の寄与にフォールスルーする。 |
+| 明示値 | patch が書き込み先にメンバーを設定する。 |
+| 明示 `null` | メンバー型が許す場合、null を設定する。absent とは異なる。 |
+| unset / 削除 | 書き込み先の以前設定値を取り消す。 |
+
+書き込み先の動作:
+
+- 読み取りで勝った source とは限らず、構成された書き込み可能な寄与（例: ローカルファイル）に **書き込む**。
+- 勝っている上位層を黙って上書き **しない**。上位の寄与により patch の要求 effective value を実現できない場合、`SaveAsync` は `StateConflictException` を throw する。
+- 触れていないメンバーを書き換え **ない**。patch に無いメンバーは層上の動作を保つ。
+- 同時書き込みの競合は上書きせず失敗する。エラーを消すために conflict 検出を無効化しないでください。
+
+## 変更の観測
+
+- `OnChange` は解決済み effective value が実際に変わったときに発火する。
+- 標準の監視ローカルファイル経路の外部編集は、同じ listener で観測できる。
+- 変化した寄与が覆い隠されて effective value が変わらない source リロードでは発火 **しない**。
+- subscription は `IDisposable` を dispose するまで生きる。ポーリングや debounce タイミングの保証は無い。
+
+## 標準ローカルファイル動作（`UseLocalJson`）
+
+通常の単一ファイル経路の運用契約:
+
+- **する:** ファイルが無ければモデル既定値として読み取る。
+- **する:** 初回保存時にファイル（親ディレクトリーを含む）を作成する。
+- **する:** ファイルを atomic に置換する（一時ファイル＋rename）し、1 世代の backup を保つ。
+- **する:** ファイルを監視する。外部編集はリロードされ、`OnChange` listener が新しい effective value を観測する。
+- **する:** 読み取り時にコメントを受け付け、素直な simple-layout JSON（`{ "$version": 1, ... }`）で保存する。
+- **throw する:** 不正ドキュメントの読み取りで既定値を黙って返さず JSON 形式例外を送出する。watcher は失敗を報告し、次の有効な書き込みで回復する。
+- **throw する:** validation 失敗で `ConfiglueValidationException`、競合する同時書き込みで `StateConflictException`。
+
+これらは運用上重要な既定値です。これを超える `UseLocalJson` の全 option は opt-in 構成であり、はじめる契約の一部ではありません。
+
+## モデルと schema の契約
+
+- モデルは `[ConfiglueModel("<identity>", Version = N)]` で宣言し、生成のため `partial` にする。
+- 安定した identity＋version は保存ドキュメント（例: JSON の `$version`）と一緒に運ばれるため、古い schema は誤読されず認識される。
+- schema 移行は生成 fragment 型に対する `AddMigration<TFragment>(IStateSchemaMigration<TFragment>)` を使う（`ToBuilder()` / `Optional<T>.Present(...)` の形）。移行は古いドキュメントを使い続けられるようにし、読み書きコードは変えない。
+- validation: 動的コードが使える環境では DataAnnotations 属性が書き込み前に強制される（既定で有効）。失敗は `ConfiglueValidationException` を throw する。custom validator は `AddValidator(IConfiglueValidator<TModel>)` を使う。
+- JSON Schema 出力は schema tooling で利用できる。記述対象はモデルであり、runtime 動作ではない。
+
+## パッケージとランタイムの互換性
+
+このページは互換性表を複製しません。正本は共有の単一ファイルです。
+
+- [Compiler/Runtime Compatibility Matrix](https://github.com/arika0093/Configlue/blob/main/docs/compat-matrix.md) — 対応 TFM、Unity/Godot/desktop ホスト、Roslyn 4.3.1 ベースライン、shim 対応、test 対応、net48 policy、対応 collection マトリックス。
+
+日英リファレンスページは 2 つの複製を漂流させず、この 1 ファイルを共有します。
+
+## 次に進む
+
+- 契約を適用する: [ガイド](../guides/)。
+- 契約が適用されるパッケージを探す: [インテグレーション](../integrations/)。
+- 契約違反を症状から診断する: [トラブルシューティング](../troubleshooting/)。

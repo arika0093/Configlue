@@ -1,0 +1,125 @@
+---
+title: Getting Started
+description: Go from a new .NET project to a working typed settings state backed by local JSON, including one read and one save.
+---
+
+This tutorial takes you from a new .NET project to a working typed settings state backed by a single local JSON file. By the end you will have executed this flow:
+
+```text
+POCO model
+  → UseLocalJson(...)
+  → IWritableState<T>
+  → GetValueAsync / SaveAsync
+```
+
+You do not need to understand source IDs, priorities, write routing, Resource/Codec terminology, or subject/profile APIs here. Those come later, after the simple state model works.
+
+## Prerequisites
+
+- .NET 10 or later (`dotnet --version`).
+- A console project (`dotnet new console` works).
+
+Install the primary package for ordinary application settings. It includes the runtime, JSON/file support, environment sources, common presets, and the generator:
+
+```bash
+dotnet add package Configlue
+```
+
+This is the intended package for normal application settings. Do not start from `Configlue.Core`; that is the storage/format/host-neutral foundation for advanced and package-author scenarios.
+
+## 1. Define a settings model
+
+Keep the model tiny. Two or three properties are enough:
+
+```csharp
+[ConfiglueModel("sample.settings", Version = 1)]
+public partial class AppSettings
+{
+    public string Name { get; set; } = "World";
+    public string Theme { get; set; } = "System";
+}
+```
+
+The model must be `partial` because the generator produces the patch type (`AppSettings.Patch`) and the `SaveAsync(patch => ...)` overload used below. `Version = 1` gives the persisted document a stable schema identity from day one.
+
+## 2. Initialize with local JSON
+
+Configure once at startup:
+
+```csharp
+using Configlue;
+
+ConfiglueApp.Initialize(config =>
+{
+    config.Add<AppSettings>().UseLocalJson("settings.json");
+});
+```
+
+`UseLocalJson` is tuned for ordinary application settings:
+
+- A missing file reads as model defaults; nothing fails on first run.
+- The file (including its directory) is created on the first save.
+- Documents are plain JSON such as `{ "$version": 1, ... }`; comments are accepted on read.
+
+## 3. Read typed state
+
+Application code reads a typed state, not the file directly:
+
+```csharp
+var settings = ConfiglueApp.GetState<AppSettings>();
+var current = await settings.GetValueAsync();
+Console.WriteLine($"Hello, {current.Name}. Theme: {current.Theme}");
+```
+
+`settings` here is an `IWritableState<AppSettings>`. The same object also acts as an `IReadOnlyState<AppSettings>` wherever read-only access is preferred.
+
+## 4. Save a change
+
+Save through a generated sparse patch rather than rewriting the whole model:
+
+```csharp
+await settings.SaveAsync(patch =>
+{
+    patch.Name = "Alice";
+    patch.Theme = "Dark";
+});
+```
+
+Only the members you set in the patch are written. Members you leave absent keep their layered behavior instead of being overwritten with defaults.
+
+## 5. Observe a change (optional)
+
+One more useful thing on the same surface:
+
+```csharp
+using var _ = settings.OnChange(changed =>
+{
+    Console.WriteLine($"Theme is now {changed.Theme}");
+});
+```
+
+The listener fires when the resolved effective value actually changes, including external edits to `settings.json`, which the standard local-file path watches. Keep the subscription alive as long as you want notifications; dispose it to unsubscribe.
+
+## 6. Shut down
+
+End the plain .NET lifecycle cleanly:
+
+```csharp
+await ConfiglueApp.ShutdownAsync();
+```
+
+## What you should observe
+
+1. First run prints defaults (`Hello, World. Theme: System`) even though `settings.json` does not exist yet.
+2. After the save, `settings.json` exists with the patch values and a `$version` marker.
+3. Editing `settings.json` in another editor triggers your `OnChange` listener on the next observed reload.
+
+## Where to go next
+
+- Understand what just happened: [Concepts](../concepts/).
+- Do something task-shaped with it: [Guides](../guides/) — environment overrides, validation, schema evolution, provenance.
+- Host it elsewhere (DI, ASP.NET Core, Blazor, desktop, MAUI, Unity, Godot): [Integrations](../integrations/).
+- Look up exact behavior (file defaults, presence semantics, conflicts): [Reference](../reference/).
+- Something failed? [Troubleshooting](../troubleshooting/).
+
+Choosing the tiny-file path never forces a later migration to another library. When the application grows, the same `GetValueAsync` / `SaveAsync` consumer code keeps working while setup gains layers.

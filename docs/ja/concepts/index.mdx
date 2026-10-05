@@ -1,0 +1,111 @@
+---
+title: 概念
+description: Configlue を正しく推論するための公開メンタルモデル — state、層、読み取りと書き込み、presence、schema、構成。
+---
+
+このページでは Configlue を正しく推論するための公開メンタルモデルを説明します。解説が目的であり、チュートリアルではありません。初めて実行する手順は[はじめる](../getting-started/)、目的別の手順は[ガイド](../guides/)を見てください。
+
+アプリケーション寄りの概念から低い層へ順に説明します。通常のアプリケーションコードは前半だけ理解すれば十分です。
+
+## 型付き state がアプリケーション境界である
+
+アプリケーションコードが依存するのは次のどちらかです。
+
+- `IReadOnlyState<T>` — 現在の設定値を読み取り、変更を観測する。
+- `IWritableState<T>` — 上記に加えて、疎な変更を保存できる。
+
+storage、serialization、層構成、migration、validation、encryption、hosting integration が変わっても、通常の consumer コードは変わりません。
+
+```csharp
+var current = await settings.GetValueAsync();
+
+await settings.SaveAsync(patch =>
+{
+    patch.Theme = "Dark";
+});
+```
+
+読むだけのメソッドは `IReadOnlyState<T>` を受け、編集するメソッドは `IWritableState<T>` を受けます。この使い分けが、Configlue がアプリケーションコードに求める主な境界です。
+
+## 寄与、層、effective value
+
+複数の source が部分的な state を寄与できます。Configlue はそれらを解決し、アプリケーションが見る単一の型付き値（**effective value**）にします。
+
+典型的な層構成はローカル設定＋環境変数 override です。
+
+```csharp
+config.UseCommonSources(sources =>
+{
+    sources.WithLocal("settings.json");
+    sources.WithEnvironment("APP_");
+    sources.Add<AppSettings>();
+});
+```
+
+ここで重要な用語は 2 つです。
+
+- **effective value**: すべての寄与をマージした後に `GetValueAsync()` が返す解決済みの `T`。
+- **provenance**: 各値が *どこから来たか* の記録。どの寄与が勝ったか、編集可能かを含みます。
+
+1 つにマージされたモデルを見た後も「値がどこから来たか」は重要です。画面の値がローカルファイルと違うとき、原因はほぼ常に優先度の高い寄与です。調べ方は[ガイド](../guides/)、解決の契約は[リファレンス](../reference/)を見てください。
+
+## 読み取りと書き込みは対称ではない
+
+effective な読み取り値の解決と、変更の保存先の選択は別の関心事です。
+
+- **読み取り**は全層の寄与をマージして 1 つの effective value にします。
+- **書き込み**は、読んだ値の一部が他所から来ていても、構成された書き込み可能な寄与（例: ローカルファイル）に向かいます。
+
+つまり「読み取りで勝つ source」と「変更が保存される場所」は設計上異なることがあります。読み取り専用の上位層（管理 policy や環境変数など）が読み取りではローカルファイルを覆い隠しつつ、保存はローカルファイルに向かう構成がありえます。要求された effective value を実現できない保存は、勝っている層を黙って上書きせず conflict として失敗します。
+
+## 疎な書き込みと presence 意味論
+
+Configlue がモデル全体を雑にシリアライズせず、生成された fragment/patch を通して保存する理由は、全体シリアライズでは次を区別できないからです。
+
+- **absent / missing**: ここでは意見を持たないため、下位層が透けて見える。
+- **明示値**: この層がメンバーを設定する。
+- **明示 `null`**（メンバー型が許す場合）: この層が null を設定する。absent とは異なる。
+- **unset / 削除**: この層が以前設定した値を取り消す。
+
+例として、上位層のメンバーが absent ならローカルファイルにフォールスルーしますが、明示的に存在する上位層の値は（全体シリアライズ的には「空」に見えても）上書きします。層の動作に驚いたらこの区別を思い出してください。正確な契約は[リファレンス](../reference/)にあります。
+
+## schema identity と成長
+
+Configlue モデルは安定した identity と version メタデータを持ちます（例: `[ConfiglueModel("sample.settings", Version = 1)]`）。version は保存ドキュメント（JSON の `$version` など）と一緒に運ばれるため、古い schema を黙って誤読せず認識・移行できます。
+
+概念的には、**migration** はモデル変更後も既存の保存設定を使い続けられるようにし、**validation** はモデルの規則に反する書き込みを拒否します。どちらも 1 回構成するだけであり、読み書きコードは変わりません。手順は[ガイド](../guides/)、正確な保証は[リファレンス](../reference/)にあります。
+
+## 変更の観測
+
+state はローカル書き込みでも外部 source の変化（別プロセスによる監視中ローカルファイルの編集など）でも変わります。consumer は storage をポーリングするのではなく *effective state* を観測します。
+
+```csharp
+using var _ = settings.OnChange(changed =>
+{
+    // effective value が実際に変わったときに実行される。
+});
+```
+
+変化した寄与が覆い隠されて effective value が変わらない source リロードでは listener は発火しません。[リファレンス](../reference/)に書かれた保証だけに依存してください。内部のポーリングや debounce タイミングは公開契約ではありません。
+
+## 低レベルのシリアライズ構成（上級者向け）
+
+通常のアプリケーションコードはこの層を扱いません。provider や拡張の作者はシリアライズ系 source を次の経路で組み立てます。
+
+```text
+Resource → 任意の Transformers → Codec → 型付き Source capabilities
+```
+
+- **Resource**: バイト列の置き場所（ファイル、browser storage、database、cloud）。
+- **Transformer**: encryption や compression などの任意のバイト列ラップ。
+- **Codec**: バイト列を構造化データにする方法（JSON、YAML、MessagePack、XML）。
+- **Source**: state 解決に公開される型付き capabilities（読み取り可、書き込み可、観測可など）。
+
+すべての integration がこの直線パイプラインに収まるわけではありません（HTTP policy や command-line source などはファイル的ではないため）。普遍法則ではなく *シリアライズ系* の正準経路として扱ってください。観測可能な動作から出発し、この語彙は provider の作成や診断のときにだけ使い、パッケージ探しは[インテグレーション](../integrations/)を使ってください。
+
+## 次に進む
+
+- 概念を行動に変える: [ガイド](../guides/)。
+- ホスト・storage・形式に対応するパッケージを探す: [インテグレーション](../integrations/)。
+- 正確な意味を確定する: [リファレンス](../reference/)。
+- 意外な動作を診断する: [トラブルシューティング](../troubleshooting/)。

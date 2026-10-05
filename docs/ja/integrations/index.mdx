@@ -1,0 +1,190 @@
+---
+title: インテグレーション
+description: ホスト・プラットフォーム・storage・形式に対応する Configlue パッケージを探す — ユーザーシナリオ別のカタログ。
+---
+
+このカタログは次の問いに答えます。
+
+> 「このホスト / プラットフォーム / storage / 形式を使っている場合、どの Configlue パッケージを追加すべきか」
+
+リポジトリのフォルダー構成ではなく、ユーザーシナリオ別に整理しています。ソリューション内の全プロジェクトの紹介ではありません。意図的に公開・サポートされている入口だけを載せています。各項目はパッケージ名、対象、使う場面、インストールコマンド、最小の識別例を示します。
+
+共通の約束:
+
+- パッケージ ID は日英ページ間で共有される技術的事実であり、周辺の説明文のみローカライズしています。
+- target framework やランタイムの制限はここに複製しません。正本は[互換性マトリックス](https://github.com/arika0093/Configlue/blob/main/docs/compat-matrix.md)です。
+- 完全な実行可能シナリオはこのカタログではなくリポジトリ `examples/` ツリー（Aspire Playground）に置きます。
+
+## まずプライマリパッケージから
+
+多くのアプリケーションはここから始め、そのまま留まります。
+
+```bash
+dotnet add package Configlue
+```
+
+`Configlue` は通常設定向けのプライマリパッケージです。ランタイム、JSON/ファイル対応、environment source、標準パス、共通プリセット、ジェネレーターを含み、DI、HTTP、command-line、外部形式、database、cloud、hosting 依存はありません。
+
+```csharp
+config.Add<AppSettings>().UseLocalJson("settings.json");
+```
+
+下のパッケージは、そのホスト・storage・形式を実際に使うときだけ追加します。`Configlue.Core` は高度な用途やパッケージ作者向けの土台であり、通常のアプリケーションが直接参照することは稀です。
+
+## アプリケーションホストとフレームワーク
+
+### Microsoft DI / Generic Host
+
+- **パッケージ:** `Configlue.Extensions.DI`
+- **場面:** プロセス全体の `ConfiglueApp` ではなく `IServiceCollection` に登録し、state を inject する。
+- **インストール:** `dotnet add package Configlue.Extensions.DI`
+
+```csharp
+builder.Services.AddConfiglue(config =>
+{
+    // モデルと source を構成
+});
+```
+
+```csharp
+public class SettingsService(IWritableState<AppSettings> settings)
+{
+}
+```
+
+### ASP.NET Core
+
+- **パッケージ:** `Configlue.Hosting.AspNetCore`
+- **場面:** Generic Host 機能に加えて、型付き effective state を HTTP で公開する。
+- **インストール:** `dotnet add package Configlue.Hosting.AspNetCore`
+
+```csharp
+app.MapConfiglueState<AppSettings>("/api/settings");
+```
+
+### Blazor
+
+- **パッケージ:** `Configlue.Hosting.Blazor`
+- **場面:** browser storage を source として使う、または Blazor コンポーネントで state を編集する。
+- **インストール:** `dotnet add package Configlue.Hosting.Blazor`
+
+```csharp
+builder.Services.AddConfiglue(config =>
+{
+    config.Add<AppSettings>(model =>
+        model.UseLocalStorage("app-settings"));
+});
+```
+
+UI 編集は標準 Blazor `EditContext` を持つ `StateEditor<T>` を使います。部品の形はパッケージドキュメントを見てください。
+
+### Microsoft Options 相互運用
+
+- **パッケージ:** `Configlue.Extensions.MSOptions`
+- **場面:** Configlue state を `IOptions<T>` / `IOptionsMonitor<T>` consumer とつなぐ。
+- **インストール:** `dotnet add package Configlue.Extensions.MSOptions`
+
+### Desktop UI
+
+- **パッケージ:** `Configlue.Hosting.Avalonia`、`Configlue.Hosting.Wpf`、`Configlue.Hosting.WinForms`、`Configlue.Hosting.WinUI`
+- **場面:** host 固有のパス・lifecycle・dispatcher 統合が必要な desktop ホストで動かす。state 抽象は同じまま、各ホストが正しいアプリケーション意味論を提供します。
+- **インストール（例）:** `dotnet add package Configlue.Hosting.Avalonia`
+
+ComponentModel adapter（`Configlue.Extensions.ComponentModel`）は共通の desktop データバインディング対応を提供します。
+
+### MAUI
+
+- **パッケージ:** `Configlue.Hosting.Maui`
+- **場面:** host 提供のアプリケーションパスと lifecycle で MAUI 上で動かす。
+- **インストール:** `dotnet add package Configlue.Hosting.Maui`
+
+### Unity
+
+- **パッケージ:** `Configlue`、`Configlue.Hosting.Unity`（[NuGetForUnity](https://github.com/GlitchEnzo/NuGetForUnity) 経由）
+- **場面:** Unity 6 のコンパイラー上限に収まる生成コードで、同じ state 抽象を使う。Roslyn/C# ベースラインは互換性マトリックスを見てください。
+
+### Godot
+
+- **パッケージ:** `Configlue.Hosting.Godot`
+- **場面:** `GodotSharp` ホスト意味論で、同じ state 抽象を使う。
+- **インストール:** `dotnet add package Configlue.Hosting.Godot`
+
+### Reactive / component-model adapter
+
+- **パッケージ:** `Configlue.Extensions.R3`、`Configlue.Extensions.ComponentModel`
+- **場面:** state 変化を R3 observable パイプラインに流す、または共通 component-model 編集 adapter を使う。
+- **インストール:** `dotnet add package Configlue.Extensions.R3`
+
+## source と外部 state
+
+内部の source 分類ではなく、アプリケーションが何を消費するかで分けています。
+
+### 環境変数
+
+共通プリセットを通してプライマリ `Configlue` パッケージで対応します。
+
+```csharp
+config.UseCommonSources(sources =>
+{
+    sources.WithLocal("settings.json");
+    sources.WithEnvironment("APP_");
+    sources.Add<AppSettings>();
+});
+```
+
+### HTTP 上の remote JSON policy
+
+- **パッケージ:** `Configlue.Source.Http`
+- **場面:** 中央管理の JSON policy を消費する（`WithHttpPolicy` 共通プリセットを含む）。
+- **インストール:** `dotnet add package Configlue.Source.Http`
+
+### Command line
+
+- **パッケージ:** `Configlue.Source.CommandLine`
+- **場面:** `System.CommandLine` の解析結果を configuration source として投影する。
+- **インストール:** `dotnet add package Configlue.Source.CommandLine`
+
+### PostgreSQL
+
+- **パッケージ:** `Configlue.Source.PostgreSql`（移行対応は `Configlue.Source.PostgreSql.Migrations`）
+- **場面:** PostgreSQL を外部 storage として state を保持する。
+- **インストール:** `dotnet add package Configlue.Source.PostgreSql`
+
+### その他の remote / platform source
+
+- **パッケージ:** `Configlue.Source.Consul`、`Configlue.Source.Ssm`
+- **場面:** Consul KV や AWS SSM Parameter Store を設定入力として消費する。自前のポーリング reader よりこちらを使ってください。
+
+## storage resource と cloud backend
+
+任意の永続化・接続能力として提示します。選ぶために内部の Source/Resource 区別を理解する必要はありません。必要な場面では[概念](../concepts/)で説明します。
+
+- `Configlue.Resource.S3`、`Configlue.Resource.AzureBlob` — object storage。
+- `Configlue.Resource.AzureAppConfiguration`、`Configlue.Resource.AwsAppConfig` — マネージド application configuration サービス。
+- `Configlue.Resource.AzureKeyVault`、`Configlue.Resource.SecretsManager`、`Configlue.Resource.GoogleSecretManager`、`Configlue.Resource.Vault` — secret store。
+- `Configlue.Resource.Redis`、`Configlue.Resource.Etcd`、`Configlue.Resource.Kubernetes`、`Configlue.Resource.Gcs` — infrastructure backend。
+
+cloud provider の構築手順はここに複写しません。各 backend は infrastructure（credential、endpoint、権限）を必要とします。サンプルに secret を含めず、構築は provider 自身のドキュメントに従ってください。
+
+## 形式と transform
+
+任意のシリアライズとバイト列 transform:
+
+- `Configlue.Provider.Yaml`、`Configlue.Provider.MessagePack`、`Configlue.Provider.Xml` — 組み込み JSON 経路以外の外部形式。
+- `Configlue.Transformer.AES`、`Configlue.Transformer.Compression` — encryption と compression のラップ。AES は TFM を狭め、opt-in のままです。制約のある target で採用する前に互換性マトリックスを確認してください。
+
+## テストとツール
+
+- `Configlue.Testing` — Configlue consumer 向けの test double と harness。
+- `Configlue.Generator` / `Configlue.JsonSchema.MSBuild` — ビルド時生成と JSON Schema 出力の土台。多くは `Configlue` 経由で推移的に取得できます。
+- `Configlue.DevTools*` — effective state と寄与の対話的検査。[ガイド](../guides/) の provenance レシピや[トラブルシューティング](../troubleshooting/) の診断と併用できます。
+
+## カタログ項目では足りないとき
+
+lifecycle/登録の違い、platform 固有の storage や threading 意味論、client/server 構築、認証、非自明な読み書き動作など、integration 固有の実質的動作がある場合にだけ専用ページを作ります。それまではこのカタログ＋実行可能な `examples/` シナリオへのリンクが正規の範囲です。1 パッケージ 1 ページの埋め草は作りません。
+
+## 次に進む
+
+- 新しい source の操作手順を学ぶ: [ガイド](../guides/)。
+- 正確な動作契約を確認する: [リファレンス](../reference/)。
+- backend 障害を症状から直す: [トラブルシューティング](../troubleshooting/)。

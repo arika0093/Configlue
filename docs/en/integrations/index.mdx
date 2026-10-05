@@ -1,0 +1,190 @@
+---
+title: Integrations
+description: Find the right Configlue package for your host, platform, storage, or format — organized by user scenario.
+---
+
+This catalog answers one question:
+
+> "I am using this host / platform / storage / format — which Configlue package should I add?"
+
+It is organized by user scenario, not by the repository's folder layout. Do not read it as a tour of every project in the solution; only intentionally public, supported entry points are listed. Each entry gives the package name, what it integrates with, when to use it, the install command, and the smallest identifying example.
+
+Conventions used below:
+
+- Package IDs are the shared technical facts between English and Japanese pages; only the surrounding prose is localized.
+- Target-framework and runtime limitations are not duplicated here. The single source of truth is the [compatibility matrix](https://github.com/arika0093/Configlue/blob/main/docs/compat-matrix.md).
+- Complete runnable scenarios belong in the repository `examples/` tree (Aspire Playground) rather than in this catalog.
+
+## Start with the primary package
+
+Most applications start — and many stay — here:
+
+```bash
+dotnet add package Configlue
+```
+
+`Configlue` is the primary package for ordinary settings. It includes the runtime, JSON/file support, environment sources, standard paths, common presets, and the generator, with no DI, HTTP, command-line, external-format, database, cloud, or hosting dependencies.
+
+```csharp
+config.Add<AppSettings>().UseLocalJson("settings.json");
+```
+
+Add the packages below only when the application actually uses that host, storage, or format. `Configlue.Core` is the storage/format/host-neutral runtime foundation for advanced and package-author scenarios; normal applications rarely reference it directly.
+
+## Application hosting and frameworks
+
+### Microsoft DI / Generic Host
+
+- **Package:** `Configlue.Extensions.DI`
+- **When:** registering Configlue through `IServiceCollection` and injecting state instead of using the process-wide `ConfiglueApp`.
+- **Install:** `dotnet add package Configlue.Extensions.DI`
+
+```csharp
+builder.Services.AddConfiglue(config =>
+{
+    // configure models and sources
+});
+```
+
+```csharp
+public class SettingsService(IWritableState<AppSettings> settings)
+{
+}
+```
+
+### ASP.NET Core
+
+- **Package:** `Configlue.Hosting.AspNetCore`
+- **When:** exposing typed effective state over HTTP in addition to Generic Host features.
+- **Install:** `dotnet add package Configlue.Hosting.AspNetCore`
+
+```csharp
+app.MapConfiglueState<AppSettings>("/api/settings");
+```
+
+### Blazor
+
+- **Package:** `Configlue.Hosting.Blazor`
+- **When:** using browser storage as a source, or editing state through Blazor components.
+- **Install:** `dotnet add package Configlue.Hosting.Blazor`
+
+```csharp
+builder.Services.AddConfiglue(config =>
+{
+    config.Add<AppSettings>(model =>
+        model.UseLocalStorage("app-settings"));
+});
+```
+
+UI editing uses `StateEditor<T>` with a standard Blazor `EditContext`; see the package documentation for the component shape.
+
+### Microsoft Options interop
+
+- **Package:** `Configlue.Extensions.MSOptions`
+- **When:** bridging Configlue state with `IOptions<T>` / `IOptionsMonitor<T>` consumers.
+- **Install:** `dotnet add package Configlue.Extensions.MSOptions`
+
+### Desktop UI
+
+- **Packages:** `Configlue.Hosting.Avalonia`, `Configlue.Hosting.Wpf`, `Configlue.Hosting.WinForms`, `Configlue.Hosting.WinUI`
+- **When:** running on a desktop host with host-native paths, lifecycle, and dispatcher integration. The state abstraction stays the same; each host supplies the correct application semantics.
+- **Install (example):** `dotnet add package Configlue.Hosting.Avalonia`
+
+ComponentModel adapters (`Configlue.Extensions.ComponentModel`) expose shared desktop data-binding support where applicable.
+
+### MAUI
+
+- **Package:** `Configlue.Hosting.Maui`
+- **When:** running on MAUI with host-supplied application paths and lifecycle.
+- **Install:** `dotnet add package Configlue.Hosting.Maui`
+
+### Unity
+
+- **Packages:** `Configlue`, `Configlue.Hosting.Unity` (via [NuGetForUnity](https://github.com/GlitchEnzo/NuGetForUnity))
+- **When:** using the same state abstraction inside Unity 6 with generated code constrained to the Unity compiler ceiling. See the compatibility matrix for the Roslyn/C# baseline.
+
+### Godot
+
+- **Package:** `Configlue.Hosting.Godot`
+- **When:** using the same state abstraction inside Godot with `GodotSharp` host semantics.
+- **Install:** `dotnet add package Configlue.Hosting.Godot`
+
+### Reactive / component-model adapters
+
+- **Packages:** `Configlue.Extensions.R3`, `Configlue.Extensions.ComponentModel`
+- **When:** projecting state changes into an R3 observable pipeline or shared component-model editing adapters.
+- **Install:** `dotnet add package Configlue.Extensions.R3`
+
+## Sources and external state
+
+Group by what the application consumes, not by internal source taxonomy.
+
+### Environment variables
+
+Covered by the primary `Configlue` package through common presets:
+
+```csharp
+config.UseCommonSources(sources =>
+{
+    sources.WithLocal("settings.json");
+    sources.WithEnvironment("APP_");
+    sources.Add<AppSettings>();
+});
+```
+
+### Remote JSON policy over HTTP
+
+- **Package:** `Configlue.Source.Http`
+- **When:** consuming centrally managed JSON policy, including the `WithHttpPolicy` common preset.
+- **Install:** `dotnet add package Configlue.Source.Http`
+
+### Command line
+
+- **Package:** `Configlue.Source.CommandLine`
+- **When:** projecting `System.CommandLine` parse results as a configuration source.
+- **Install:** `dotnet add package Configlue.Source.CommandLine`
+
+### PostgreSQL
+
+- **Packages:** `Configlue.Source.PostgreSql` (plus `Configlue.Source.PostgreSql.Migrations` for migration support)
+- **When:** backing state with PostgreSQL as external storage.
+- **Install:** `dotnet add package Configlue.Source.PostgreSql`
+
+### Other remote / platform sources
+
+- **Packages:** `Configlue.Source.Consul`, `Configlue.Source.Ssm`
+- **When:** consuming Consul KV or AWS SSM Parameter Store as configuration input. Prefer these over hand-rolled polling readers.
+
+## Storage resources and cloud backends
+
+Present these as optional persistence and connectivity capabilities. You do not need to understand the internal Source/Resource distinction to pick one; [Concepts](../concepts/) explains it where it matters.
+
+- `Configlue.Resource.S3`, `Configlue.Resource.AzureBlob` — object storage.
+- `Configlue.Resource.AzureAppConfiguration`, `Configlue.Resource.AwsAppConfig` — managed application configuration services.
+- `Configlue.Resource.AzureKeyVault`, `Configlue.Resource.SecretsManager`, `Configlue.Resource.GoogleSecretManager`, `Configlue.Resource.Vault` — secret stores.
+- `Configlue.Resource.Redis`, `Configlue.Resource.Etcd`, `Configlue.Resource.Kubernetes`, `Configlue.Resource.Gcs` — infrastructure backends.
+
+Do not copy cloud-provider setup guides here. Each backend needs its own infrastructure (credentials, endpoints, permissions); keep secrets out of examples and follow the provider's own documentation for provisioning.
+
+## Formats and transforms
+
+Opt-in serialization and byte transforms:
+
+- `Configlue.Provider.Yaml`, `Configlue.Provider.MessagePack`, `Configlue.Provider.Xml` — external formats beyond the built-in JSON path.
+- `Configlue.Transformer.AES`, `Configlue.Transformer.Compression` — encryption and compression wrapping. AES narrows TFMs and stays opt-in; check the compatibility matrix before adopting it on constrained targets.
+
+## Testing and tools
+
+- `Configlue.Testing` — test doubles and harnesses for Configlue consumers.
+- `Configlue.Generator` / `Configlue.JsonSchema.MSBuild` — build-time generation and JSON Schema export infrastructure. Most applications get these transitively through `Configlue`.
+- `Configlue.DevTools*` — interactive inspection of effective state and contributions. Useful alongside [Guides](../guides/) provenance recipes and [Troubleshooting](../troubleshooting/) diagnostics.
+
+## When a catalog entry is not enough
+
+A dedicated integration page is justified only when an integration has substantial unique behavior — lifecycle/registration differences, platform storage or threading semantics, client/server setup, authentication, or non-obvious read/write behavior. Until then, this catalog plus a link to the runnable `examples/` scenario is the canonical coverage. Do not create one-page-per-package filler.
+
+## Where to go next
+
+- Learn the task flow for your new source: [Guides](../guides/).
+- Check exact behavioral contracts: [Reference](../reference/).
+- Diagnose a backend failure by symptom: [Troubleshooting](../troubleshooting/).

@@ -1,0 +1,169 @@
+---
+title: Guides
+description: Task-oriented recipes for the most common Configlue workflows — layering, changes, validation, schema evolution, and provenance.
+---
+
+These recipes answer "How do I do X?" for the most common workflows. They assume you have completed [Getting Started](../getting-started/) and use the same small settings model. For the underlying mental model, see [Concepts](../concepts/); for exact guarantees, see [Reference](../reference/).
+
+Every recipe follows the same shape: **Goal**, **Starting point**, **Code**, **What happens**, **Related**.
+
+Large end-to-end applications belong in the runnable `examples/` tree rather than embedded here. Snippets below stay small on purpose.
+
+## Override local settings with environment variables
+
+**Goal.** Let environment values override the local file without changing application read/write code.
+
+**Starting point.** The [Getting Started](../getting-started/) local-JSON setup.
+
+**Code.** Both sources below are included in the default `Configlue` package:
+
+```csharp
+config.UseCommonSources(sources =>
+{
+    sources.WithLocal("settings.json");
+    sources.WithEnvironment("APP_");
+    sources.Add<AppSettings>();
+});
+```
+
+With `APP_Theme=Light` in the environment, `GetValueAsync()` returns `Theme = "Light"` even when the file says `"Dark"`.
+
+**What happens.** Reads resolve to one effective value with environment contributions winning over the local file. Saves still target the configured writable contribution (the local file), so the environment override keeps shadowing the file until it is removed. This is the normal reads-are-not-symmetric behavior from [Concepts](../concepts/).
+
+**Related.** [Concepts](../concepts/) for layering and provenance; [Reference](../reference/) for resolution semantics; [Troubleshooting](../troubleshooting/) when the read value differs from the file.
+
+## Observe changes
+
+**Goal.** React when the effective settings value changes, whether the change came from this process or an external file edit.
+
+**Starting point.** Any readable state from [Getting Started](../getting-started/).
+
+**Code.**
+
+```csharp
+using var _ = settings.OnChange(changed =>
+{
+    Console.WriteLine($"Theme is now {changed.Theme}");
+});
+```
+
+**What happens.** The listener runs when the effective value actually changes. The standard local-file path watches `settings.json`, so external edits that produce a new effective value trigger the same listener. Reloads whose changed contribution is shadowed (and leaves the effective value unchanged) do not fire. Keep the returned `IDisposable` alive while notifications matter.
+
+**Related.** [Concepts](../concepts/) for change observation; [Reference](../reference/) for the notification contract.
+
+## Validate settings before accepting a write
+
+**Goal.** Refuse invalid writes with a clear failure instead of persisting bad configuration.
+
+**Starting point.** A model with `System.ComponentModel.DataAnnotations` rules. DataAnnotations validation before writes is enabled by default where dynamic code is supported:
+
+```csharp
+[ConfiglueModel("sample.settings", Version = 1)]
+public partial class AppSettings
+{
+    [Required, MinLength(1)]
+    public string Name { get; set; } = "World";
+
+    [RegularExpression("^(System|Light|Dark)$")]
+    public string Theme { get; set; } = "System";
+}
+```
+
+**Code.**
+
+```csharp
+try
+{
+    await settings.SaveAsync(patch => { patch.Theme = "Neon"; });
+}
+catch (ConfiglueValidationException ex)
+{
+    Console.WriteLine($"Rejected: {ex.Message}");
+}
+```
+
+**What happens.** The write is rejected before anything is persisted, and the stored document keeps its previous valid content. Inspect the exception to identify which value or rule failed; do not catch-and-ignore it as a normal path.
+
+**Related.** [Troubleshooting](../troubleshooting/) for the "save fails validation" symptom; [Reference](../reference/) for validation guarantees.
+
+## Evolve a persisted settings schema
+
+**Goal.** Keep existing persisted configuration usable after the model changes.
+
+**Starting point.** A shipped model with `Version = 1` and documents already on disk.
+
+**Code.** Bump the version, keep the identity stable, and register a migration over the generated fragment type:
+
+```csharp
+[ConfiglueModel("sample.settings", Version = 2)]
+public partial class AppSettings
+{
+    public string Name { get; set; } = "World";
+    public string Theme { get; set; } = "System";
+    public bool Notifications { get; set; } = true;
+}
+```
+
+```csharp
+using Configlue.Migrations;
+
+public sealed class AppSettingsV1ToV2 : IStateSchemaMigration<AppSettings.Fragment>
+{
+    public StateSchemaMetadata SourceSchema => new("sample.settings", 1);
+    public StateSchemaMetadata TargetSchema => new("sample.settings", 2);
+
+    public ValueTask<AppSettings.Fragment> MigrateAsync(
+        AppSettings.Fragment value,
+        CancellationToken cancellationToken = default)
+    {
+        var builder = value.ToBuilder();
+        builder.Notifications = Optional<bool>.Present(true);
+        return ValueTask.FromResult(builder.Build());
+    }
+}
+```
+
+```csharp
+config.Add<AppSettings>(model =>
+{
+    model.AddMigration<AppSettings.Fragment>(new AppSettingsV1ToV2());
+});
+```
+
+The nested `Fragment` type, `ToBuilder()`, and `Optional<T>.Present(...)` come from the generator for your model; use the emitted shape rather than guessing. The goal here is "old documents keep working", not a tour of every migration API.
+
+**What happens.** Documents persisted as version 1 are recognized by their stored version marker, migrated to the current shape on the way in, and then behave like any current value. Validation still applies after migration.
+
+**Related.** [Concepts](../concepts/) for schema identity; [Reference](../reference/) for the model/schema contract.
+
+## Inspect where an effective value came from
+
+**Goal.** Identify which contribution won for a layered state without guessing from files.
+
+**Starting point.** A layered setup such as local file plus environment override.
+
+**Code.** Use the diagnostics surface on the state:
+
+```csharp
+var diagnostics = ((IConfiglueDiagnostics<AppSettings>)settings).GetDiagnostics();
+foreach (var source in diagnostics.Sources)
+{
+    Console.WriteLine($"{source.Id} (priority {source.Priority}): read={source.CanRead} write={source.CanWrite} active={source.IsActive}");
+}
+```
+
+Property names follow the public diagnostics API; treat this as the programmatic contract. Where available, DevTools can show the same effective state and contributions interactively.
+
+**What happens.** You see each source contribution and which one produced the effective value, which settles "why is the read value not the file value?" without manually inspecting every file, variable, or remote policy.
+
+**Related.** [Concepts](../concepts/) for effective value and provenance; [Troubleshooting](../troubleshooting/) for the layered-value symptom.
+
+## Complete examples
+
+When a scenario outgrows a snippet — full UI flow, client/server round-trip, or database-backed state — prefer the complete runnable applications under the repository `examples/` tree (Aspire Playground) over another embedded listing.
+
+## Where to go next
+
+- Add a host, storage, or format: [Integrations](../integrations/).
+- Settle exact semantics: [Reference](../reference/).
+- Fix a failure: [Troubleshooting](../troubleshooting/).

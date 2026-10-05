@@ -96,6 +96,9 @@ And the detailed configuration itself only has to happen once, at application st
 
 ## Quick Start
 
+> Full documentation lives at <https://arika0093.github.io/Configlue/>.
+> Start there with [Getting Started](https://arika0093.github.io/Configlue/en/getting-started/) for the canonical tutorial; the sample below is the same first workflow in brief.
+
 The first workflow is a single local JSON file: define a model, choose where it is
 stored, read it, and save a patch. Save it as `example.cs` and run it with
 `dotnet run example.cs` (.NET 10 or later).
