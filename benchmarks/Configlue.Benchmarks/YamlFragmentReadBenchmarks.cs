@@ -46,7 +46,9 @@ public class YamlFragmentReadBenchmarks
         _payload = new ReadOnlySequence<byte>(writer.WrittenMemory);
         Verify(ReusedCodec(), presentCount);
         Verify(NewCodec(), presentCount);
-        if (_codec.ReadSchemaMetadata(in _payload) != _context.Schema)
+        // The default Simple layout emits a version, without a model ID.
+        var metadata = _codec.ReadSchemaMetadata(in _payload);
+        if (metadata?.Version != _schema.Version || metadata?.ModelId is not null)
         {
             throw new InvalidOperationException("YAML fragment fixture lost its schema metadata.");
         }
