@@ -6,6 +6,11 @@ The ongoing measurement and optimization audit is recorded in [performance-audit
 dictionaries, and a combined collection model at 0, 16, and 4,096 elements. It checks
 structural equality in setup and measures allocations without storage or resolver costs.
 
+`CollectionModelReadBenchmarks` measures public `GetValueAsync` for the same collection
+model at 0, 16, and 4,096 elements against direct model cloning. A cached in-memory
+reader isolates managed runtime and clone costs; setup checks that mutating a returned
+collection cannot affect subsequent reads.
+
 Run every benchmark in Release mode:
 
 ```shell
