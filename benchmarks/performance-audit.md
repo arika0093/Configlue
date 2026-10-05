@@ -576,6 +576,58 @@ the comparison target. Logs are retained in artifacts/xml-buffer-*.
 The goal remains active: metadata parsing still constructs a full DOM, and XML
 write buffers still allocate large intermediate arrays.
 
+## Round 18: read XML metadata without retaining a DOM (2026-10-05)
+
+Added `XmlMetadataValidationBenchmarks` (`cef1221f`) for valid/unmarked roots,
+invalid versions, empty input, malformed children, trailing data (including tails
+after unmarked and invalid-version roots), DTDs, and undeclared entities. Setup
+compares both schema metadata and XmlException outcomes with an independent
+strict XDocument reader. The initial nine-case run prompted adding undeclared
+entity coverage; the final baseline and candidate both cover all ten cases.
+
+Metadata now reads root attributes through XmlReader, skips the root subtree,
+and consumes remaining nodes. It retains full document validation, DTD prohibition,
+null XmlResolver, namespace-local root matching, unqualified attributes, and
+invariant positive-integer version parsing. It still validates documents whose
+root carries no usable metadata. Payload decoding continues using its existing DOM.
+
+Reports: [validation before](reports/xml-metadata/validation-before.md),
+[validation after](reports/xml-metadata/validation-after.md), and
+[read after](reports/xml-metadata/read-after.md), compared with round 17's
+[read-view baseline](reports/xml-buffer/read-view.md). All use three warmups and
+five measurements on the same host; all 28 candidate cases complete with setup
+guards, including the ten validation outcomes.
+
+| Metadata input | Before mean | After mean | Before allocation | After allocation |
+| --- | ---: | ---: | ---: | ---: |
+| Array slice, 0 text characters | 1.488 us | 0.982 us | 5.56 KiB | 4.00 KiB |
+| Array slice, 4,096 | 10.972 us | 10.005 us | 45.17 KiB | 15.39 KiB |
+| Array slice, 65,536 | 167.368 us | 150.667 us | 418.58 KiB | 27.39 KiB |
+| Segmented, 65,536 | 230.366 us | 167.775 us | 610.94 KiB | 219.66 KiB |
+| MemoryManager, 65,536 | 205.553 us | 174.347 us | 610.94 KiB | 219.66 KiB |
+
+Large array-slice metadata allocation falls 93%, and Gen2 collections per 1,000
+operations fall from 83.25 to zero. Fallback metadata allocation falls 64% and
+Gen2 falls from about 142.58 to 62.26; its required input materialization still
+reaches the LOH. Root/token parsing and XML reader character buffers remain
+necessary costs. Large array-slice timing intervals overlap, so its 10% mean
+decrease is not claimed as a reliable speedup. Segmented/MemoryManager means
+fall 27%/15% with separated intervals in these runs. The zero-text array-slice
+mean falls 34%. Unchanged decode paths retain their allocation budgets apart
+from a small run-dependent 80 B decrease in one large array-slice case.
+
+The validation fixture's valid/unmarked 4,096-character documents fall from
+43.51/42.96 KiB to 14.71/14.28 KiB. Their means fall 10.523/10.359 to
+9.116/7.488 us. Empty input and DTD exception allocation are unchanged; their
+slightly higher timing means overlap baseline intervals. Malformed large cases
+also allocate less, and still reject the same inputs, including unknown entities.
+
+Release provider/dependency builds pass netstandard2.0, netstandard2.1, and
+net10.0 with zero warnings/errors. CSharpier and whitespace checks pass. Logs
+are retained in artifacts/xml-metadata-*; behavioral evidence is the completed
+independent benchmark fixture guards. The goal remains active: XML serialization
+still creates a final byte-array copy after staging the complete document.
+
 ## Remaining audit
 
 

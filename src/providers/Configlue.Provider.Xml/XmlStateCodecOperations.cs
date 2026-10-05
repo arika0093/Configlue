@@ -107,23 +107,37 @@ internal static partial class XmlStateCodecOperations
 
     public static StateSchemaMetadata? ReadSchemaMetadata(in ReadOnlySequence<byte> content)
     {
-        var root = LoadDocument(in content).Root;
+        using var memory = CreateReadStream(in content);
+        using var reader = XmlReader.Create(
+            memory,
+            new XmlReaderSettings { DtdProcessing = DtdProcessing.Prohibit, XmlResolver = null }
+        );
+        var nodeType = reader.MoveToContent();
+        StateSchemaMetadata? metadata = null;
         if (
-            root is null
-            || root.Name.LocalName != RootName
-            || !int.TryParse(
-                (string?)root.Attribute("version"),
+            nodeType == XmlNodeType.Element
+            && reader.LocalName == RootName
+            && int.TryParse(
+                reader.GetAttribute("version"),
                 System.Globalization.NumberStyles.None,
                 System.Globalization.CultureInfo.InvariantCulture,
                 out var version
             )
-            || version < StateSchemaMetadata.InitialVersion
+            && version >= StateSchemaMetadata.InitialVersion
         )
         {
-            return null;
+            metadata = new StateSchemaMetadata(reader.GetAttribute("id"), version);
         }
 
-        return new StateSchemaMetadata((string?)root.Attribute("id"), version);
+        // Consume the whole document so malformed payloads and trailing data still
+        // fail, including documents with no usable root metadata.
+        reader.Skip();
+        while (reader.Read())
+        {
+            // Validate remaining nodes without retaining a DOM.
+        }
+
+        return metadata;
     }
 
     [RequiresUnreferencedCode("XML fragment models are inspected through reflection.")]
