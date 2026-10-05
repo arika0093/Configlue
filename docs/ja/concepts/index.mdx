@@ -67,7 +67,9 @@ Configlue がモデル全体を雑にシリアライズせず、生成された 
 - **明示 `null`**（メンバー型が許す場合）: この層が null を設定する。absent とは異なる。
 - **unset / 削除**: この層が以前設定した値を取り消す。
 
-例として、上位層のメンバーが absent ならローカルファイルにフォールスルーしますが、明示的に存在する上位層の値は（全体シリアライズ的には「空」に見えても）上書きします。層の動作に驚いたらこの区別を思い出してください。正確な契約は[リファレンス](../reference/)にあります。
+上記のローカルファイル＋環境変数の層構成を例にします。ファイルが `Theme = "Dark"` で `APP_Theme` が未設定なら、上位層のそのメンバーは absent のため読み取りは `"Dark"` にフォールスルーします。`APP_Theme=Light` を設定すると上位層が明示的に存在するため、ファイルが `"Dark"` のままでも同じ読み取りは `"Light"` を返します。保存も同様です。`SaveAsync(patch => ...)` は patch 内で設定したメンバーのみを送るため、触れていないメンバーは defaults で上書きされず層の動作を保ちます。
+
+コード上は、absent は fragment/patch でメンバーが設定されていないこと（`Optional<T>.Missing`）であり、明示的に設定した `null` とは異なります。`Unset()` はその層の既存の寄与を取り消します。層の動作に驚いたらこの区別を思い出してください。正確な契約は[リファレンス](../reference/)にあります。Configlue の動作を超えた fragment 代数が必要な場合は、ここで重複させずスタンドアロンの [SparseFragments ドキュメント](https://github.com/arika0093/Configlue/blob/main/src/fragments/SparseFragments/README.md)を見てください。
 
 ## schema identity と成長
 

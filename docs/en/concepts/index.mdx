@@ -67,7 +67,9 @@ Configlue saves through generated fragments/patches instead of blindly serializi
 - **Explicit `null`** (where the member type supports it): this layer sets null, which is different from absent.
 - **Unset / removal**: this layer clears a previously set value.
 
-Example: an absent higher-layer member falls through to the local file, but an explicitly present higher-layer value overrides it — even if that explicit value looks "empty" to a whole-model serializer. Keep this distinction in mind whenever layered behavior surprises you; the precise contract lives in [Reference](../reference/).
+Example with the local-file plus environment layering above: when the file says `Theme = "Dark"` and no `APP_Theme` variable is set, the higher layer is absent for that member and the read falls through to `"Dark"`. When `APP_Theme=Light` is set, the higher layer is explicitly present and the same read returns `"Light"` while the file still says `"Dark"`. The same distinction applies to saves: `SaveAsync(patch => ...)` sends only the members set in the patch, so untouched members keep their layered behavior instead of being overwritten with defaults.
+
+In code terms, absent means the member was not set in the fragment/patch (`Optional<T>.Missing`), which is different from an explicitly set `null`, and `Unset()` clears a previously set contribution. Keep this distinction in mind whenever layered behavior surprises you; the precise contract lives in [Reference](../reference/). For deeper fragment algebra beyond Configlue behavior, see the standalone [SparseFragments documentation](https://github.com/arika0093/Configlue/blob/main/src/fragments/SparseFragments/README.md) rather than duplicating it here.
 
 ## Schema identity and evolution
 
