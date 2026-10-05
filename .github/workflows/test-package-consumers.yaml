@@ -8,6 +8,11 @@ on:
         type: string
         required: false
         default: ''
+      release-packages-artifact:
+        description: Name of a pre-packed release candidate artifact to validate instead of packing locally.
+        type: string
+        required: false
+        default: ''
   push:
     branches: [main]
   pull_request:
@@ -62,7 +67,23 @@ jobs:
             ${{ runner.os }}-nuget-
 
       - name: Pack Configlue packages
+        if: inputs.release-packages-artifact == ''
         run: dotnet pack Configlue.slnx --configuration Release --output artifacts/packages
+
+      - name: Download release candidate packages
+        if: inputs.release-packages-artifact != ''
+        uses: actions/download-artifact@v8
+        with:
+          name: ${{ inputs.release-packages-artifact }}
+          path: artifacts/packages
+
+      - name: List release candidate packages
+        if: inputs.release-packages-artifact != ''
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "Validating release candidate artifact '${{ inputs.release-packages-artifact }}'."
+          ls -l artifacts/packages/*.nupkg
 
       - name: Resolve local feed and package version
         shell: bash
@@ -207,7 +228,23 @@ jobs:
             ${{ runner.os }}-nuget-
 
       - name: Pack Configlue packages
+        if: inputs.release-packages-artifact == ''
         run: dotnet pack Configlue.slnx --configuration Release --output artifacts/packages
+
+      - name: Download release candidate packages
+        if: inputs.release-packages-artifact != ''
+        uses: actions/download-artifact@v8
+        with:
+          name: ${{ inputs.release-packages-artifact }}
+          path: artifacts/packages
+
+      - name: List release candidate packages
+        if: inputs.release-packages-artifact != ''
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "Validating release candidate artifact '${{ inputs.release-packages-artifact }}'."
+          ls -l artifacts/packages/*.nupkg
 
       - name: Resolve local feed and package version
         shell: bash
@@ -340,7 +377,23 @@ jobs:
             ${{ runner.os }}-nuget-
 
       - name: Pack Configlue packages
+        if: inputs.release-packages-artifact == ''
         run: dotnet pack Configlue.slnx --configuration Release --output artifacts/packages
+
+      - name: Download release candidate packages
+        if: inputs.release-packages-artifact != ''
+        uses: actions/download-artifact@v8
+        with:
+          name: ${{ inputs.release-packages-artifact }}
+          path: artifacts/packages
+
+      - name: List release candidate packages
+        if: inputs.release-packages-artifact != ''
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "Validating release candidate artifact '${{ inputs.release-packages-artifact }}'."
+          ls -l artifacts/packages/*.nupkg
 
       - name: Resolve local feed and package version
         shell: bash
