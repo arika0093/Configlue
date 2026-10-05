@@ -539,11 +539,18 @@ internal sealed class StateSourceResolver<T> : ISourceReader<T>
     private void MaybeSweepSubjectResolutions(long now)
     {
         // Idle-only eviction: a sweep runs at most once per idle timeout, so the hot path is a
-        // single timestamp comparison and never scales with the cached entry count. A separate
-        // capacity trigger was measured (issue #271) to only rescan without evicting anything the
-        // next idle sweep would not: entries that are individually idle while the global timeout has
-        // not elapsed are evicted at most one idle timeout later, which is immaterial for an
-        // opportunistic bound.
+        // single timestamp comparison and never scales with the cached entry count. The removed
+        // capacity trigger (threshold 256, at most one scan per 256 reads at capacity) was
+        // measured to rescan ~1 ms over 256 entries while evicting nothing the next idle sweep
+        // would not: entries that are individually idle while the global timeout has not elapsed
+        // are evicted at most one idle timeout later, so the rescan (~4 us amortized per read at
+        // capacity) was pure overhead. Full numbers (default/subject read, watch, ~2 KB/entry,
+        // 256-subject sweep): benchmarks/resolver-subject-cache-271-results.md (issue #271).
+        // Burst bound is accepted by design: within one idle window the cache holds up to one
+        // entry per distinct (subject, route) read in the window (~2 KB each; 256 subjects
+        // measured ~0.5 MiB), then the next sweep past the timeout collapses it. This costs only
+        // transient memory — watches that race eviction fall back to the full source list — so
+        // operators needing a tighter bound should shorten the idle timeout per resolver.
         if (
             now - Volatile.Read(ref _subjectResolutionLastSweepTimestamp)
             <= _subjectResolutionIdleTicks

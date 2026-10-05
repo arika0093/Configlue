@@ -55,6 +55,33 @@ public sealed class StateSourceResolverCacheTests
     }
 
     [Test]
+    public async Task SameWindowManySubjects_AreBoundedByDistinctSubjectsInWindow()
+    {
+        var clock = new CacheClock();
+        var source = CreateSource();
+        var resolver = CreateResolver(source, clock, TimeSpan.FromMilliseconds(100));
+
+        // Burst within one idle window is accepted by design (issue #271): no per-window cap,
+        // one entry per distinct subject (~2 KB each; 256 subjects measured ~0.5 MiB, see
+        // benchmarks/resolver-subject-cache-271-results.md). The clock is frozen so no sweep runs.
+        const int subjectCount = 256;
+        for (var index = 0; index < subjectCount; index++)
+        {
+            var result = await resolver.ReadAsync(Context(source, index));
+            result.Status.ShouldBe(StateReadStatus.Success);
+        }
+
+        resolver.SubjectResolutionCount.ShouldBe(subjectCount);
+
+        // Past the idle timeout the next read sweeps all idle entries back to the live set.
+        clock.Advance(TimeSpan.FromMilliseconds(500));
+        var reread = await resolver.ReadAsync(Context(source, 0));
+        (reread.Status).ShouldBe(StateReadStatus.Success);
+        (reread.Value!.RetryCount).ShouldBe(3);
+        resolver.SubjectResolutionCount.ShouldBe(1);
+    }
+
+    [Test]
     public async Task ActiveWatch_SnapshotRemainsValidAfterIdleEviction()
     {
         var clock = new CacheClock();
