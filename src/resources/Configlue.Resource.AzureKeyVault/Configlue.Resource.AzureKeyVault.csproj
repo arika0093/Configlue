@@ -7,7 +7,7 @@
     <PackageDescription>Azure Key Vault secrets resources for Configlue.</PackageDescription>
   </PropertyGroup>
   <ItemGroup>
-    <PackageReference Include="Azure.Identity" Version="1.14.2" />
+    <PackageReference Include="Azure.Identity" Version="1.21.0" />
     <PackageReference Include="Azure.Security.KeyVault.Secrets" Version="4.7.0" />
   </ItemGroup>
   <ItemGroup>
@@ -15,7 +15,7 @@
     <ProjectReference Include="../../basic/Configlue.Core/Configlue.Core.csproj" />
   </ItemGroup>
   <ItemGroup Condition="'$(ConfiglueNetStandard)' == 'true'">
-    <PackageReference Include="System.Text.Json" Version="10.0.0" />
+    <PackageReference Include="System.Text.Json" Version="10.0.3" />
   </ItemGroup>
   <ItemGroup>
     <InternalsVisibleTo Include="Configlue.Tests" />
