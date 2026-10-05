@@ -2,6 +2,10 @@
 
 The ongoing measurement and optimization audit is recorded in [performance-audit.md](performance-audit.md), including same-machine results, validation, and outstanding coverage.
 
+`CollectionCloneBenchmarks` isolates generated fragment deep cloning for lists, sets,
+dictionaries, and a combined collection model at 0, 16, and 4,096 elements. It checks
+structural equality in setup and measures allocations without storage or resolver costs.
+
 Run every benchmark in Release mode:
 
 ```shell
