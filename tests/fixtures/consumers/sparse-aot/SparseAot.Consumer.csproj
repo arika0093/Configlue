@@ -1,0 +1,46 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <IsTestProject>false</IsTestProject>
+    <IsPackable>false</IsPackable>
+    <AssemblyName>SparseAot.Consumer</AssemblyName>
+    <RootNamespace>SparseAotConsumer</RootNamespace>
+    <PublishAot>true</PublishAot>
+    <EnableTrimAnalyzer>true</EnableTrimAnalyzer>
+    <EnableAotAnalyzer>true</EnableAotAnalyzer>
+    <EnableSingleFileAnalyzer>true</EnableSingleFileAnalyzer>
+    <IlcTreatWarningsAsErrors>true</IlcTreatWarningsAsErrors>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <!--
+      Standalone SparseFragments NativeAOT smoke (#317): uses only
+      SparseFragments (+ SparseFragments.JsonPatch) with no Configlue
+      facade dependency. Report every trim warning individually instead of
+      the per-assembly IL2104 summary so new trimming regressions fail this
+      gate. This consumer intentionally carries no WarningsNotAsErrors
+      allowlist; any IL trim/AOT diagnostic fails publish (see
+      assert-sparse-aot-diagnostics.sh).
+    -->
+    <TrimmerSingleWarn>false</TrimmerSingleWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Remove="TUnit;Shouldly" />
+    <Using Remove="Shouldly;Configlue.Codecs;Configlue.Migrations;Configlue.Resources;Configlue.Sources;Configlue.Extensibility;Configlue.State;Configlue.Transformers" />
+  </ItemGroup>
+
+  <!-- Restores SparseFragments from a local NuGet feed when ConfigluePackageVersion is provided. -->
+  <ItemGroup Condition="'$(ConfigluePackageVersion)' == ''">
+    <ProjectReference Include="../../../../src/fragments/SparseFragments/SparseFragments.csproj" />
+    <ProjectReference Include="../../../../src/fragments/SparseFragments.JsonPatch/SparseFragments.JsonPatch.csproj" />
+    <ProjectReference
+      Include="../../../../src/fragments/SparseFragments.Generator/SparseFragments.Generator.csproj"
+      OutputItemType="Analyzer"
+      ReferenceOutputAssembly="false"
+    />
+  </ItemGroup>
+  <ItemGroup Condition="'$(ConfigluePackageVersion)' != ''">
+    <PackageReference Include="SparseFragments" Version="$(ConfigluePackageVersion)" />
+    <PackageReference Include="SparseFragments.JsonPatch" Version="$(ConfigluePackageVersion)" />
+  </ItemGroup>
+</Project>
