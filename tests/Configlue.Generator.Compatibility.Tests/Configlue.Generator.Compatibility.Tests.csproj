@@ -9,7 +9,6 @@
     <ProjectReference Include="../../src/providers/Configlue.Provider.MessagePack/Configlue.Provider.MessagePack.csproj" />
     <ProjectReference Include="../../src/tools/Configlue.Generator/Configlue.Generator.csproj" />
     <ProjectReference Include="../../src/fragments/SparseFragments/SparseFragments.csproj" />
-    <ProjectReference Include="../../src/fragments/SparseFragments.JsonPatch/SparseFragments.JsonPatch.csproj" />
     <ProjectReference Include="../../src/fragments/SparseFragments.Generator/SparseFragments.Generator.csproj" />
   </ItemGroup>
 </Project>

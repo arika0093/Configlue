@@ -3,7 +3,6 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using Configlue.Provider.Json;
 using Configlue.State;
-using SparseFragments.JsonPatch;
 
 namespace Configlue.Source.Http;
 
@@ -37,7 +36,7 @@ internal sealed class HttpStateWriteStrategy<TFragment>
     {
         ArgumentNullException.ThrowIfNull(patch);
         var revision = HttpStateProtocol.NormalizeEtagArgument(etag);
-        var body = SparseJsonPatch.Serialize(patch);
+        var body = ConfiglueJsonPatch.Serialize(patch);
         HttpTransportPatchResult<TFragment> result;
         try
         {
@@ -128,13 +127,13 @@ internal sealed class HttpStateWriteStrategy<TFragment>
             );
         }
 
-        var document = SparseJsonPatch.Diff(
+        var document = ConfiglueJsonPatch.Diff(
             before,
             beforeIsAbsent: false,
             after,
             afterIsAbsent: false
         );
-        var patchBody = SparseJsonPatch.Serialize(document);
+        var patchBody = ConfiglueJsonPatch.Serialize(document);
         HttpTransportPatchResult<TFragment> result;
         try
         {

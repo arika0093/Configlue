@@ -24,7 +24,7 @@ Hand-writing this per model is boilerplate-heavy and error-prone, and reflection
 * **Typed, source-generated API.** `Fragment`, `Patch`, and a builder per model, all compiler-checked.
 * **Per-member merge algebra.** `Replace` / `Deep` / `Append` / `SetUnion`, or custom strategies via `[SparseMerge]`.
 * **Semantic diff and patch.** Minimal deltas between states, applied with `Set` / `Unset` / `Unchanged`, including nested `SetNull`.
-* **RFC 6902 JSON Patch interop.** Import (`Patch.FromJsonPatch`) and export (`patch.ToJsonPatch`) patches as standard JSON Patch documents via the `SparseFragments.JsonPatch` package.
+* **RFC 6902 JSON Patch interop.** Import (`Patch.FromJsonPatch`) and export (`patch.ToJsonPatch`) patches as standard JSON Patch documents, built in.
 * **Immutable edits with structural isolation.** Originals never mutate; `DeepClone` is fully independent.
 * **Reflection-free metadata.** Generated schema descriptors enumerate present members for serializers and tooling.
 * **Legacy-friendly.** Generator ships as an analyzer in the package; automatic `IsExternalInit` emission for init-only members.
@@ -69,7 +69,7 @@ Once you build, the generator adds the following members inside your model type:
 | --- | --- |
 | `Settings.Fragment` | A sparse, presence-aware view shaped like your model |
 | `Settings.Patch` | Member-level mutation directives (Set / Unset / unchanged) |
-| `Settings.Patch.FromJsonPatch` / `patch.ToJsonPatch` | RFC 6902 import/export bridge (requires the `SparseFragments.JsonPatch` package) |
+| `Settings.Patch.FromJsonPatch` / `patch.ToJsonPatch` | RFC 6902 import/export bridge (built in) |
 | `Fragment.FragmentJsonConverter` | `System.Text.Json` converter for the canonical fragment JSON used by the bridge |
 | Fragment builder | Copies a fragment while changing only the members you touch |
 | `DeepClone()` | Returns a fully independent copy of a model or fragment |
@@ -187,15 +187,11 @@ clone.Child!.Count = 42;                                       // original.Child
 
 ### 9. Exchange patches as RFC 6902 JSON Patch
 
-Typed `Patch` values stay in-process. When a patch has to cross a process boundary — an HTTP PATCH endpoint, another service, or stored JSON — convert it to a standard [RFC 6902](https://datatracker.ietf.org/doc/html/rfc6902) document with the `SparseFragments.JsonPatch` package. The same bridge is generated for standalone `[SparseFragmentModel]` types and for Configlue `[ConfiglueModel]` types.
+Typed `Patch` values stay in-process. When a patch has to cross a process boundary — an HTTP PATCH endpoint, another service, or stored JSON — convert it to a standard [RFC 6902](https://datatracker.ietf.org/doc/html/rfc6902) document. The same bridge is generated for standalone `[SparseFragmentModel]` types and for Configlue `[ConfiglueModel]` types.
 
-#### 9.1. Install the interop package
+#### 9.1. No extra package needed
 
-```shell
-dotnet add package SparseFragments.JsonPatch
-```
-
-No extra setup is needed: `FromJsonPatch` / `ToJsonPatch` are generated alongside `Fragment` / `Patch`, and the package itself has no ASP.NET dependencies.
+`FromJsonPatch` / `ToJsonPatch` are generated alongside `Fragment` / `Patch` and the runtime ships inside `SparseFragments` itself (Configlue models use the embedded `Configlue` runtime). The implementation has no ASP.NET dependencies.
 
 #### 9.2. Import a JSON Patch document
 
@@ -204,7 +200,6 @@ No extra setup is needed: `FromJsonPatch` / `ToJsonPatch` are generated alongsid
 ```csharp
 using System.Text;
 using SparseFragments;
-using SparseFragments.JsonPatch;
 
 var baseline = new Settings.Fragment { Label = "base" };
 var document = Encoding.UTF8.GetBytes(

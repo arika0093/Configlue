@@ -13,7 +13,8 @@ public sealed partial class ConfiglueGenerator
 {
     private static void AppendJsonConverter(
         IndentedStringBuilder code,
-        ImmutableArray<MemberModel> members
+        ImmutableArray<MemberModel> members,
+        bool hasJsonProvider = true
     )
     {
         code.CancellationToken.ThrowIfCancellationRequested();
@@ -25,9 +26,14 @@ public sealed partial class ConfiglueGenerator
             2,
             "/// <remarks>Members marked with <c>JsonIgnore(Condition = Always)</c> (including plain <c>[JsonIgnore]</c>) are never written and incoming values for those JSON names are skipped, even when strict unmapped-member handling is enabled. <c>Condition = Never</c> keeps the member in the payload. <c>WhenWritingNull</c>/<c>WhenWritingDefault</c> only suppress writing a present value that is null/default; a missing <c>Optional</c> stays missing and an explicit JSON value is still read.</remarks>"
         );
+        // The JSON Patch bridge needs the converter even when the JSON provider package
+        // is not referenced. The provider payload-writer interface is only implemented
+        // when the provider is present so models without a JSON dependency still compile.
         code.AppendLineAt(
             2,
-            "public sealed class FragmentJsonConverter : global::System.Text.Json.Serialization.JsonConverter<Fragment>, global::Configlue.Provider.Json.IJsonObjectPayloadWriter"
+            hasJsonProvider
+                ? "public sealed class FragmentJsonConverter : global::System.Text.Json.Serialization.JsonConverter<Fragment>, global::Configlue.Provider.Json.IJsonObjectPayloadWriter"
+                : "public sealed class FragmentJsonConverter : global::System.Text.Json.Serialization.JsonConverter<Fragment>"
         );
         code.AppendLineAt(2, "{");
         code.AppendLineAt(

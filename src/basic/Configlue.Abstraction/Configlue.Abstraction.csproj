@@ -38,5 +38,33 @@
       Include="../../fragments/SparseFragments/CollectionProvenance.cs"
       Link="Fragments/CollectionProvenance.cs"
     />
+    <Compile
+      Include="../../fragments/SparseFragments/JsonPatchDocument.cs"
+      Link="Fragments/ConfiglueJsonPatchDocument.cs"
+    />
+    <Compile
+      Include="../../fragments/SparseFragments/JsonPatchEngine.cs"
+      Link="Fragments/ConfiglueJsonPatchEngine.cs"
+    />
+    <Compile
+      Include="../../fragments/SparseFragments/JsonPatchOperation.cs"
+      Link="Fragments/ConfiglueJsonPatchOperation.cs"
+    />
+    <Compile
+      Include="../../fragments/SparseFragments/JsonPointer.cs"
+      Link="Fragments/ConfiglueJsonPointer.cs"
+    />
+    <Compile
+      Include="../../fragments/SparseFragments/JsonPatchException.cs"
+      Link="Fragments/ConfiglueJsonPatchException.cs"
+    />
+    <Compile
+      Include="../../fragments/SparseFragments/JsonPatchErrorKind.cs"
+      Link="Fragments/ConfiglueJsonPatchErrorKind.cs"
+    />
+    <Compile
+      Include="../../fragments/SparseFragments/SparseJsonPatch.cs"
+      Link="Fragments/ConfiglueJsonPatch.cs"
+    />
   </ItemGroup>
 </Project>

@@ -1,6 +1,12 @@
 using System.Text.Json;
 
-namespace SparseFragments.JsonPatch;
+#if CONFIGLUE_FRAGMENT_RUNTIME
+namespace Configlue;
+
+#else
+namespace SparseFragments;
+
+#endif
 
 /// <summary>A parsed RFC 6902 document.</summary>
 public sealed class JsonPatchDocument

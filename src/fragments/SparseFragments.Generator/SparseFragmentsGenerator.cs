@@ -137,27 +137,11 @@ public sealed class SparseFragmentsGenerator : IIncrementalGenerator
             )
             .WithComparer(EqualityComparer<bool>.Default)
             .WithTrackingName("SparseFragmentsGenerator.BclSetSupport");
-        var hasJsonPatch = context
-            .CompilationProvider.Select(
-                static (compilation, _) =>
-                    compilation.GetTypeByMetadataName("SparseFragments.JsonPatch.SparseJsonPatch")
-                        is not null
-                    || compilation.ReferencedAssemblyNames.Any(static name =>
-                        string.Equals(
-                            name.Name,
-                            "SparseFragments.JsonPatch",
-                            StringComparison.Ordinal
-                        )
-                    )
-            )
-            .WithComparer(EqualityComparer<bool>.Default)
-            .WithTrackingName("SparseFragmentsGenerator.JsonPatch");
         var generated = analyzed
             .Combine(bclSetSupport)
-            .Combine(hasJsonPatch)
             .Select(
                 static (input, cancellationToken) =>
-                    Render(input.Left.Left, input.Left.Right, input.Right, cancellationToken)
+                    Render(input.Left, input.Right, cancellationToken)
             )
             .WithTrackingName("SparseFragmentsGenerator.Output");
 
@@ -240,7 +224,6 @@ public sealed class SparseFragmentsGenerator : IIncrementalGenerator
     private static SparseGenerationResult Render(
         SparseGenerationAnalysis analysis,
         bool bclHashSetImplementsReadOnlySet,
-        bool hasJsonPatch,
         CancellationToken cancellationToken
     )
     {
@@ -251,8 +234,7 @@ public sealed class SparseFragmentsGenerator : IIncrementalGenerator
         }
 
         if (
-            hasJsonPatch
-            && analysis.Members.Any(static member =>
+            analysis.Members.Any(static member =>
                 member.Property.Name is "JsonConverter" or "FragmentJsonConverter"
             )
         )
@@ -280,7 +262,6 @@ public sealed class SparseFragmentsGenerator : IIncrementalGenerator
             analysis.PocoCloneModels,
             analysis.StructuralModels,
             bclHashSetImplementsReadOnlySet,
-            hasJsonPatch,
             cancellationToken
         );
         return new SparseGenerationResult(model.HintName, source, analysis.Diagnostics);

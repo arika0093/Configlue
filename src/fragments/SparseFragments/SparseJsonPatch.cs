@@ -1,16 +1,26 @@
 using System.Text.Json;
 
-namespace SparseFragments.JsonPatch;
+#if CONFIGLUE_FRAGMENT_RUNTIME
+namespace Configlue;
+
+#else
+namespace SparseFragments;
+
+#endif
 
 /// <summary>Entry facade for RFC 6902 import/export over canonical JSON.</summary>
 /// <remarks>
 /// Generated <c>FromJsonPatch</c>/<c>ToJsonPatch</c> bridges delegate fragment
 /// conversion to their generated JSON converters and use
 /// <see cref="JsonPatchDocument"/> plus <see cref="JsonPatchEngine"/> for the
-/// baseline-aware document transform, keeping this package free of ASP.NET
+/// baseline-aware document transform, keeping this runtime free of ASP.NET
 /// dependencies so Configlue.Hosting.AspNetCore and Configlue.Source.Http can reuse it.
 /// </remarks>
+#if CONFIGLUE_FRAGMENT_RUNTIME
+public static class ConfiglueJsonPatch
+#else
 public static class SparseJsonPatch
+#endif
 {
     /// <summary>Parses UTF-8 JSON Patch bytes.</summary>
     public static JsonPatchDocument Parse(ReadOnlyMemory<byte> utf8) =>

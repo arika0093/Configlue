@@ -23,7 +23,6 @@ public sealed partial class ConfiglueGenerator
         IndentedStringBuilder code,
         string modelType,
         ImmutableArray<MemberModel> members,
-        bool hasJsonPatch = false,
         bool isRootModel = true
     )
     {
@@ -238,49 +237,50 @@ public sealed partial class ConfiglueGenerator
         code.AppendLineAt(3, "return selected;");
         code.AppendLineAt(2, "}");
         AppendPatchRouting(code, members);
-        if (hasJsonPatch)
+        SparseFragments.Generator.Shared.SparseJsonPatchEmitter.AppendConfiglueJsonBetween(
+            code,
+            sparseMembers,
+            static sparse => "__configlue_member_" + sparse.Property.Name,
+            static sparse =>
+                sparse.ChildModel is null
+                    ? sparse.Property.Type.Name
+                    : sparse.ChildFragmentType + "?",
+            static sparse =>
+                sparse.ChildFragmentType!.Substring(
+                    0,
+                    sparse.ChildFragmentType.Length - "Fragment".Length
+                ) + "Patch.__ConfiglueJsonBetween"
+        );
+        if (isRootModel)
         {
-            SparseFragments.Generator.Shared.SparseJsonPatchEmitter.AppendConfiglueJsonBetween(
-                code,
-                sparseMembers,
-                static sparse => "__configlue_member_" + sparse.Property.Name,
-                static sparse =>
-                    sparse.ChildModel is null
-                        ? sparse.Property.Type.Name
-                        : sparse.ChildFragmentType + "?",
-                static sparse =>
-                    sparse.ChildFragmentType!.Substring(
-                        0,
-                        sparse.ChildFragmentType.Length - "Fragment".Length
-                    ) + "Patch.__ConfiglueJsonBetween"
+            var jsonPrefix = SparseFragments.Generator.Shared.SparseNaming.JsonPatchApiPrefix(
+                members.Select(static member => member.Property.Name)
             );
-            if (isRootModel)
-            {
-                var jsonPrefix = SparseFragments.Generator.Shared.SparseNaming.JsonPatchApiPrefix(
-                    members.Select(static member => member.Property.Name)
-                );
-                SparseFragments.Generator.Shared.SparseJsonPatchEmitter.AppendFragmentJsonHelpers(
-                    code,
-                    "global::SparseFragments",
-                    "global::Configlue.Optional"
-                );
-                // Single shared bridge: Configlue differs only in Between helper and apply expression.
-                // JSON Patch interop stays an adapter over the semantic patch, not routing.
-                SparseFragments.Generator.Shared.SparseJsonPatchEmitter.AppendFromJsonPatch(
-                    code,
-                    "global::SparseFragments",
-                    "global::Configlue.Optional",
-                    jsonPrefix,
-                    "__ConfiglueJsonBetween"
-                );
-                SparseFragments.Generator.Shared.SparseJsonPatchEmitter.AppendToJsonPatch(
-                    code,
-                    "global::SparseFragments",
-                    "global::Configlue.Optional",
-                    jsonPrefix,
-                    "ApplyNested(baseline)"
-                );
-            }
+            SparseFragments.Generator.Shared.SparseJsonPatchEmitter.AppendFragmentJsonHelpers(
+                code,
+                "global::Configlue",
+                "global::Configlue.Optional"
+            );
+            // Single shared bridge: Configlue differs only in Between helper and apply expression.
+            // JSON Patch interop stays an adapter over the semantic patch, not routing.
+            // Configlue uses its own embedded runtime (global::Configlue.ConfiglueJsonPatch)
+            // so the facade package boundary stays free of a SparseFragments dependency.
+            SparseFragments.Generator.Shared.SparseJsonPatchEmitter.AppendFromJsonPatch(
+                code,
+                "global::Configlue",
+                "ConfiglueJsonPatch",
+                "global::Configlue.Optional",
+                jsonPrefix,
+                "__ConfiglueJsonBetween"
+            );
+            SparseFragments.Generator.Shared.SparseJsonPatchEmitter.AppendToJsonPatch(
+                code,
+                "global::Configlue",
+                "ConfiglueJsonPatch",
+                "global::Configlue.Optional",
+                jsonPrefix,
+                "ApplyNested(baseline)"
+            );
         }
         code.AppendLineAt(1, "}");
     }

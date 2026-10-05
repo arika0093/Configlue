@@ -110,8 +110,7 @@ internal static class SparseFragmentPatchEmitter
         SharedIndentedBuilder code,
         string modelType,
         ImmutableArray<SparseMemberModel> members,
-        bool hasJsonPatch = false,
-        string jsonPrefix = ""
+        bool emitJsonBridge = true
     )
     {
         var contract = Contract(modelType, "Fragment");
@@ -141,8 +140,11 @@ internal static class SparseFragmentPatchEmitter
         SparseFragmentPatchCoreEmitter.AppendPatchApplyMembers(code, members, dialect);
         SparseFragmentPatchAlgebraEmitter.AppendPatchAlgebra(code, modelType, members);
         SparseFragmentPatchRebaseEmitter.AppendPatchRebase(code, modelType, members);
-        if (hasJsonPatch)
+        if (emitJsonBridge)
         {
+            var jsonPrefix = SparseNaming.JsonPatchApiPrefix(
+                members.Select(static member => member.Property.Name)
+            );
             SparseJsonPatchEmitter.AppendFragmentJsonHelpers(
                 code,
                 "global::SparseFragments",
@@ -151,6 +153,7 @@ internal static class SparseFragmentPatchEmitter
             SparseJsonPatchEmitter.AppendFromJsonPatch(
                 code,
                 "global::SparseFragments",
+                "SparseJsonPatch",
                 Runtime + "Optional",
                 jsonPrefix,
                 patchPrefix + "Between"
@@ -158,6 +161,7 @@ internal static class SparseFragmentPatchEmitter
             SparseJsonPatchEmitter.AppendToJsonPatch(
                 code,
                 "global::SparseFragments",
+                "SparseJsonPatch",
                 Runtime + "Optional",
                 jsonPrefix,
                 "((" + contract + ")this).Apply(baseline)"

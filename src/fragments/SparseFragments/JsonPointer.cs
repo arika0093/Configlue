@@ -1,6 +1,12 @@
 using System.Text;
 
-namespace SparseFragments.JsonPatch;
+#if CONFIGLUE_FRAGMENT_RUNTIME
+namespace Configlue;
+
+#else
+namespace SparseFragments;
+
+#endif
 
 /// <summary>RFC 6901 JSON Pointer parsing and escaping.</summary>
 public static class JsonPointer

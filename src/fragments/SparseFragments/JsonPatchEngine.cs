@@ -1,7 +1,13 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
 
-namespace SparseFragments.JsonPatch;
+#if CONFIGLUE_FRAGMENT_RUNTIME
+namespace Configlue;
+
+#else
+namespace SparseFragments;
+
+#endif
 
 /// <summary>Applies RFC 6902 operations to a JSON document atomically.</summary>
 public static class JsonPatchEngine

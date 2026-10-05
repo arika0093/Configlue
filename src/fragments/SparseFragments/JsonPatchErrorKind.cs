@@ -1,4 +1,10 @@
-namespace SparseFragments.JsonPatch;
+#if CONFIGLUE_FRAGMENT_RUNTIME
+namespace Configlue;
+
+#else
+namespace SparseFragments;
+
+#endif
 
 /// <summary>Distinguishes JSON Patch interop failures.</summary>
 public enum JsonPatchErrorKind

@@ -1,4 +1,10 @@
-namespace SparseFragments.JsonPatch;
+#if CONFIGLUE_FRAGMENT_RUNTIME
+namespace Configlue;
+
+#else
+namespace SparseFragments;
+
+#endif
 
 /// <summary>RFC 6902 interop failure with a machine-readable kind.</summary>
 public sealed class JsonPatchException : Exception
