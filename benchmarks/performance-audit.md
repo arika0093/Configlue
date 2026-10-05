@@ -530,6 +530,52 @@ Logs are retained in artifacts/text-revision-*.
 The goal remains active: XML buffer and metadata parsing coverage is next, and
 the wider remaining audit below is still open.
 
+## Round 17: read XML array slices without copying the input (2026-10-05)
+
+Added `XmlCodecReadBenchmarks` and `XmlCodecWriteBenchmarks` (`c3c93d27`):
+0/4,096/65,536 Unicode characters, array slices with invalid surrounding bytes,
+segmented sequences and non-array MemoryManager memory. Setup checks exact input
+bytes, typed/untyped fragment values, and schema metadata. These workloads isolate
+managed codec costs from storage. All 21 cases complete before and after.
+
+XML previously converted every input sequence to a new byte array. Array-backed
+single segments now use a read-only MemoryStream over the exact offset/count.
+Segmented and non-array inputs retain materialization. The stream is consumed
+synchronously and disposed; parsed values do not retain the borrowed buffer.
+The oversized codec file was split into public codecs, core operations, and
+collection operations (97/467/329 lines). Collection method token comparison
+confirms the split does not change collection logic. Public APIs are unchanged.
+
+Reports: [read before](reports/xml-buffer/read-before.md),
+[read view](reports/xml-buffer/read-view.md),
+[write before](reports/xml-buffer/write-before.md), and
+[write control](reports/xml-buffer/write-view-control.md). Three warmups and
+five measurements are used on the same host.
+
+| Array-slice payload characters | Decode before | Decode after | Metadata before | Metadata after |
+| --- | ---: | ---: | ---: | ---: |
+| 0 | 14.18 KiB | 13.93 KiB | 5.88 KiB | 5.56 KiB |
+| 4,096 | 65.81 KiB | 53.56 KiB | 57.50 KiB | 45.17 KiB |
+| 65,536 | 620.53 KiB | 427.74 KiB | 611.01 KiB | 418.58 KiB |
+
+Large array-slice allocation falls 31%; Gen2 collections per 1,000 decode
+operations fall 142.58 to 83.01. Array-slice metadata mean falls 228.97 to
+167.37 us. Large decode means are 252.34/214.13 us with wide overlapping
+intervals, so a reliable decode speedup is not claimed. Small decode timing
+means increase in the final run, also with broad intervals. Fallback decode
+allocation is unchanged; fallback metadata is about 80 B lower in this run,
+which is not attributed to removing an input copy on those paths. Write allocation
+is unchanged at 9.71/40.19/589.54 KiB; its very noisy large baseline timing is
+retained as a control and not claimed as a write speedup.
+
+The final provider and dependencies build for netstandard2.0, netstandard2.1,
+and net10.0 with zero warnings/errors. CSharpier/whitespace checks pass. Behavioral
+evidence is the completed benchmark setup guards. Main's promoted-model generator
+and file-watcher fixes are integrated; XML operations and this scalar fixture are
+the comparison target. Logs are retained in artifacts/xml-buffer-*.
+The goal remains active: metadata parsing still constructs a full DOM, and XML
+write buffers still allocate large intermediate arrays.
+
 ## Remaining audit
 
 
