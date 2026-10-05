@@ -25,7 +25,7 @@ This page covers core first-run, read, write, and layering failure modes. It is 
 
 **Likely causes.** The document on disk is not valid JSON (truncated write from another tool, bad merge, stray bytes).
 
-**How to diagnose.** Read the exception from `GetValueAsync()` — Configlue propagates the format failure instead of silently returning defaults. Check whether the failure coincides with an external edit, and whether the watcher reported a reload failure through diagnostics.
+**How to diagnose.** Read the exception from `GetValueAsync()` — Configlue propagates the format failure instead of silently returning defaults. A JSON format exception means the bytes are not valid JSON; a `ConfiglueValidationException` on read means the document parses but holds values the model rejects (see the validation entry below). Check whether the failure coincides with an external edit, and where supported, whether the watcher reported a reload failure via `OnReloadFailed`.
 
 **How to fix.** Repair the document so it is valid JSON again; the watcher recovers on the next valid document. Do not work around corruption by swallowing the exception or reverting to defaults silently — fix the bytes.
 
@@ -37,7 +37,7 @@ This page covers core first-run, read, write, and layering failure modes. It is 
 
 **Likely causes.** A DataAnnotations rule on the model (or a custom `IConfiglueValidator<T>`) rejected the patch.
 
-**How to diagnose.** Read the exception to identify which value or rule failed. Compare the rejected patch members against the model's attributes; see [Guides](../guides/) for the validation recipe.
+**How to diagnose.** Read the exception to identify which value or rule failed. Compare the rejected patch members against the model's attributes; see [Guides](../guides/) for the validation recipe. The same exception can also surface from `GetValueAsync()` when an external edit wrote well-formed JSON that violates the model — in that case fix the values in the document rather than in the patch.
 
 **How to fix.** Correct the values and save again. Do not suppress validation as the default fix — the stored document keeps its previous valid content, which is the safe outcome.
 
@@ -49,7 +49,7 @@ This page covers core first-run, read, write, and layering failure modes. It is 
 
 **Likely causes.** The state changed underneath the edit — a concurrent write, an external file change, or a higher-priority contribution that prevents the patch from producing its requested effective values.
 
-**How to diagnose.** Re-read with `GetValueAsync()`, inspect diagnostics to see which contribution moved, and determine whether the conflicting change is legitimate (another writer, environment override) or stale state in your edit session.
+**How to diagnose.** Re-read with `GetValueAsync()`, inspect diagnostics (the same provenance query as the layered-value entry below) to see which contribution moved, and determine whether the conflicting change is legitimate (another writer, environment override) or stale state in your edit session.
 
 **How to fix.** Rebase the edit onto the fresh value and save again. Do not disable conflict detection to make the error disappear; the failure protected the winning contribution from a silent overwrite.
 
@@ -83,7 +83,7 @@ foreach (var source in diagnostics.Sources)
 }
 ```
 
-**How to fix.** Change or remove the winning contribution (for example, unset the overriding environment variable), or keep it and treat the file value as correctly shadowed. This is the standard answer for environment/remote overrides — not manual file inspection.
+**How to fix.** Change or remove the winning contribution (for example, unset the overriding environment variable), or keep it and treat the file value as correctly shadowed. This is the standard answer for environment/remote overrides — not manual file inspection. Where available, DevTools can show the same effective state and contributions interactively.
 
 **Related.** [Concepts](../concepts/) for effective value and provenance; [Guides](../guides/) for inspecting contributions.
 

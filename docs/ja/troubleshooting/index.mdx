@@ -25,7 +25,7 @@ description: 観測された症状から、可能性の高い Configlue 側の�
 
 **可能性の高い原因。** ディスク上のドキュメントが有効な JSON ではない（他ツールの書きかけ、bad merge、不正バイト）。
 
-**診断方法。** `GetValueAsync()` の例外を読みます。Configlue は既定値を黙って返さず形式失敗を伝播させます。失敗が外部編集と同時か、watcher が diagnostics 経路でリロード失敗を報告したかを確認します。
+**診断方法。** `GetValueAsync()` の例外を読みます。Configlue は既定値を黙って返さず形式失敗を伝播させます。JSON 形式例外はバイト列が有効な JSON でないこと、`GetValueAsync()` での `ConfiglueValidationException` は解析はできるがモデルに拒否される値が入っていることです（下の validation 項目参照）。失敗が外部編集と同時か、対応していれば watcher が `OnReloadFailed` でリロード失敗を報告したかを確認します。
 
 **対処。** ドキュメントを有効な JSON に直します。watcher は次の有効なドキュメントで回復します。例外を握りつぶしたり黙って既定値に戻したりしてごまかさず、バイト列を直してください。
 
@@ -37,7 +37,7 @@ description: 観測された症状から、可能性の高い Configlue 側の�
 
 **可能性の高い原因。** モデルの DataAnnotations 規則（または custom `IConfiglueValidator<T>`）が patch を拒否した。
 
-**診断方法。** どの値・規則が失敗したか例外を読みます。拒否された patch メンバーをモデルの属性と見比べます。validation レシピは[ガイド](../guides/)にあります。
+**診断方法。** どの値・規則が失敗したか例外を読みます。拒否された patch メンバーをモデルの属性と見比べます。validation レシピは[ガイド](../guides/)にあります。同じ例外は、外部編集がモデルの規則に反する整形式 JSON を書いた場合に `GetValueAsync()` からも出ます。その場合は patch ではなくドキュメント側の値を直します。
 
 **対処。** 値を直して再保存します。validation の抑制を既定の対処にしないでください。保存ドキュメントは以前の有効な内容を保っており、それが安全な結果です。
 
@@ -49,7 +49,7 @@ description: 観測された症状から、可能性の高い Configlue 側の�
 
 **可能性の高い原因。** 編集中に state が変わった。同時書き込み、外部ファイル変更、または patch の要求 effective value を実現できない上位寄与。
 
-**診断方法。** `GetValueAsync()` で読み直し、diagnostics でどの寄与が動いたかを見て、競合が正当なもの（他の writer、環境変数 override）か、編集セッションの古い state かを切り分けます。
+**診断方法。** `GetValueAsync()` で読み直し、diagnostics でどの寄与が動いたかを見て（下の層値項目と同じ provenance クエリー）、競合が正当なもの（他の writer、環境変数 override）か、編集セッションの古い state かを切り分けます。
 
 **対処。** 新しい値に編集を載せ直して再保存します。エラーを消すために conflict 検出を無効化しないでください。この失敗は勝っている寄与を黙った上書きから守っています。
 
@@ -83,7 +83,7 @@ foreach (var source in diagnostics.Sources)
 }
 ```
 
-**対処。** 勝っている寄与を変更・除去します（例: 上書き環境変数の unset）。またはそれを残し、ファイル値が正しく覆い隠されているものとして扱います。これが環境/remote override 系の標準回答であり、手作業のファイル見比べではありません。
+**対処。** 勝っている寄与を変更・除去します（例: 上書き環境変数の unset）。またはそれを残し、ファイル値が正しく覆い隠されているものとして扱います。これが環境/remote override 系の標準回答であり、手作業のファイル見比べではありません。利用可能なら、DevTools で同じ effective state と寄与を対話的に確認できます。
 
 **関連。** effective value と provenance の考え方は[概念](../concepts/)、寄与の調べ方は[ガイド](../guides/)。
 
