@@ -178,16 +178,30 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
             _cloner,
             migrations
         );
-        _writes = new RuntimeWriteCoordinator<TModel, TFragment>(
+        var planner = new RuntimeWritePlanner<TModel, TFragment>(
             _topology,
-            _resolution,
-            _validation,
             _diagnostics,
-            _lifetime,
-            _subjects,
-            _cloner,
-            _stateName,
             defaultWritePlan ?? StateWritePlan.Empty
+        );
+        var preparer = new RuntimeWritePreparer<TModel, TFragment>(
+            planner,
+            _resolution,
+            _diagnostics,
+            _subjects,
+            _validation,
+            _cloner
+        );
+        var executor = new RuntimeWriteExecutor<TModel, TFragment>(
+            _diagnostics,
+            _subjects,
+            _stateName
+        );
+        _writes = new RuntimeWriteCoordinator<TModel, TFragment>(
+            planner,
+            preparer,
+            executor,
+            _lifetime,
+            _subjects
         );
         _topology.TryEnableSingleSourceFastPath(_writes.Plan, _resolution.MigrationCount);
         _watches = new RuntimeWatchCoordinator<TModel, TFragment>(
