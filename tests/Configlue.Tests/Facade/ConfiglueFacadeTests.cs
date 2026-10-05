@@ -72,13 +72,33 @@ public sealed class ConfiglueFacadeTests
                 model.Sources(sources =>
                 {
                     sources.Add(
-                        new StateSource<AppSettings.Fragment>("user-overlay", overlay, new StateSourceOptions<AppSettings.Fragment> { Priority = 100, Writer = overlay })
+                        new StateSource<AppSettings.Fragment>(
+                            "user-overlay",
+                            overlay,
+                            new StateSourceOptions<AppSettings.Fragment>
+                            {
+                                Priority = 100,
+                                Writer = overlay,
+                            }
+                        )
                     );
                     sources.Add(
-                        new StateSource<AppSettings.Fragment>("defaults", defaults, new StateSourceOptions<AppSettings.Fragment> { Priority = 0 })
+                        new StateSource<AppSettings.Fragment>(
+                            "defaults",
+                            defaults,
+                            new StateSourceOptions<AppSettings.Fragment> { Priority = 0 }
+                        )
                     );
                     sources.Add(
-                        new StateSource<AppSettings.Fragment>("session-overlay", sessionOverlay, new StateSourceOptions<AppSettings.Fragment> { Priority = 200, Writer = sessionOverlay })
+                        new StateSource<AppSettings.Fragment>(
+                            "session-overlay",
+                            sessionOverlay,
+                            new StateSourceOptions<AppSettings.Fragment>
+                            {
+                                Priority = 200,
+                                Writer = sessionOverlay,
+                            }
+                        )
                     );
                 });
             });
@@ -249,7 +269,15 @@ public sealed class ConfiglueFacadeTests
                 ActiveProfileName = "default",
             }
         );
-        var catalog = new StateSource<ConfiglueProfileCatalog>("catalog", catalogStore, new StateSourceOptions<ConfiglueProfileCatalog> { Writer = catalogStore, Watcher = catalogStore });
+        var catalog = new StateSource<ConfiglueProfileCatalog>(
+            "catalog",
+            catalogStore,
+            new StateSourceOptions<ConfiglueProfileCatalog>
+            {
+                Writer = catalogStore,
+                Watcher = catalogStore,
+            }
+        );
         await using var context = ConfiglueApp.CreateContext(builder =>
         {
             builder.Add<AppSettings>(model =>
@@ -281,7 +309,15 @@ public sealed class ConfiglueFacadeTests
     public async Task FacadeProfilesCreateSwitchAndRemoveNamedOptionsInContext()
     {
         var catalogStore = new InMemoryStateSource<ConfiglueProfileCatalog>();
-        var catalog = new StateSource<ConfiglueProfileCatalog>("catalog", catalogStore, new StateSourceOptions<ConfiglueProfileCatalog> { Writer = catalogStore, Watcher = catalogStore });
+        var catalog = new StateSource<ConfiglueProfileCatalog>(
+            "catalog",
+            catalogStore,
+            new StateSourceOptions<ConfiglueProfileCatalog>
+            {
+                Writer = catalogStore,
+                Watcher = catalogStore,
+            }
+        );
         await using var context = ConfiglueApp.CreateContext(builder =>
         {
             builder.Add<AppSettings>(model =>
@@ -326,7 +362,15 @@ public sealed class ConfiglueFacadeTests
     public async Task FacadeProfileRegistryEventsCanReenterManagerAfterCatalogChanges()
     {
         var catalogStore = new InMemoryStateSource<ConfiglueProfileCatalog>();
-        var catalog = new StateSource<ConfiglueProfileCatalog>("catalog", catalogStore, new StateSourceOptions<ConfiglueProfileCatalog> { Writer = catalogStore, Watcher = catalogStore });
+        var catalog = new StateSource<ConfiglueProfileCatalog>(
+            "catalog",
+            catalogStore,
+            new StateSourceOptions<ConfiglueProfileCatalog>
+            {
+                Writer = catalogStore,
+                Watcher = catalogStore,
+            }
+        );
         await using var context = ConfiglueApp.CreateContext(builder =>
         {
             builder.Add<AppSettings>(model =>
@@ -443,7 +487,15 @@ public sealed class ConfiglueFacadeTests
     public async Task FacadeProfilesAreVisibleThroughTheDiMonitorUntilRemoval()
     {
         var catalogStore = new InMemoryStateSource<ConfiglueProfileCatalog>();
-        var catalog = new StateSource<ConfiglueProfileCatalog>("catalog", catalogStore, new StateSourceOptions<ConfiglueProfileCatalog> { Writer = catalogStore, Watcher = catalogStore });
+        var catalog = new StateSource<ConfiglueProfileCatalog>(
+            "catalog",
+            catalogStore,
+            new StateSourceOptions<ConfiglueProfileCatalog>
+            {
+                Writer = catalogStore,
+                Watcher = catalogStore,
+            }
+        );
         var services = new ServiceCollection();
         services.AddConfiglueMicrosoftOptions<AppSettings>();
         services.AddConfiglue(builder =>
@@ -474,6 +526,160 @@ public sealed class ConfiglueFacadeTests
         await profiles.RemoveProfileAsync("Work");
         Should.Throw<KeyNotFoundException>(() => monitor.Get("Work"));
         (await profiles.GetActiveProfileNameAsync()).ShouldBe("default");
+    }
+
+    [Test]
+    public async Task FacadeRegistryWaitsForOrderedConcurrentNotifications()
+    {
+        var registry = new ConfiglueOwnedStateRegistry<AppSettings>(
+            name =>
+            {
+                var store = new InMemoryStateSource<AppSettings.Fragment>();
+                var source = new StateSource<AppSettings.Fragment>(
+                    $"facade-{name}",
+                    store,
+                    new StateSourceOptions<AppSettings.Fragment> { Writer = store, Watcher = store }
+                );
+                var runtime = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
+                    new StateSourceSet<AppSettings.Fragment>([source])
+                );
+                return (runtime, []);
+            },
+            reservedNames: []
+        );
+        var added = new List<string>();
+        var firstAdded = new TaskCompletionSource(
+            TaskCreationOptions.RunContinuationsAsynchronously
+        );
+        var releaseFirstAdded = new TaskCompletionSource(
+            TaskCreationOptions.RunContinuationsAsynchronously
+        );
+        registry.StateAdded += (name, _) =>
+        {
+            if (name == "first")
+            {
+                firstAdded.TrySetResult();
+                releaseFirstAdded.Task.GetAwaiter().GetResult();
+            }
+            added.Add(name);
+        };
+
+        var firstAdd = Task
+            .Factory.StartNew(
+                async () => await registry.TryAddAsync("first"),
+                CancellationToken.None,
+                TaskCreationOptions.LongRunning,
+                TaskScheduler.Default
+            )
+            .Unwrap();
+        await firstAdded.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        var secondAdd = Task
+            .Factory.StartNew(
+                async () => await registry.TryAddAsync("second"),
+                CancellationToken.None,
+                TaskCreationOptions.LongRunning,
+                TaskScheduler.Default
+            )
+            .Unwrap();
+        try
+        {
+            var visibilityDeadline = DateTime.UtcNow + TimeSpan.FromSeconds(5);
+            while (!registry.TryGet("second", out _) && DateTime.UtcNow < visibilityDeadline)
+            {
+                await Task.Delay(TimeSpan.FromMilliseconds(10));
+            }
+            registry.TryGet("second", out _).ShouldBeTrue();
+            await Task.Delay(TimeSpan.FromMilliseconds(50));
+            (secondAdd.IsCompleted).ShouldBeFalse();
+        }
+        finally
+        {
+            releaseFirstAdded.TrySetResult();
+        }
+
+        (await Task.WhenAll(firstAdd, secondAdd)).ShouldBe(new[] { true, true });
+        (added).ShouldBe(new[] { "first", "second" });
+
+        var firstRemoved = new TaskCompletionSource(
+            TaskCreationOptions.RunContinuationsAsynchronously
+        );
+        var releaseFirstRemoved = new TaskCompletionSource(
+            TaskCreationOptions.RunContinuationsAsynchronously
+        );
+        registry.StateRemoved += name =>
+        {
+            if (name == "first")
+            {
+                firstRemoved.TrySetResult();
+                releaseFirstRemoved.Task.GetAwaiter().GetResult();
+            }
+        };
+
+        var firstRemove = Task.Run(() => registry.TryRemoveAsync("first").AsTask());
+        await firstRemoved.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        var clear = Task.Run(() => registry.ClearAsync().AsTask());
+        try
+        {
+            (
+                await Task.Run(() =>
+                    SpinWait.SpinUntil(
+                        () => registry.StateNames.Count == 0,
+                        TimeSpan.FromSeconds(5)
+                    )
+                )
+            ).ShouldBeTrue();
+            await Task.Delay(TimeSpan.FromMilliseconds(50));
+            (clear.IsCompleted).ShouldBeFalse();
+        }
+        finally
+        {
+            releaseFirstRemoved.TrySetResult();
+        }
+
+        await Task.WhenAll(firstRemove, clear);
+
+        (await registry.TryAddAsync("reentrant")).ShouldBeTrue();
+        registry.StateRemoved += name =>
+        {
+            if (name == "reentrant")
+            {
+                _ = registry.ClearAsync();
+            }
+        };
+        (
+            await Task.Run(async () => await registry.TryRemoveAsync("reentrant"))
+                .WaitAsync(TimeSpan.FromSeconds(5))
+        ).ShouldBeTrue();
+
+        (await registry.TryAddAsync("dispose")).ShouldBeTrue();
+        var disposeNotification = new TaskCompletionSource(
+            TaskCreationOptions.RunContinuationsAsynchronously
+        );
+        var releaseDisposeNotification = new TaskCompletionSource(
+            TaskCreationOptions.RunContinuationsAsynchronously
+        );
+        registry.StateRemoved += name =>
+        {
+            if (name == "dispose")
+            {
+                disposeNotification.TrySetResult();
+                releaseDisposeNotification.Task.GetAwaiter().GetResult();
+            }
+        };
+
+        var dispose = Task.Run(async () => await registry.DisposeAsync());
+        try
+        {
+            await disposeNotification.Task.WaitAsync(TimeSpan.FromSeconds(5));
+            await Task.Delay(TimeSpan.FromMilliseconds(50));
+            (dispose.IsCompleted).ShouldBeFalse();
+        }
+        finally
+        {
+            releaseDisposeNotification.TrySetResult();
+        }
+
+        await dispose;
     }
 
     [Test]
@@ -517,6 +723,100 @@ public sealed class ConfiglueFacadeTests
         }
 
         (removed).ShouldBe(new[] { stateName });
+    }
+
+    [Test]
+    [Arguments(false)]
+    [Arguments(true)]
+    public async Task DisposalStartedInsideNotification_ExternalWaitIncludesThatNotification(
+        bool useCoreRegistry
+    )
+    {
+        var services = new ServiceCollection();
+        services.AddConfiglue(builder =>
+        {
+            builder.Add<AppSettings>(model =>
+            {
+                model.EnableDynamicStates = true;
+                model.ConfigureSources(registration =>
+                {
+                    var store = new InMemoryStateSource<AppSettings.Fragment>();
+                    var sourceId = string.IsNullOrEmpty(registration.StateName)
+                        ? "default"
+                        : registration.StateName;
+                    registration.Sources.Add(
+                        new StateSource<AppSettings.Fragment>(
+                            sourceId,
+                            store,
+                            new StateSourceOptions<AppSettings.Fragment>
+                            {
+                                Writer = store,
+                                Watcher = store,
+                            }
+                        )
+                    );
+                });
+            });
+        });
+        await using var provider = services.BuildServiceProvider();
+        IConfiglueStateRegistry<AppSettings> registry = useCoreRegistry
+            ? provider.GetRequiredService<IConfiglueStateRegistry<AppSettings>>()
+            : CreateFacadeRegistry();
+        var reentrantCompleted = new TaskCompletionSource(
+            TaskCreationOptions.RunContinuationsAsynchronously
+        );
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var removed = false;
+        registry.StateAdded += (_, _) =>
+        {
+            registry.DisposeAsync().GetAwaiter().GetResult();
+            reentrantCompleted.TrySetResult();
+            release.Task.GetAwaiter().GetResult();
+        };
+        registry.StateRemoved += _ => removed = true;
+        var adding = Task.Run(async () => await registry.TryAddAsync("reentrant-origin"));
+        try
+        {
+            await reentrantCompleted.Task.WaitAsync(TimeSpan.FromSeconds(5));
+            var external = registry.DisposeAsync().AsTask();
+            external.IsCompleted.ShouldBeFalse();
+            removed.ShouldBeFalse();
+            release.SetResult();
+            await external.WaitAsync(TimeSpan.FromSeconds(5));
+            removed.ShouldBeTrue();
+        }
+        finally
+        {
+            release.TrySetResult();
+            await adding.WaitAsync(TimeSpan.FromSeconds(5));
+        }
+    }
+
+    [Test]
+    public async Task FacadeDisposeAsyncIsDeadlockFreeWhenNotificationReentersDisposal()
+    {
+        var registry = CreateFacadeRegistry();
+        (await registry.TryAddAsync("reentrant")).ShouldBeTrue();
+        var reentered = new TaskCompletionSource(
+            TaskCreationOptions.RunContinuationsAsynchronously
+        );
+        var reentrantCompletedSynchronously = false;
+        registry.StateRemoved += name =>
+        {
+            if (name != "reentrant")
+            {
+                return;
+            }
+
+            var nested = registry.DisposeAsync();
+            reentrantCompletedSynchronously = nested.IsCompletedSuccessfully;
+            reentered.TrySetResult();
+        };
+
+        await Task.Run(async () => await registry.DisposeAsync())
+            .WaitAsync(TimeSpan.FromSeconds(5));
+        await reentered.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        (reentrantCompletedSynchronously).ShouldBeTrue();
     }
 
     [Test]
@@ -816,7 +1116,11 @@ public sealed class ConfiglueFacadeTests
             name =>
             {
                 var store = new InMemoryStateSource<AppSettings.Fragment>();
-                var source = new StateSource<AppSettings.Fragment>($"facade-{name}", store, new StateSourceOptions<AppSettings.Fragment> { Writer = store, Watcher = store });
+                var source = new StateSource<AppSettings.Fragment>(
+                    $"facade-{name}",
+                    store,
+                    new StateSourceOptions<AppSettings.Fragment> { Writer = store, Watcher = store }
+                );
                 var runtime = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
                     new StateSourceSet<AppSettings.Fragment>([source])
                 );
@@ -882,7 +1186,11 @@ public sealed class ConfiglueFacadeTests
         var store = new InMemoryStateSource<AppSettings.Fragment>(
             new AppSettings.Fragment { Label = Optional<string?>.Present(label) }
         );
-        return new StateSource<AppSettings.Fragment>(id, store, new StateSourceOptions<AppSettings.Fragment> { Writer = store, Watcher = store });
+        return new StateSource<AppSettings.Fragment>(
+            id,
+            store,
+            new StateSourceOptions<AppSettings.Fragment> { Writer = store, Watcher = store }
+        );
     }
 
     private sealed record SettingsSourceValue

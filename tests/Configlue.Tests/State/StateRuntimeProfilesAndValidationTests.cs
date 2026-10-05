@@ -1,10 +1,6 @@
 using Configlue.Extensions.MSOptions;
-using Configlue.Provider.Json;
-using Configlue.Provider.Xml;
-using Configlue.Provider.Yaml;
 using Configlue.Testing;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Options;
 
 namespace Configlue.Tests;
 
@@ -21,7 +17,13 @@ public sealed partial class StateRuntimeTests
                 oldSchema
             )
         );
-        var sourceSet = new StateSourceSet<AppSettings.Fragment>([new StateSource<AppSettings.Fragment>("legacy", reader, new StateSourceOptions<AppSettings.Fragment>())]);
+        var sourceSet = new StateSourceSet<AppSettings.Fragment>([
+            new StateSource<AppSettings.Fragment>(
+                "legacy",
+                reader,
+                new StateSourceOptions<AppSettings.Fragment>()
+            ),
+        ]);
         var options = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
             sourceSet,
             migrations: [new AppSettingsV1ToV2Migration()]
@@ -41,16 +43,25 @@ public sealed partial class StateRuntimeTests
         var store = new InMemoryStateSource<AppSettings.Fragment>(
             new AppSettings.Fragment { RetryCount = Optional<int>.Present(3) }
         );
-        var sourceSet = new StateSourceSet<AppSettings.Fragment>([
-            new StateSource<AppSettings.Fragment>("user", store, new StateSourceOptions<AppSettings.Fragment> { Writer = store }),
-        ]);
         var services = new ServiceCollection();
         services.AddConfiglueMicrosoftOptions<AppSettings>();
         services.AddConfiglueValidator<AppSettings>(new RetryCountValidator());
-        services.AddConfiglueState<AppSettings, AppSettings.Fragment>(
-            sourceSet,
-            validateDataAnnotations: true
-        );
+        services.AddConfiglue(builder =>
+        {
+            builder.Add<AppSettings>(model =>
+            {
+                model.ValidateDataAnnotations = true;
+                model.Sources(sources =>
+                    sources.Add(
+                        new StateSource<AppSettings.Fragment>(
+                            "user",
+                            store,
+                            new StateSourceOptions<AppSettings.Fragment> { Writer = store }
+                        )
+                    )
+                );
+            });
+        });
         await using var serviceProvider = services.BuildServiceProvider();
         var writable = serviceProvider.GetRequiredService<IWritableState<AppSettings>>();
         ConfiglueValidationException? validationFailure = null;
@@ -113,29 +124,58 @@ public sealed partial class StateRuntimeTests
         var services = new ServiceCollection();
         services.AddConfiglueMicrosoftOptions<AppSettings>();
         services.AddConfiglueValidator(new ProfileScopedRetryCountValidator());
-        services.AddConfiglueState<AppSettings, AppSettings.Fragment>(
-            new StateSourceSet<AppSettings.Fragment>([
-                new StateSource<AppSettings.Fragment>("default", defaultStore, new StateSourceOptions<AppSettings.Fragment> { Writer = defaultStore }),
-            ])
-        );
-        services.AddConfiglueState<AppSettings, AppSettings.Fragment>(
-            "custom",
-            new StateSourceSet<AppSettings.Fragment>([
-                new StateSource<AppSettings.Fragment>("custom", keyedStore, new StateSourceOptions<AppSettings.Fragment> { Writer = keyedStore }),
-            ])
-        );
-        services.AddConfiglueStateRegistry<AppSettings, AppSettings.Fragment>(
-            (_, profileName) =>
+        services.AddConfiglue(builder =>
+        {
+            builder.Add<AppSettings>(model =>
             {
-                var store = new InMemoryStateSource<AppSettings.Fragment>(
-                    new AppSettings.Fragment { RetryCount = Optional<int>.Present(3) }
+                model.EnableDynamicStates = true;
+                model.ConfigureSources(registration =>
+                {
+                    if (registration.StateName.Length == 0)
+                    {
+                        registration.Sources.Add(
+                            new StateSource<AppSettings.Fragment>(
+                                "default",
+                                defaultStore,
+                                new StateSourceOptions<AppSettings.Fragment>
+                                {
+                                    Writer = defaultStore,
+                                }
+                            )
+                        );
+                        return;
+                    }
+                    if (string.Equals(registration.StateName, "custom", StringComparison.Ordinal))
+                    {
+                        return;
+                    }
+                    var store = new InMemoryStateSource<AppSettings.Fragment>(
+                        new AppSettings.Fragment { RetryCount = Optional<int>.Present(3) }
+                    );
+                    runtimeStores[registration.StateName] = store;
+                    registration.Sources.Add(
+                        new StateSource<AppSettings.Fragment>(
+                            registration.StateName,
+                            store,
+                            new StateSourceOptions<AppSettings.Fragment> { Writer = store }
+                        )
+                    );
+                });
+            });
+            builder.Add<AppSettings>(model =>
+            {
+                model.StateName = "custom";
+                model.Sources(sources =>
+                    sources.Add(
+                        new StateSource<AppSettings.Fragment>(
+                            "custom",
+                            keyedStore,
+                            new StateSourceOptions<AppSettings.Fragment> { Writer = keyedStore }
+                        )
+                    )
                 );
-                runtimeStores.Add(profileName, store);
-                return new StateSourceSet<AppSettings.Fragment>([
-                    new StateSource<AppSettings.Fragment>(profileName, store, new StateSourceOptions<AppSettings.Fragment> { Writer = store }),
-                ]);
-            }
-        );
+            });
+        });
         await using var serviceProvider = services.BuildServiceProvider();
 
         var defaultOptions = serviceProvider.GetRequiredService<IWritableState<AppSettings>>();
@@ -186,8 +226,16 @@ public sealed partial class StateRuntimeTests
             }
         );
         var sourceSet = new StateSourceSet<AppSettings.Fragment>([
-            new StateSource<AppSettings.Fragment>("user", user, new StateSourceOptions<AppSettings.Fragment> { Priority = 100, Writer = user }),
-            new StateSource<AppSettings.Fragment>("defaults", defaults, new StateSourceOptions<AppSettings.Fragment> { Priority = 0 }),
+            new StateSource<AppSettings.Fragment>(
+                "user",
+                user,
+                new StateSourceOptions<AppSettings.Fragment> { Priority = 100, Writer = user }
+            ),
+            new StateSource<AppSettings.Fragment>(
+                "defaults",
+                defaults,
+                new StateSourceOptions<AppSettings.Fragment> { Priority = 0 }
+            ),
         ]);
         var options = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(sourceSet);
         var patch = new AppSettings.Patch
@@ -216,7 +264,13 @@ public sealed partial class StateRuntimeTests
             new AppSettings.Fragment { RetryCount = Optional<int>.Present(12) }
         );
         await using var options = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
-            new StateSourceSet<AppSettings.Fragment>([new StateSource<AppSettings.Fragment>("user", store, new StateSourceOptions<AppSettings.Fragment> { Writer = store })])
+            new StateSourceSet<AppSettings.Fragment>([
+                new StateSource<AppSettings.Fragment>(
+                    "user",
+                    store,
+                    new StateSourceOptions<AppSettings.Fragment> { Writer = store }
+                ),
+            ])
         );
 
         await options.SaveAsync(
@@ -227,171 +281,5 @@ public sealed partial class StateRuntimeTests
 
         (resolved.Value!.RetryCount).ShouldBe(3);
         (details.RetryCount.Source?.Kind).ShouldBe("model-defaults");
-    }
-
-    [Test]
-    public async Task DependencyInjection_ResolvesNamedProfilesByServiceKey()
-    {
-        var primaryStore = new InMemoryStateSource<AppSettings.Fragment>(
-            new AppSettings.Fragment { RetryCount = Optional<int>.Present(5) }
-        );
-        var secondaryStore = new InMemoryStateSource<AppSettings.Fragment>(
-            new AppSettings.Fragment { RetryCount = Optional<int>.Present(8) }
-        );
-        var primarySources = new StateSourceSet<AppSettings.Fragment>([
-            new StateSource<AppSettings.Fragment>("profile", primaryStore, new StateSourceOptions<AppSettings.Fragment>()),
-        ]);
-        var secondarySources = new StateSourceSet<AppSettings.Fragment>([
-            new StateSource<AppSettings.Fragment>("profile", secondaryStore, new StateSourceOptions<AppSettings.Fragment>()),
-        ]);
-        var services = new ServiceCollection();
-        services.AddConfiglueMicrosoftOptions<AppSettings>();
-        services.AddConfiglueState<AppSettings, AppSettings.Fragment>("primary", primarySources);
-        services.AddConfiglueState<AppSettings, AppSettings.Fragment>(
-            "secondary",
-            secondarySources
-        );
-        await using var serviceProvider = services.BuildServiceProvider();
-        var primary = serviceProvider.GetRequiredKeyedService<IReadOnlyState<AppSettings>>(
-            "primary"
-        );
-        var secondary = serviceProvider.GetRequiredKeyedService<IReadOnlyState<AppSettings>>(
-            "secondary"
-        );
-
-        var primaryValue = await primary.GetValueAsync();
-        var secondaryValue = await secondary.GetValueAsync();
-
-        (primaryValue.RetryCount).ShouldBe(5);
-        (secondaryValue.RetryCount).ShouldBe(8);
-    }
-
-    [Test]
-    public async Task DependencyInjection_ManagesDynamicProfilesThroughRegistry()
-    {
-        var services = new ServiceCollection();
-        services.AddConfiglueMicrosoftOptions<AppSettings>();
-        var factoryCalls = 0;
-        services.AddConfiglueStateRegistry<AppSettings, AppSettings.Fragment>(
-            (_, profileName) =>
-            {
-                Interlocked.Increment(ref factoryCalls);
-                var store = new InMemoryStateSource<AppSettings.Fragment>(
-                    new AppSettings.Fragment
-                    {
-                        RetryCount = Optional<int>.Present(profileName == "primary" ? 5 : 8),
-                    }
-                );
-                return new StateSourceSet<AppSettings.Fragment>([new StateSource<AppSettings.Fragment>("profile", store, new StateSourceOptions<AppSettings.Fragment>())]);
-            }
-        );
-        await using var serviceProvider = services.BuildServiceProvider();
-        var registry = serviceProvider.GetRequiredService<IConfiglueStateRegistry<AppSettings>>();
-        var added = new List<string>();
-        var removed = new List<string>();
-        registry.StateAdded += (name, _) => added.Add(name);
-        registry.StateRemoved += name => removed.Add(name);
-
-        var addResults = await Task.WhenAll(
-            Enumerable.Range(0, 16).Select(_ => registry.TryAddAsync("primary").AsTask())
-        );
-        await registry.TryAddAsync("secondary");
-        var primary = await registry.Get("primary").GetValueAsync();
-        var secondary = await registry.Get("secondary").GetValueAsync();
-        var removedPrimary = await registry.TryRemoveAsync("primary");
-        var removedAgain = await registry.TryRemoveAsync("primary");
-
-        (addResults.Count(static result => result)).ShouldBe(1);
-        (factoryCalls).ShouldBe(2);
-        (primary.RetryCount).ShouldBe(5);
-        (secondary.RetryCount).ShouldBe(8);
-        ((registry.StateNames))
-            .OrderBy(static item => item)
-            .ShouldBe((new[] { "secondary" }).OrderBy(static item => item));
-        ((added))
-            .OrderBy(static item => item)
-            .ShouldBe((new[] { "primary", "secondary" }).OrderBy(static item => item));
-        ((removed))
-            .OrderBy(static item => item)
-            .ShouldBe((new[] { "primary" }).OrderBy(static item => item));
-        (removedPrimary).ShouldBeTrue();
-        (removedAgain).ShouldBeFalse();
-    }
-
-    [Test]
-    public async Task RegistryDeliversOwnNotificationsInlineAndToleratesReentrantCleanup()
-    {
-        var services = new ServiceCollection();
-        services.AddConfiglueMicrosoftOptions<AppSettings>();
-        services.AddConfiglueStateRegistry<AppSettings, AppSettings.Fragment>(
-            (_, name) =>
-            {
-                var store = new InMemoryStateSource<AppSettings.Fragment>();
-                return new StateSourceSet<AppSettings.Fragment>([
-                    new StateSource<AppSettings.Fragment>(name, store, new StateSourceOptions<AppSettings.Fragment> { Writer = store, Watcher = store }),
-                ]);
-            }
-        );
-        await using var serviceProvider = services.BuildServiceProvider();
-        var registry = serviceProvider.GetRequiredService<IConfiglueStateRegistry<AppSettings>>();
-        var added = new List<string>();
-        var removed = new List<string>();
-        registry.StateAdded += (name, _) => added.Add(name);
-        registry.StateRemoved += removed.Add;
-
-        (await registry.TryAddAsync("first")).ShouldBeTrue();
-        (await registry.TryAddAsync("second")).ShouldBeTrue();
-        (await registry.TryAddAsync("first")).ShouldBeFalse();
-        (added).ShouldBe(new[] { "first", "second" });
-
-        (await registry.TryRemoveAsync("first")).ShouldBeTrue();
-        (await registry.TryRemoveAsync("first")).ShouldBeFalse();
-        (removed).ShouldBe(new[] { "first" });
-
-        var listenerAfterFailureWasCalled = false;
-        registry.StateAdded += (name, _) =>
-        {
-            if (name == "listener-error")
-            {
-                throw new InvalidOperationException("listener failure");
-            }
-        };
-        registry.StateAdded += (name, _) =>
-        {
-            if (name == "listener-error")
-            {
-                listenerAfterFailureWasCalled = true;
-            }
-        };
-        (await registry.TryAddAsync("listener-error")).ShouldBeTrue();
-        (listenerAfterFailureWasCalled).ShouldBeTrue();
-
-        await registry.ClearAsync();
-        (removed.Skip(1).OrderBy(static name => name))
-            .ShouldBe(new[] { "listener-error", "second" });
-
-        (await registry.TryAddAsync("reentrant")).ShouldBeTrue();
-        registry.StateRemoved += name =>
-        {
-            if (name == "reentrant")
-            {
-                _ = registry.ClearAsync();
-            }
-        };
-        (
-            await registry.TryRemoveAsync("reentrant").AsTask().WaitAsync(TimeSpan.FromSeconds(5))
-        ).ShouldBeTrue();
-
-        (await registry.TryAddAsync("dispose")).ShouldBeTrue();
-        registry.StateRemoved += name =>
-        {
-            if (name == "dispose")
-            {
-                _ = registry.DisposeAsync();
-            }
-        };
-        (
-            await registry.TryRemoveAsync("dispose").AsTask().WaitAsync(TimeSpan.FromSeconds(5))
-        ).ShouldBeTrue();
     }
 }

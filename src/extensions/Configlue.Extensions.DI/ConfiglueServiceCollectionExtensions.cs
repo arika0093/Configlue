@@ -1,11 +1,17 @@
 using Configlue.CompilerServices;
-using Configlue.Extensibility;
 using Configlue.Resources;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Configlue;
 
 /// <summary>Registers generated Configlue state with dependency injection.</summary>
+/// <remarks>
+/// The canonical composition path is <see cref="AddConfiglue(IServiceCollection, Action{ConfiglueBuilder})"/>:
+/// models are registered once on <see cref="ConfiglueBuilder"/> and translated to DI descriptors by a
+/// single code path. Named/profile/per-subject state is represented in model registration
+/// (<see cref="ConfiglueModelBuilder{TModel}.StateName"/>, <c>EnableProfiles</c>/<c>EnableDynamicStates</c>,
+/// <c>PerSubject{TAccessor}</c>) rather than parallel registration APIs.
+/// </remarks>
 public static class ConfiglueServiceCollectionExtensions
 {
     /// <summary>Registers the same model definitions used by non-DI Configlue contexts.</summary>
@@ -45,349 +51,13 @@ public static class ConfiglueServiceCollectionExtensions
         return services;
     }
 
-    /// <summary>Registers state using a dependency-injection-aware source builder.</summary>
-    public static IServiceCollection AddConfiglueState<TModel, TFragment>(
-        this IServiceCollection services,
-        Action<IServiceProvider, StateSourceSetBuilder<TFragment>> configureSources,
-        StateWritePlan? writePlan = null,
-        bool validateDataAnnotations = true,
-        TimeSpan? onChangeDebounce = null,
-        WriteConflictResolution writeConflictResolution = WriteConflictResolution.FailOnConflict
-    )
-        where TModel : IConfiglueModel<TModel, TFragment>
-        where TFragment : class, IConfiglueFragment<TFragment>
-    {
-        ArgumentNullException.ThrowIfNull(services);
-        ArgumentNullException.ThrowIfNull(configureSources);
-        return services.AddConfiglueState<TModel, TFragment>(
-            provider =>
-            {
-                var sources = new StateSourceSetBuilder<TFragment>();
-                configureSources(provider, sources);
-                return sources.Build();
-            },
-            writePlan,
-            validateDataAnnotations,
-            onChangeDebounce,
-            writeConflictResolution
-        );
-    }
-
-    /// <summary>Registers state backed by a state-source set created from the service provider.</summary>
-    public static IServiceCollection AddConfiglueState<TModel, TFragment>(
-        this IServiceCollection services,
-        Func<IServiceProvider, StateSourceSet<TFragment>> sourceSetFactory,
-        StateWritePlan? writePlan = null,
-        bool validateDataAnnotations = true,
-        TimeSpan? onChangeDebounce = null,
-        WriteConflictResolution writeConflictResolution = WriteConflictResolution.FailOnConflict
-    )
-        where TModel : IConfiglueModel<TModel, TFragment>
-        where TFragment : class, IConfiglueFragment<TFragment>
-    {
-        ArgumentNullException.ThrowIfNull(services);
-        ArgumentNullException.ThrowIfNull(sourceSetFactory);
-
-        services.AddSingleton(provider => new ConfiglueRuntime<TModel, TFragment>(
-            sourceSetFactory(provider),
-            writePlan,
-            provider.GetServices<IStateSchemaMigration<TFragment>>(),
-            provider.GetServices<IConfiglueValidator<TModel>>(),
-            validateDataAnnotations,
-            onChangeDebounce,
-            writeConflictResolution: writeConflictResolution
-        ));
-        services.AddSingleton<IReadOnlyState<TModel>>(provider =>
-            provider.GetRequiredService<ConfiglueRuntime<TModel, TFragment>>()
-        );
-        services.AddSingleton<IWritableState<TModel>>(provider =>
-            provider.GetRequiredService<ConfiglueRuntime<TModel, TFragment>>()
-        );
-        services.AddSingleton<ISubjectState<TModel>>(provider =>
-            provider.GetRequiredService<ConfiglueRuntime<TModel, TFragment>>()
-        );
-        services.AddSingleton<IConfiglueEditSessions<TModel>>(provider =>
-            provider.GetRequiredService<ConfiglueRuntime<TModel, TFragment>>()
-        );
-        services.AddSingleton<IConfiglueDiagnostics<TModel>>(provider =>
-            provider.GetRequiredService<ConfiglueRuntime<TModel, TFragment>>()
-        );
-        services.AddSingleton<IConfiglueSources<TModel>>(provider =>
-            provider.GetRequiredService<ConfiglueRuntime<TModel, TFragment>>()
-        );
-        return services;
-    }
-
-    /// <summary>Registers state backed by an already-created state-source set.</summary>
-    public static IServiceCollection AddConfiglueState<TModel, TFragment>(
-        this IServiceCollection services,
-        StateSourceSet<TFragment> sourceSet,
-        StateWritePlan? writePlan = null,
-        bool validateDataAnnotations = true,
-        TimeSpan? onChangeDebounce = null,
-        WriteConflictResolution writeConflictResolution = WriteConflictResolution.FailOnConflict
-    )
-        where TModel : IConfiglueModel<TModel, TFragment>
-        where TFragment : class, IConfiglueFragment<TFragment>
-    {
-        ArgumentNullException.ThrowIfNull(sourceSet);
-        return services.AddConfiglueState<TModel, TFragment>(
-            _ => sourceSet,
-            writePlan,
-            validateDataAnnotations,
-            onChangeDebounce,
-            writeConflictResolution
-        );
-    }
-
-    /// <summary>Registers one named state instance using a dependency-injection-aware source builder.</summary>
-    /// <remarks>The keyed service key is the state name. Persisted profiles are a separate catalog-managed concept; see <see cref="IConfiglueProfiledState{TModel}"/>.</remarks>
-    public static IServiceCollection AddConfiglueState<TModel, TFragment>(
-        this IServiceCollection services,
-        object serviceKey,
-        Action<IServiceProvider, StateSourceSetBuilder<TFragment>> configureSources,
-        StateWritePlan? writePlan = null,
-        bool validateDataAnnotations = true,
-        TimeSpan? onChangeDebounce = null,
-        WriteConflictResolution writeConflictResolution = WriteConflictResolution.FailOnConflict
-    )
-        where TModel : IConfiglueModel<TModel, TFragment>
-        where TFragment : class, IConfiglueFragment<TFragment>
-    {
-        ArgumentNullException.ThrowIfNull(services);
-        ArgumentNullException.ThrowIfNull(configureSources);
-        return services.AddConfiglueState<TModel, TFragment>(
-            serviceKey,
-            provider =>
-            {
-                var sources = new StateSourceSetBuilder<TFragment>();
-                configureSources(provider, sources);
-                return sources.Build();
-            },
-            writePlan,
-            validateDataAnnotations,
-            onChangeDebounce,
-            writeConflictResolution
-        );
-    }
-
-    /// <summary>Registers one named state instance as keyed dependency-injection services.</summary>
-    /// <remarks>The <paramref name="serviceKey"/> is the state-name identity for <c>(TModel, StateName)</c>. Use <see cref="IConfiglueProfiledState{TModel}"/> when the named state must be persisted and catalog-managed.</remarks>
-    public static IServiceCollection AddConfiglueState<TModel, TFragment>(
-        this IServiceCollection services,
-        object serviceKey,
-        Func<IServiceProvider, StateSourceSet<TFragment>> sourceSetFactory,
-        StateWritePlan? writePlan = null,
-        bool validateDataAnnotations = true,
-        TimeSpan? onChangeDebounce = null,
-        WriteConflictResolution writeConflictResolution = WriteConflictResolution.FailOnConflict
-    )
-        where TModel : IConfiglueModel<TModel, TFragment>
-        where TFragment : class, IConfiglueFragment<TFragment>
-    {
-        ArgumentNullException.ThrowIfNull(services);
-        ArgumentNullException.ThrowIfNull(serviceKey);
-        ArgumentNullException.ThrowIfNull(sourceSetFactory);
-
-        services.AddKeyedSingleton<ConfiglueRuntime<TModel, TFragment>>(
-            serviceKey,
-            (provider, key) =>
-                new ConfiglueRuntime<TModel, TFragment>(
-                    sourceSetFactory(provider),
-                    writePlan,
-                    provider.GetServices<IStateSchemaMigration<TFragment>>(),
-                    provider.GetServices<IConfiglueValidator<TModel>>(),
-                    validateDataAnnotations,
-                    onChangeDebounce,
-                    stateName: key as string ?? ConfiglueDefaultNames.DefaultState,
-                    writeConflictResolution: writeConflictResolution
-                )
-        );
-        services.AddKeyedSingleton<IReadOnlyState<TModel>>(
-            serviceKey,
-            (provider, key) =>
-                provider.GetRequiredKeyedService<ConfiglueRuntime<TModel, TFragment>>(key)
-        );
-        services.AddKeyedSingleton<IWritableState<TModel>>(
-            serviceKey,
-            (provider, key) =>
-                provider.GetRequiredKeyedService<ConfiglueRuntime<TModel, TFragment>>(key)
-        );
-        services.AddKeyedSingleton<ISubjectState<TModel>>(
-            serviceKey,
-            (provider, key) =>
-                provider.GetRequiredKeyedService<ConfiglueRuntime<TModel, TFragment>>(key)
-        );
-        services.AddKeyedSingleton<IConfiglueEditSessions<TModel>>(
-            serviceKey,
-            (provider, key) =>
-                provider.GetRequiredKeyedService<ConfiglueRuntime<TModel, TFragment>>(key)
-        );
-        services.AddKeyedSingleton<IConfiglueDiagnostics<TModel>>(
-            serviceKey,
-            (provider, key) =>
-                provider.GetRequiredKeyedService<ConfiglueRuntime<TModel, TFragment>>(key)
-        );
-        services.AddKeyedSingleton<IConfiglueSources<TModel>>(
-            serviceKey,
-            (provider, key) =>
-                provider.GetRequiredKeyedService<ConfiglueRuntime<TModel, TFragment>>(key)
-        );
-        if (serviceKey is string stateName && stateName != ConfiglueDefaultNames.DefaultState)
-        {
-            services.AddSingleton(new ConfiglueNamedState<TModel>(stateName));
-        }
-
-        return services;
-    }
-
-    /// <summary>Registers one named state instance backed by an already-created state-source set.</summary>
-    /// <remarks>The keyed service key is the state name.</remarks>
-    public static IServiceCollection AddConfiglueState<TModel, TFragment>(
-        this IServiceCollection services,
-        object serviceKey,
-        StateSourceSet<TFragment> sourceSet,
-        StateWritePlan? writePlan = null,
-        bool validateDataAnnotations = true,
-        TimeSpan? onChangeDebounce = null,
-        WriteConflictResolution writeConflictResolution = WriteConflictResolution.FailOnConflict
-    )
-        where TModel : IConfiglueModel<TModel, TFragment>
-        where TFragment : class, IConfiglueFragment<TFragment>
-    {
-        ArgumentNullException.ThrowIfNull(sourceSet);
-        return services.AddConfiglueState<TModel, TFragment>(
-            serviceKey,
-            _ => sourceSet,
-            writePlan,
-            validateDataAnnotations,
-            onChangeDebounce,
-            writeConflictResolution
-        );
-    }
-
-    /// <summary>Registers a runtime-managed registry that can add and remove named state instances.</summary>
-    public static IServiceCollection AddConfiglueStateRegistry<TModel, TFragment>(
-        this IServiceCollection services,
-        Func<IServiceProvider, string, StateSourceSet<TFragment>> sourceSetFactory,
-        StateWritePlan? writePlan = null,
-        bool validateDataAnnotations = true,
-        TimeSpan? onChangeDebounce = null,
-        WriteConflictResolution writeConflictResolution = WriteConflictResolution.FailOnConflict
-    )
-        where TModel : IConfiglueModel<TModel, TFragment>
-        where TFragment : class, IConfiglueFragment<TFragment>
-    {
-        ArgumentNullException.ThrowIfNull(services);
-        ArgumentNullException.ThrowIfNull(sourceSetFactory);
-
-        services.AddSingleton<IConfiglueStateRegistry<TModel>>(
-            provider => new ConfiglueOwnedStateRegistry<TModel>(
-                stateName =>
-                    (
-                        new ConfiglueRuntime<TModel, TFragment>(
-                            sourceSetFactory(provider, stateName),
-                            writePlan,
-                            provider.GetServices<IStateSchemaMigration<TFragment>>(),
-                            provider.GetServices<IConfiglueValidator<TModel>>(),
-                            validateDataAnnotations,
-                            onChangeDebounce,
-                            stateName: stateName,
-                            writeConflictResolution: writeConflictResolution
-                        ),
-                        []
-                    ),
-                []
-            )
-        );
-        return services;
-    }
-
+    /// <summary>Translates one model registration to DI descriptors in a single code path.</summary>
     private sealed class ConfiglueFacadeRegistrationVisitor(
         IServiceCollection services,
         IConfiglueHostPaths hostPaths
     ) : IConfiglueRegistrationVisitor
     {
         public void Visit<TModel>(ConfiglueModelRegistration<TModel> registration)
-            where TModel : IConfiglueFacadeModel<TModel>
-        {
-            AddModelServiceDescriptors(registration);
-            if (registration.RuntimeLifetime == RuntimeLifetimeRequirement.Scoped)
-            {
-                return;
-            }
-            if (registration.StateName == ConfiglueDefaultNames.DefaultState)
-            {
-                if (registration.IsPerSubject)
-                {
-                    // Per-subject edit sessions and diagnostics checks must resolve through the
-                    // scoped CurrentSubjectState. Keep only subject-agnostic facades as shared
-                    // singletons so the raw runtime descriptor cannot overwrite the scoped fix.
-                    services.AddSingleton<IConfiglueSources<TModel>>(provider =>
-                        (IConfiglueSources<TModel>)
-                            provider
-                                .GetRequiredService<ConfiglueContext>()
-                                .GetState<TModel>(registration.StateName)
-                    );
-                }
-                else
-                {
-                    Func<IServiceProvider, IWritableState<TModel>> getRuntime = provider =>
-                        provider.GetRequiredService<IWritableState<TModel>>();
-                    services.AddSingleton<IConfiglueEditSessions<TModel>>(provider =>
-                        (IConfiglueEditSessions<TModel>)getRuntime(provider)
-                    );
-                    services.AddSingleton<IConfiglueDiagnostics<TModel>>(provider =>
-                        (IConfiglueDiagnostics<TModel>)getRuntime(provider)
-                    );
-                    services.AddSingleton<IConfiglueSources<TModel>>(provider =>
-                        (IConfiglueSources<TModel>)getRuntime(provider)
-                    );
-                }
-            }
-            else
-            {
-                if (typeof(TModel).IsClass)
-                {
-                    services.AddSingleton(new ConfiglueNamedState<TModel>(registration.StateName));
-                }
-
-                if (registration.IsPerSubject)
-                {
-                    services.AddKeyedSingleton<IConfiglueSources<TModel>>(
-                        registration.StateName,
-                        (provider, _) =>
-                            (IConfiglueSources<TModel>)
-                                provider
-                                    .GetRequiredService<ConfiglueContext>()
-                                    .GetState<TModel>(registration.StateName)
-                    );
-                }
-                else
-                {
-                    Func<IServiceProvider, IWritableState<TModel>> getRuntime = provider =>
-                        provider.GetRequiredKeyedService<IWritableState<TModel>>(
-                            registration.StateName
-                        );
-                    services.AddKeyedSingleton<IConfiglueEditSessions<TModel>>(
-                        registration.StateName,
-                        (provider, _) => (IConfiglueEditSessions<TModel>)getRuntime(provider)
-                    );
-                    services.AddKeyedSingleton<IConfiglueDiagnostics<TModel>>(
-                        registration.StateName,
-                        (provider, _) => (IConfiglueDiagnostics<TModel>)getRuntime(provider)
-                    );
-                    services.AddKeyedSingleton<IConfiglueSources<TModel>>(
-                        registration.StateName,
-                        (provider, _) => (IConfiglueSources<TModel>)getRuntime(provider)
-                    );
-                }
-            }
-        }
-
-        private void AddModelServiceDescriptors<TModel>(
-            ConfiglueModelRegistration<TModel> registration
-        )
             where TModel : IConfiglueFacadeModel<TModel>
         {
             if (registration.EnableDynamicStates)
@@ -402,376 +72,387 @@ public static class ConfiglueServiceCollectionExtensions
                     provider.GetRequiredService<ConfiglueContext>().GetProfiledState<TModel>()
                 );
             }
+            if (registration.StateName.Length != 0 && typeof(TModel).IsClass)
+            {
+                services.AddSingleton(new ConfiglueNamedState<TModel>(registration.StateName));
+            }
+
             if (registration.RuntimeLifetime == RuntimeLifetimeRequirement.Scoped)
             {
-                AddScopedStateServices(registration);
+                RegisterScoped(registration);
+            }
+            else
+            {
+                RegisterShared(registration);
+            }
+        }
+
+        private void RegisterShared<TModel>(ConfiglueModelRegistration<TModel> registration)
+            where TModel : IConfiglueFacadeModel<TModel>
+        {
+            var keyed = registration.StateName.Length != 0;
+            var stateName = registration.StateName;
+            if (!registration.IsPerSubject)
+            {
+                AddShared<IReadOnlyState<TModel>>(
+                    keyed,
+                    stateName,
+                    (provider, _) =>
+                        provider.GetRequiredService<ConfiglueContext>().GetState<TModel>(stateName)
+                );
+                AddShared<IWritableState<TModel>>(
+                    keyed,
+                    stateName,
+                    (provider, _) =>
+                        provider.GetRequiredService<ConfiglueContext>().GetState<TModel>(stateName)
+                );
+                AddShared<ISubjectState<TModel>>(
+                    keyed,
+                    stateName,
+                    (provider, _) =>
+                        provider
+                            .GetRequiredService<ConfiglueContext>()
+                            .GetSubjectState<TModel>(stateName)
+                );
+                // Capability aliases resolve through the shared runtime so there is exactly
+                // one state instance per (TModel, StateName).
+                AddShared<IConfiglueEditSessions<TModel>>(
+                    keyed,
+                    stateName,
+                    (provider, _) =>
+                        (IConfiglueEditSessions<TModel>)
+                            ResolveSharedRuntime<TModel>(provider, keyed, stateName)
+                );
+                AddShared<IConfiglueDiagnostics<TModel>>(
+                    keyed,
+                    stateName,
+                    (provider, _) =>
+                        (IConfiglueDiagnostics<TModel>)
+                            ResolveSharedRuntime<TModel>(provider, keyed, stateName)
+                );
+                AddShared<IConfiglueSources<TModel>>(
+                    keyed,
+                    stateName,
+                    (provider, _) =>
+                        (IConfiglueSources<TModel>)
+                            ResolveSharedRuntime<TModel>(provider, keyed, stateName)
+                );
                 return;
             }
-            if (registration.IsPerSubject)
+
+            // Per-subject edit sessions and diagnostics checks must resolve through the
+            // scoped CurrentSubjectState. Keep only subject-agnostic facades as shared
+            // singletons so the raw runtime descriptor cannot overwrite the scoped fix.
+            var subjectAccessorType = registration.SubjectAccessorType!;
+            if (!keyed)
             {
-                var subjectAccessorType = registration.SubjectAccessorType!;
-                if (registration.StateName.Length == 0)
-                {
-                    services.AddScoped(provider => new CurrentSubjectState<TModel>(
-                        provider
-                            .GetRequiredService<ConfiglueContext>()
-                            .GetSubjectState<TModel>(registration.StateName),
-                        (IConfiglueSubjectAccessor)provider.GetRequiredService(subjectAccessorType)
-                    ));
-                    services.AddScoped<IReadOnlyState<TModel>>(provider =>
-                        provider.GetRequiredService<CurrentSubjectState<TModel>>()
-                    );
-                    services.AddScoped<IWritableState<TModel>>(provider =>
-                        provider.GetRequiredService<CurrentSubjectState<TModel>>()
-                    );
-                    services.AddScoped<IConfiglueDiagnostics<TModel>>(provider =>
-                        provider.GetRequiredService<CurrentSubjectState<TModel>>()
-                    );
-                    services.AddScoped<IConfiglueEditSessions<TModel>>(provider =>
-                        provider.GetRequiredService<CurrentSubjectState<TModel>>()
-                    );
-                    services.AddSingleton<ISubjectState<TModel>>(provider =>
-                        provider
-                            .GetRequiredService<ConfiglueContext>()
-                            .GetSubjectState<TModel>(registration.StateName)
-                    );
-                }
-                else
-                {
-                    services.AddKeyedScoped<CurrentSubjectState<TModel>>(
-                        registration.StateName,
-                        (provider, _) =>
-                            new CurrentSubjectState<TModel>(
-                                provider
-                                    .GetRequiredService<ConfiglueContext>()
-                                    .GetSubjectState<TModel>(registration.StateName),
-                                (IConfiglueSubjectAccessor)
-                                    provider.GetRequiredService(subjectAccessorType)
-                            )
-                    );
-                    services.AddKeyedScoped<IReadOnlyState<TModel>>(
-                        registration.StateName,
-                        (provider, key) =>
-                            provider.GetRequiredKeyedService<CurrentSubjectState<TModel>>(key)
-                    );
-                    services.AddKeyedScoped<IWritableState<TModel>>(
-                        registration.StateName,
-                        (provider, key) =>
-                            provider.GetRequiredKeyedService<CurrentSubjectState<TModel>>(key)
-                    );
-                    services.AddKeyedScoped<IConfiglueDiagnostics<TModel>>(
-                        registration.StateName,
-                        (provider, key) =>
-                            provider.GetRequiredKeyedService<CurrentSubjectState<TModel>>(key)
-                    );
-                    services.AddKeyedScoped<IConfiglueEditSessions<TModel>>(
-                        registration.StateName,
-                        (provider, key) =>
-                            provider.GetRequiredKeyedService<CurrentSubjectState<TModel>>(key)
-                    );
-                    services.AddKeyedSingleton<ISubjectState<TModel>>(
-                        registration.StateName,
-                        (provider, _) =>
-                            provider
-                                .GetRequiredService<ConfiglueContext>()
-                                .GetSubjectState<TModel>(registration.StateName)
-                    );
-                }
-            }
-            else if (registration.StateName.Length == 0)
-            {
-                services.AddSingleton<IReadOnlyState<TModel>>(provider =>
+                services.AddScoped(provider => new CurrentSubjectState<TModel>(
                     provider
                         .GetRequiredService<ConfiglueContext>()
-                        .GetState<TModel>(registration.StateName)
+                        .GetSubjectState<TModel>(stateName),
+                    (IConfiglueSubjectAccessor)provider.GetRequiredService(subjectAccessorType)
+                ));
+                services.AddScoped<IReadOnlyState<TModel>>(provider =>
+                    provider.GetRequiredService<CurrentSubjectState<TModel>>()
                 );
-                services.AddSingleton<IWritableState<TModel>>(provider =>
-                    provider
-                        .GetRequiredService<ConfiglueContext>()
-                        .GetState<TModel>(registration.StateName)
+                services.AddScoped<IWritableState<TModel>>(provider =>
+                    provider.GetRequiredService<CurrentSubjectState<TModel>>()
                 );
-                services.AddSingleton<ISubjectState<TModel>>(provider =>
-                    provider
-                        .GetRequiredService<ConfiglueContext>()
-                        .GetSubjectState<TModel>(registration.StateName)
+                services.AddScoped<IConfiglueDiagnostics<TModel>>(provider =>
+                    provider.GetRequiredService<CurrentSubjectState<TModel>>()
+                );
+                services.AddScoped<IConfiglueEditSessions<TModel>>(provider =>
+                    provider.GetRequiredService<CurrentSubjectState<TModel>>()
                 );
             }
             else
             {
-                services.AddKeyedSingleton<IReadOnlyState<TModel>>(
-                    registration.StateName,
+                services.AddKeyedScoped<CurrentSubjectState<TModel>>(
+                    stateName,
                     (provider, _) =>
-                        provider
-                            .GetRequiredService<ConfiglueContext>()
-                            .GetState<TModel>(registration.StateName)
+                        new CurrentSubjectState<TModel>(
+                            provider
+                                .GetRequiredService<ConfiglueContext>()
+                                .GetSubjectState<TModel>(stateName),
+                            (IConfiglueSubjectAccessor)
+                                provider.GetRequiredService(subjectAccessorType)
+                        )
                 );
-                services.AddKeyedSingleton<IWritableState<TModel>>(
-                    registration.StateName,
+                services.AddKeyedScoped<IReadOnlyState<TModel>>(
+                    stateName,
+                    (provider, key) =>
+                        provider.GetRequiredKeyedService<CurrentSubjectState<TModel>>(key)
+                );
+                services.AddKeyedScoped<IWritableState<TModel>>(
+                    stateName,
+                    (provider, key) =>
+                        provider.GetRequiredKeyedService<CurrentSubjectState<TModel>>(key)
+                );
+                services.AddKeyedScoped<IConfiglueDiagnostics<TModel>>(
+                    stateName,
+                    (provider, key) =>
+                        provider.GetRequiredKeyedService<CurrentSubjectState<TModel>>(key)
+                );
+                services.AddKeyedScoped<IConfiglueEditSessions<TModel>>(
+                    stateName,
+                    (provider, key) =>
+                        provider.GetRequiredKeyedService<CurrentSubjectState<TModel>>(key)
+                );
+            }
+            AddShared<ISubjectState<TModel>>(
+                keyed,
+                stateName,
+                (provider, _) =>
+                    provider
+                        .GetRequiredService<ConfiglueContext>()
+                        .GetSubjectState<TModel>(stateName)
+            );
+            AddShared<IConfiglueSources<TModel>>(
+                keyed,
+                stateName,
+                (provider, _) =>
+                    (IConfiglueSources<TModel>)
+                        provider.GetRequiredService<ConfiglueContext>().GetState<TModel>(stateName)
+            );
+        }
+
+        private void RegisterScoped<TModel>(ConfiglueModelRegistration<TModel> registration)
+            where TModel : IConfiglueFacadeModel<TModel>
+        {
+            var keyed = registration.StateName.Length != 0;
+            var stateName = registration.StateName;
+            if (!keyed)
+            {
+                services.AddScoped(provider => CreateScopedHolder(registration, provider));
+            }
+            else
+            {
+                services.AddKeyedScoped<ConfiglueScopedRuntime<TModel>>(
+                    stateName,
+                    (provider, _) => CreateScopedHolder(registration, provider)
+                );
+            }
+
+            IWritableState<TModel> GetHolderRuntime(IServiceProvider provider) =>
+                keyed
+                    ? provider
+                        .GetRequiredKeyedService<ConfiglueScopedRuntime<TModel>>(stateName)
+                        .Runtime
+                    : provider.GetRequiredService<ConfiglueScopedRuntime<TModel>>().Runtime;
+
+            if (!registration.IsPerSubject)
+            {
+                AddScoped<IReadOnlyState<TModel>>(
+                    keyed,
+                    stateName,
+                    (provider, _) => GetHolderRuntime(provider)
+                );
+                AddScoped<IWritableState<TModel>>(
+                    keyed,
+                    stateName,
+                    (provider, _) => GetHolderRuntime(provider)
+                );
+                AddScoped<ISubjectState<TModel>>(
+                    keyed,
+                    stateName,
+                    (provider, _) => (ISubjectState<TModel>)GetHolderRuntime(provider)
+                );
+                AddScoped<IConfiglueEditSessions<TModel>>(
+                    keyed,
+                    stateName,
+                    (provider, _) => (IConfiglueEditSessions<TModel>)GetHolderRuntime(provider)
+                );
+                AddScoped<IConfiglueDiagnostics<TModel>>(
+                    keyed,
+                    stateName,
+                    (provider, _) => (IConfiglueDiagnostics<TModel>)GetHolderRuntime(provider)
+                );
+                AddScoped<IConfiglueSources<TModel>>(
+                    keyed,
+                    stateName,
+                    (provider, _) => (IConfiglueSources<TModel>)GetHolderRuntime(provider)
+                );
+                return;
+            }
+
+            var subjectAccessorType = registration.SubjectAccessorType!;
+            if (!keyed)
+            {
+                services.AddScoped(provider => new CurrentSubjectState<TModel>(
+                    (ISubjectState<TModel>)GetHolderRuntime(provider),
+                    (IConfiglueSubjectAccessor)provider.GetRequiredService(subjectAccessorType)
+                ));
+                services.AddScoped<IReadOnlyState<TModel>>(provider =>
+                    provider.GetRequiredService<CurrentSubjectState<TModel>>()
+                );
+                services.AddScoped<IWritableState<TModel>>(provider =>
+                    provider.GetRequiredService<CurrentSubjectState<TModel>>()
+                );
+                services.AddScoped<IConfiglueDiagnostics<TModel>>(provider =>
+                    provider.GetRequiredService<CurrentSubjectState<TModel>>()
+                );
+                services.AddScoped<IConfiglueEditSessions<TModel>>(provider =>
+                    provider.GetRequiredService<CurrentSubjectState<TModel>>()
+                );
+            }
+            else
+            {
+                services.AddKeyedScoped<CurrentSubjectState<TModel>>(
+                    stateName,
                     (provider, _) =>
-                        provider
-                            .GetRequiredService<ConfiglueContext>()
-                            .GetState<TModel>(registration.StateName)
+                        new CurrentSubjectState<TModel>(
+                            (ISubjectState<TModel>)GetHolderRuntime(provider),
+                            (IConfiglueSubjectAccessor)
+                                provider.GetRequiredService(subjectAccessorType)
+                        )
                 );
-                services.AddKeyedSingleton<ISubjectState<TModel>>(
-                    registration.StateName,
-                    (provider, _) =>
-                        provider
-                            .GetRequiredService<ConfiglueContext>()
-                            .GetSubjectState<TModel>(registration.StateName)
+                services.AddKeyedScoped<IReadOnlyState<TModel>>(
+                    stateName,
+                    (provider, key) =>
+                        provider.GetRequiredKeyedService<CurrentSubjectState<TModel>>(key)
                 );
+                services.AddKeyedScoped<IWritableState<TModel>>(
+                    stateName,
+                    (provider, key) =>
+                        provider.GetRequiredKeyedService<CurrentSubjectState<TModel>>(key)
+                );
+                services.AddKeyedScoped<IConfiglueDiagnostics<TModel>>(
+                    stateName,
+                    (provider, key) =>
+                        provider.GetRequiredKeyedService<CurrentSubjectState<TModel>>(key)
+                );
+                services.AddKeyedScoped<IConfiglueEditSessions<TModel>>(
+                    stateName,
+                    (provider, key) =>
+                        provider.GetRequiredKeyedService<CurrentSubjectState<TModel>>(key)
+                );
+            }
+            AddScoped<ISubjectState<TModel>>(
+                keyed,
+                stateName,
+                (provider, _) => (ISubjectState<TModel>)GetHolderRuntime(provider)
+            );
+            AddScoped<IConfiglueSources<TModel>>(
+                keyed,
+                stateName,
+                (provider, _) => (IConfiglueSources<TModel>)GetHolderRuntime(provider)
+            );
+        }
+
+        private static IWritableState<TModel> ResolveSharedRuntime<TModel>(
+            IServiceProvider provider,
+            bool keyed,
+            string stateName
+        )
+            where TModel : IConfiglueFacadeModel<TModel> =>
+            keyed
+                ? provider.GetRequiredKeyedService<IWritableState<TModel>>(stateName)
+                : provider.GetRequiredService<IWritableState<TModel>>();
+
+        private void AddShared<TService>(
+            bool keyed,
+            string stateName,
+            Func<IServiceProvider, object?, TService> factory
+        )
+            where TService : class
+        {
+            if (!keyed)
+            {
+                services.AddSingleton(provider => factory(provider, null));
+            }
+            else
+            {
+                services.AddKeyedSingleton(stateName, (provider, key) => factory(provider, key));
             }
         }
 
-        private void AddScopedStateServices<TModel>(ConfiglueModelRegistration<TModel> registration)
+        private void AddScoped<TService>(
+            bool keyed,
+            string stateName,
+            Func<IServiceProvider, object?, TService> factory
+        )
+            where TService : class
+        {
+            if (!keyed)
+            {
+                services.AddScoped(provider => factory(provider, null));
+            }
+            else
+            {
+                services.AddKeyedScoped(stateName, (provider, key) => factory(provider, key));
+            }
+        }
+
+        private ConfiglueScopedRuntime<TModel> CreateScopedHolder<TModel>(
+            ConfiglueModelRegistration<TModel> registration,
+            IServiceProvider provider
+        )
             where TModel : IConfiglueFacadeModel<TModel>
         {
-            ConfiglueScopedRuntime<TModel> CreateHolder(IServiceProvider provider)
+            var resources = new List<object>();
+            var resourceSet = new HashSet<object>(ReferenceIdentityComparer.Instance);
+            IConfiglueRuntimeState<TModel>? runtime = null;
+            try
             {
-                var resources = new List<object>();
-                var resourceSet = new HashSet<object>(ReferenceIdentityComparer.Instance);
-                IConfiglueRuntimeState<TModel>? runtime = null;
+                runtime =
+                    (IConfiglueRuntimeState<TModel>)
+                        registration.CreateRuntime(
+                            provider,
+                            resource =>
+                            {
+                                ArgumentNullException.ThrowIfNull(resource);
+                                if (resource is not IDisposable && resource is not IAsyncDisposable)
+                                {
+                                    throw new ArgumentException(
+                                        "An owned resource must implement IDisposable or IAsyncDisposable.",
+                                        nameof(resource)
+                                    );
+                                }
+
+                                if (resourceSet.Add(resource))
+                                {
+                                    resources.Add(resource);
+                                }
+                            },
+                            hostPaths
+                        );
+                return new ConfiglueScopedRuntime<TModel>(runtime, resources);
+            }
+            catch (Exception creationException)
+            {
+                List<Exception>? cleanupErrors = null;
                 try
                 {
-                    runtime =
-                        (IConfiglueRuntimeState<TModel>)
-                            registration.CreateRuntime(
-                                provider,
-                                resource =>
-                                {
-                                    ArgumentNullException.ThrowIfNull(resource);
-                                    if (
-                                        resource is not IDisposable
-                                        && resource is not IAsyncDisposable
-                                    )
-                                    {
-                                        throw new ArgumentException(
-                                            "An owned resource must implement IDisposable or IAsyncDisposable.",
-                                            nameof(resource)
-                                        );
-                                    }
-
-                                    if (resourceSet.Add(resource))
-                                    {
-                                        resources.Add(resource);
-                                    }
-                                },
-                                hostPaths
-                            );
-                    return new ConfiglueScopedRuntime<TModel>(runtime, resources);
+                    ConfiglueOwnedResources.Dispose(runtime!);
                 }
-                catch (Exception creationException)
+                catch (Exception cleanupException)
                 {
-                    List<Exception>? cleanupErrors = null;
+                    (cleanupErrors ??= []).Add(cleanupException);
+                }
+
+                for (var index = resources.Count - 1; index >= 0; index--)
+                {
                     try
                     {
-                        ConfiglueOwnedResources.Dispose(runtime!);
+                        ConfiglueOwnedResources.Dispose(resources[index]);
                     }
                     catch (Exception cleanupException)
                     {
                         (cleanupErrors ??= []).Add(cleanupException);
                     }
-
-                    for (var index = resources.Count - 1; index >= 0; index--)
-                    {
-                        try
-                        {
-                            ConfiglueOwnedResources.Dispose(resources[index]);
-                        }
-                        catch (Exception cleanupException)
-                        {
-                            (cleanupErrors ??= []).Add(cleanupException);
-                        }
-                    }
-
-                    if (cleanupErrors is not null)
-                    {
-                        cleanupErrors.Insert(0, creationException);
-                        throw new AggregateException(
-                            "Scoped runtime creation and cleanup both failed.",
-                            cleanupErrors
-                        );
-                    }
-
-                    throw;
                 }
-            }
 
-            Func<IServiceProvider, IWritableState<TModel>> getHolderRuntime =
-                registration.StateName.Length == 0
-                    ? provider =>
-                        provider.GetRequiredService<ConfiglueScopedRuntime<TModel>>().Runtime
-                    : provider =>
-                        provider
-                            .GetRequiredKeyedService<ConfiglueScopedRuntime<TModel>>(
-                                registration.StateName
-                            )
-                            .Runtime;
-
-            if (registration.StateName.Length == 0)
-            {
-                services.AddScoped(CreateHolder);
-            }
-            else
-            {
-                services.AddKeyedScoped<ConfiglueScopedRuntime<TModel>>(
-                    registration.StateName,
-                    (provider, _) => CreateHolder(provider)
-                );
-            }
-
-            if (registration.IsPerSubject)
-            {
-                var subjectAccessorType = registration.SubjectAccessorType!;
-                if (registration.StateName.Length == 0)
+                if (cleanupErrors is not null)
                 {
-                    services.AddScoped(provider => new CurrentSubjectState<TModel>(
-                        (ISubjectState<TModel>)getHolderRuntime(provider),
-                        (IConfiglueSubjectAccessor)provider.GetRequiredService(subjectAccessorType)
-                    ));
-                    services.AddScoped<IReadOnlyState<TModel>>(provider =>
-                        provider.GetRequiredService<CurrentSubjectState<TModel>>()
-                    );
-                    services.AddScoped<IWritableState<TModel>>(provider =>
-                        provider.GetRequiredService<CurrentSubjectState<TModel>>()
-                    );
-                    services.AddScoped<IConfiglueDiagnostics<TModel>>(provider =>
-                        provider.GetRequiredService<CurrentSubjectState<TModel>>()
-                    );
-                    services.AddScoped<IConfiglueEditSessions<TModel>>(provider =>
-                        provider.GetRequiredService<CurrentSubjectState<TModel>>()
-                    );
-                    AddScopedSubjectAgnosticFacades(getHolderRuntime);
-                }
-                else
-                {
-                    services.AddKeyedScoped<CurrentSubjectState<TModel>>(
-                        registration.StateName,
-                        (provider, _) =>
-                            new CurrentSubjectState<TModel>(
-                                (ISubjectState<TModel>)getHolderRuntime(provider),
-                                (IConfiglueSubjectAccessor)
-                                    provider.GetRequiredService(subjectAccessorType)
-                            )
-                    );
-                    services.AddKeyedScoped<IReadOnlyState<TModel>>(
-                        registration.StateName,
-                        (provider, key) =>
-                            provider.GetRequiredKeyedService<CurrentSubjectState<TModel>>(key)
-                    );
-                    services.AddKeyedScoped<IWritableState<TModel>>(
-                        registration.StateName,
-                        (provider, key) =>
-                            provider.GetRequiredKeyedService<CurrentSubjectState<TModel>>(key)
-                    );
-                    services.AddKeyedScoped<IConfiglueDiagnostics<TModel>>(
-                        registration.StateName,
-                        (provider, key) =>
-                            provider.GetRequiredKeyedService<CurrentSubjectState<TModel>>(key)
-                    );
-                    services.AddKeyedScoped<IConfiglueEditSessions<TModel>>(
-                        registration.StateName,
-                        (provider, key) =>
-                            provider.GetRequiredKeyedService<CurrentSubjectState<TModel>>(key)
-                    );
-                    AddKeyedScopedSubjectAgnosticFacades(
-                        registration.StateName,
-                        (provider, _) => getHolderRuntime(provider)
+                    cleanupErrors.Insert(0, creationException);
+                    throw new AggregateException(
+                        "Scoped runtime creation and cleanup both failed.",
+                        cleanupErrors
                     );
                 }
+
+                throw;
             }
-            else if (registration.StateName.Length == 0)
-            {
-                services.AddScoped<IReadOnlyState<TModel>>(provider => getHolderRuntime(provider));
-                services.AddScoped<IWritableState<TModel>>(provider => getHolderRuntime(provider));
-                AddScopedRuntimeFacades(getHolderRuntime);
-            }
-            else
-            {
-                services.AddKeyedScoped<IReadOnlyState<TModel>>(
-                    registration.StateName,
-                    (provider, _) => getHolderRuntime(provider)
-                );
-                services.AddKeyedScoped<IWritableState<TModel>>(
-                    registration.StateName,
-                    (provider, _) => getHolderRuntime(provider)
-                );
-                AddKeyedScopedRuntimeFacades(
-                    registration.StateName,
-                    (provider, _) => getHolderRuntime(provider)
-                );
-            }
-        }
-
-        private void AddScopedRuntimeFacades<TModel>(
-            Func<IServiceProvider, IWritableState<TModel>> getRuntime
-        )
-            where TModel : IConfiglueFacadeModel<TModel>
-        {
-            services.AddScoped<ISubjectState<TModel>>(provider =>
-                (ISubjectState<TModel>)getRuntime(provider)
-            );
-            services.AddScoped<IConfiglueEditSessions<TModel>>(provider =>
-                (IConfiglueEditSessions<TModel>)getRuntime(provider)
-            );
-            services.AddScoped<IConfiglueDiagnostics<TModel>>(provider =>
-                (IConfiglueDiagnostics<TModel>)getRuntime(provider)
-            );
-            services.AddScoped<IConfiglueSources<TModel>>(provider =>
-                (IConfiglueSources<TModel>)getRuntime(provider)
-            );
-        }
-
-        private void AddKeyedScopedRuntimeFacades<TModel>(
-            object serviceKey,
-            Func<IServiceProvider, object?, IWritableState<TModel>> getRuntime
-        )
-            where TModel : IConfiglueFacadeModel<TModel>
-        {
-            services.AddKeyedScoped<ISubjectState<TModel>>(
-                serviceKey,
-                (provider, key) => (ISubjectState<TModel>)getRuntime(provider, key)
-            );
-            services.AddKeyedScoped<IConfiglueEditSessions<TModel>>(
-                serviceKey,
-                (provider, key) => (IConfiglueEditSessions<TModel>)getRuntime(provider, key)
-            );
-            services.AddKeyedScoped<IConfiglueDiagnostics<TModel>>(
-                serviceKey,
-                (provider, key) => (IConfiglueDiagnostics<TModel>)getRuntime(provider, key)
-            );
-            services.AddKeyedScoped<IConfiglueSources<TModel>>(
-                serviceKey,
-                (provider, key) => (IConfiglueSources<TModel>)getRuntime(provider, key)
-            );
-        }
-
-        private void AddScopedSubjectAgnosticFacades<TModel>(
-            Func<IServiceProvider, IWritableState<TModel>> getRuntime
-        )
-            where TModel : IConfiglueFacadeModel<TModel>
-        {
-            services.AddScoped<ISubjectState<TModel>>(provider =>
-                (ISubjectState<TModel>)getRuntime(provider)
-            );
-            services.AddScoped<IConfiglueSources<TModel>>(provider =>
-                (IConfiglueSources<TModel>)getRuntime(provider)
-            );
-        }
-
-        private void AddKeyedScopedSubjectAgnosticFacades<TModel>(
-            object serviceKey,
-            Func<IServiceProvider, object?, IWritableState<TModel>> getRuntime
-        )
-            where TModel : IConfiglueFacadeModel<TModel>
-        {
-            services.AddKeyedScoped<ISubjectState<TModel>>(
-                serviceKey,
-                (provider, key) => (ISubjectState<TModel>)getRuntime(provider, key)
-            );
-            services.AddKeyedScoped<IConfiglueSources<TModel>>(
-                serviceKey,
-                (provider, key) => (IConfiglueSources<TModel>)getRuntime(provider, key)
-            );
         }
     }
 }

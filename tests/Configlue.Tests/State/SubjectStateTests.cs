@@ -86,9 +86,20 @@ public sealed class SubjectStateTests
     {
         var store = new InMemoryStateSource<AppSettings.Fragment>(Fragment("server"));
         var services = new ServiceCollection();
-        services.AddConfiglueState<AppSettings, AppSettings.Fragment>(
-            new StateSourceSet<AppSettings.Fragment>([new StateSource<AppSettings.Fragment>("server", store, new StateSourceOptions<AppSettings.Fragment>())])
-        );
+        services.AddConfiglue(builder =>
+        {
+            builder.Add<AppSettings>(model =>
+                model.Sources(sources =>
+                    sources.Add(
+                        new StateSource<AppSettings.Fragment>(
+                            "server",
+                            store,
+                            new StateSourceOptions<AppSettings.Fragment>()
+                        )
+                    )
+                )
+            );
+        });
         using var provider = services.BuildServiceProvider();
         var subjectOptions = provider.GetRequiredService<ISubjectState<AppSettings>>();
 
@@ -106,7 +117,9 @@ public sealed class SubjectStateTests
         users.Set(a.Key, Fragment("before"));
         users.Set(b.Key, Fragment("other"));
         var builder = new StateSourceSetBuilder<AppSettings.Fragment>();
-        builder.Add("user", users).ResourceKeyBy<SettingsSubject>(static s => ResourceKey.From(s.Key));
+        builder
+            .Add("user", users)
+            .ResourceKeyBy<SettingsSubject>(static s => ResourceKey.From(s.Key));
         await using var runtime = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
             builder.Build(),
             onChangeDebounce: TimeSpan.Zero
@@ -133,10 +146,7 @@ public sealed class SubjectStateTests
         public SubjectKey Key => SubjectKey.FromSegments(TenantId, UserId);
     }
 
-    private sealed class SubjectStateStore<T>
-        : ISourceReader<T>,
-            ISourceWriter<T>,
-            ISourceWatcher
+    private sealed class SubjectStateStore<T> : ISourceReader<T>, ISourceWriter<T>, ISourceWatcher
     {
         private readonly ConcurrentDictionary<ResourceKey, InMemoryStateSource<T>> _states = new();
 

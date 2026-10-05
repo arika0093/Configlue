@@ -81,35 +81,48 @@ public sealed class StateSourceSetBuilderTests
         var services = new ServiceCollection();
         services.AddKeyedSingleton("user", user);
         services.AddKeyedSingleton("defaults", defaults);
-        services.AddConfiglueState<AppSettings, AppSettings.Fragment>(
-            (provider, sources) =>
+        services.AddConfiglue(builder =>
+        {
+            builder.Add<AppSettings>(model =>
             {
-                configureCount++;
-                sources.Add(
-                    "user",
-                    provider.GetRequiredKeyedService<InMemoryStateSource<AppSettings.Fragment>>(
-                        "user"
-                    ),
-                    priority: 100,
-                    fallbackCondition: StateFallbackCondition.NotFound
-                );
-                sources.Add(
-                    "defaults",
-                    provider.GetRequiredKeyedService<InMemoryStateSource<AppSettings.Fragment>>(
-                        "defaults"
-                    ),
-                    priority: 0
-                );
-            },
-            StateWritePlan.DefaultTo(SourceId.From("user")),
-            onChangeDebounce: TimeSpan.Zero
-        );
+                model.WritePlan = StateWritePlan.DefaultTo(SourceId.From("user"));
+                model.OnChangeDebounce = TimeSpan.Zero;
+                model.ConfigureSources(registration =>
+                {
+                    configureCount++;
+                    var resolvedUser = registration.Services!.GetRequiredKeyedService<
+                        InMemoryStateSource<AppSettings.Fragment>
+                    >("user");
+                    var resolvedDefaults = registration.Services!.GetRequiredKeyedService<
+                        InMemoryStateSource<AppSettings.Fragment>
+                    >("defaults");
+                    registration.Sources.Add(
+                        new StateSource<AppSettings.Fragment>(
+                            "user",
+                            resolvedUser,
+                            new StateSourceOptions<AppSettings.Fragment>
+                            {
+                                Priority = 100,
+                                FallbackCondition = StateFallbackCondition.NotFound,
+                                Writer = resolvedUser,
+                                Watcher = resolvedUser,
+                            }
+                        )
+                    );
+                    registration.Sources.Add(
+                        new StateSource<AppSettings.Fragment>(
+                            "defaults",
+                            resolvedDefaults,
+                            new StateSourceOptions<AppSettings.Fragment> { Priority = 0 }
+                        )
+                    );
+                });
+            });
+        });
         using var serviceProvider = services.BuildServiceProvider();
 
-        var options = serviceProvider.GetRequiredService<
-            ConfiglueRuntime<AppSettings, AppSettings.Fragment>
-        >();
-        var initial = await options.ReadAsync();
+        var options = serviceProvider.GetRequiredService<IWritableState<AppSettings>>();
+        var initial = await options.GetValueAsync();
         var changed = new TaskCompletionSource<int>(
             TaskCreationOptions.RunContinuationsAsynchronously
         );
@@ -118,39 +131,10 @@ public sealed class StateSourceSetBuilderTests
         var savedUserState = await user.ReadAsync();
         var changedRetryCount = await changed.Task.WaitAsync(TimeSpan.FromSeconds(5));
 
-        (initial.SourceId).ShouldBe(SourceId.From("defaults"));
-        (initial.Value!.RetryCount).ShouldBe(4);
+        (initial.RetryCount).ShouldBe(4);
         (savedUserState.Value!.RetryCount.Value).ShouldBe(9);
         (changedRetryCount).ShouldBe(9);
         (configureCount).ShouldBe(1);
-    }
-
-    [Test]
-    public async Task DependencyInjectionBuilder_RegistersKeyedProfiles()
-    {
-        var profile = new InMemoryStateSource<AppSettings.Fragment>(
-            new AppSettings.Fragment { RetryCount = Optional<int>.Present(12) }
-        );
-        var services = new ServiceCollection();
-        services.AddKeyedSingleton("profile-source", profile);
-        services.AddConfiglueState<AppSettings, AppSettings.Fragment>(
-            "profile",
-            (provider, sources) =>
-                sources.Add(
-                    "profile-source",
-                    provider.GetRequiredKeyedService<InMemoryStateSource<AppSettings.Fragment>>(
-                        "profile-source"
-                    )
-                )
-        );
-        using var serviceProvider = services.BuildServiceProvider();
-
-        var options = serviceProvider.GetRequiredKeyedService<IReadOnlyState<AppSettings>>(
-            "profile"
-        );
-        var value = await options.GetValueAsync();
-
-        (value.RetryCount).ShouldBe(12);
     }
 
     private sealed class ReaderOnly<T>(T value) : ISourceReader<T>

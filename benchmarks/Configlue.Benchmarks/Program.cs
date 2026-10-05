@@ -37,22 +37,28 @@ public class OptionsRuntimeBenchmarks
     public async Task SetupAsync()
     {
         _store = new InMemoryStateSource<BenchmarkSettings.Fragment>(CreateFragment(0));
-        var sourceSet = new StateSourceSet<BenchmarkSettings.Fragment>([
-            new StateSource<BenchmarkSettings.Fragment>(
-                "benchmark",
-                _store,
-                new StateSourceOptions<BenchmarkSettings.Fragment>
-                {
-                    Writer = _store,
-                    Watcher = _store,
-                }
-            ),
-        ]);
         var services = new ServiceCollection();
-        services.AddConfiglueState<BenchmarkSettings, BenchmarkSettings.Fragment>(
-            sourceSet,
-            onChangeDebounce: TimeSpan.Zero
-        );
+        var benchmarkStore = _store;
+        services.AddConfiglue(builder =>
+        {
+            builder.Add<BenchmarkSettings>(model =>
+            {
+                model.OnChangeDebounce = TimeSpan.Zero;
+                model.Sources(sources =>
+                    sources.Add(
+                        new StateSource<BenchmarkSettings.Fragment>(
+                            "benchmark",
+                            benchmarkStore,
+                            new StateSourceOptions<BenchmarkSettings.Fragment>
+                            {
+                                Writer = benchmarkStore,
+                                Watcher = benchmarkStore,
+                            }
+                        )
+                    )
+                );
+            });
+        });
         services.AddConfiglueMicrosoftOptions<BenchmarkSettings>();
         _serviceProvider = services.BuildServiceProvider();
         _options = _serviceProvider.GetRequiredService<IWritableState<BenchmarkSettings>>();

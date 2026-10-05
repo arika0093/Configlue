@@ -732,12 +732,26 @@ public sealed class ComponentModelAdapterTests
             }
         );
         var services = new ServiceCollection();
-        services.AddConfiglueState<AppSettings, AppSettings.Fragment>(
-            new StateSourceSet<AppSettings.Fragment>([
-                new StateSource<AppSettings.Fragment>("settings", store, new StateSourceOptions<AppSettings.Fragment> { Writer = store, Watcher = store }),
-            ]),
-            onChangeDebounce: TimeSpan.Zero
-        );
+        services.AddConfiglue(builder =>
+        {
+            builder.Add<AppSettings>(model =>
+            {
+                model.OnChangeDebounce = TimeSpan.Zero;
+                model.Sources(sources =>
+                    sources.Add(
+                        new StateSource<AppSettings.Fragment>(
+                            "settings",
+                            store,
+                            new StateSourceOptions<AppSettings.Fragment>
+                            {
+                                Writer = store,
+                                Watcher = store,
+                            }
+                        )
+                    )
+                );
+            });
+        });
         return services.BuildServiceProvider();
     }
 
