@@ -13,9 +13,15 @@ namespace Configlue;
 /// <item>source selection and baseline capture (<see cref="RuntimeMigrationSourceStage{TModel,TFragment}"/>);</item>
 /// <item>target projection and persistence (<see cref="RuntimeMigrationTargetStage{TModel,TFragment}"/>);</item>
 /// <item>source revision/conflict validation before destructive actions (<see cref="RuntimeMigrationSnapshotGuard{TModel,TFragment}"/>);</item>
-/// <item>source retirement and post-retirement verification (<see cref="RuntimeMigrationRetirementStage{TModel,TFragment}"/>);</item>
-/// <item>journaled progress over declarative definitions (<see cref="StateStorageMigrationExtensions"/>).</item>
+/// <item>source retirement and post-retirement verification (<see cref="RuntimeMigrationRetirementStage{TModel,TFragment}"/>).</item>
 /// </list>
+/// The supported contract is deliberately single-run and explicit: read old
+/// representation/source, run schema migration, conditionally write the canonical
+/// target, and optionally retire sources within this state instance under
+/// application-controlled deployment logic. Core provides no durable progress
+/// journal, no partial-target resume across restarts, and no distributed lease:
+/// callers coordinate concurrent runs externally and retry by re-running the same
+/// idempotent operation.
 /// Planning (pure projection of merged fragments onto targets) never performs I/O;
 /// every write funnels through one verified conditional-write pipeline, and
 /// retirement runs only after the effective-model invariant is re-proved.

@@ -1,7 +1,25 @@
 namespace Configlue;
 
 /// <summary>Administers source-local writes and source migrations.</summary>
-/// <remarks>Advanced application API for explicit per-source operations.</remarks>
+/// <remarks>
+/// <para>Advanced application API for explicit per-source operations.</para>
+/// <para>
+/// Supported storage-migration contract (single-run, configuration-specific primitives only):
+/// read an old representation/source, run schema migration, conditionally write the canonical
+/// target with revision protection, and optionally verify/retire through application-controlled
+/// deployment logic. Each operation verifies its writes by re-reading through the target codec
+/// and reports concurrent changes as conflicts.
+/// </para>
+/// <para>
+/// What Core does not provide: durable progress journals, partial multi-target completion state
+/// persisted across restarts, restart resume, migration leases, or cross-process exclusion.
+/// Concurrent migration runs must be coordinated by the caller. Every operation is idempotent, so
+/// a caller resumes by re-running the same migration; targets already holding the requested
+/// fragment are skipped after verification. When <c>retireSources</c> is true, selected sources
+/// are removed from this state instance only, after all targets verify and only if the effective
+/// model remains unchanged. Retirement is never replayed onto other instances.
+/// </para>
+/// </remarks>
 /// <typeparam name="T">The configuration model.</typeparam>
 [System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Advanced)]
 public interface IConfiglueSources<T>

@@ -875,15 +875,6 @@ namespace Configlue.Migrations
         Configlue.State.StateSchemaMetadata TargetSchema { get; }
         System.Threading.Tasks.ValueTask<T> MigrateAsync(T value, System.Threading.CancellationToken cancellationToken = default);
     }
-    public interface IStateStorageMigrationJournal
-    {
-        System.Threading.Tasks.ValueTask<Configlue.Migrations.StateStorageMigrationProgress?> ReadAsync(string migrationId, System.Threading.CancellationToken cancellationToken = default);
-        System.Threading.Tasks.ValueTask WriteAsync(Configlue.Migrations.StateStorageMigrationProgress progress, System.Threading.CancellationToken cancellationToken = default);
-    }
-    public interface IStateStorageMigrationLeaseProvider
-    {
-        System.Threading.Tasks.ValueTask<System.IAsyncDisposable> AcquireMigrationLeaseAsync(string migrationId, System.Threading.CancellationToken cancellationToken = default);
-    }
     public sealed class StateSchemaDispatcher<T>
     {
         public StateSchemaDispatcher(Configlue.State.StateSchemaMetadata targetSchema) { }
@@ -906,26 +897,6 @@ namespace Configlue.Migrations
         public string? TargetRevision { get; init; }
         public void Deconstruct(out Configlue.SourceId SourceId, out Configlue.SourceId TargetId, out string? SourceRevision, out string? TargetRevision) { }
     }
-    public sealed class StateStorageMigrationDefinition<TFragment>
-        where TFragment :  class, Configlue.IConfiglueFragment<TFragment>
-    {
-        public StateStorageMigrationDefinition(string id, System.Collections.Generic.IEnumerable<Configlue.SourceId> sourceIds, System.Collections.Generic.IEnumerable<Configlue.Migrations.StateStorageMigrationTarget<TFragment>> targets, bool retireSources = false) { }
-        public string Id { get; }
-        public bool RetireSources { get; }
-        public System.Collections.Generic.IReadOnlyList<Configlue.SourceId> SourceIds { get; }
-        public System.Collections.Generic.IReadOnlyList<Configlue.Migrations.StateStorageMigrationTarget<TFragment>> Targets { get; }
-    }
-    public sealed class StateStorageMigrationProgress
-    {
-        public StateStorageMigrationProgress(string migrationId, System.Collections.Generic.IEnumerable<Configlue.SourceId> sourceIds, System.Collections.Generic.IEnumerable<Configlue.SourceId> targetSourceIds, System.Collections.Generic.IEnumerable<Configlue.SourceId>? completedTargetSourceIds = null, bool retireSources = false, bool sourcesRetired = false) { }
-        public bool AllTargetsCompleted { get; }
-        public System.Collections.Generic.IReadOnlyList<Configlue.SourceId> CompletedTargetSourceIds { get; }
-        public string MigrationId { get; }
-        public bool RetireSources { get; }
-        public System.Collections.Generic.IReadOnlyList<Configlue.SourceId> SourceIds { get; }
-        public bool SourcesRetired { get; }
-        public System.Collections.Generic.IReadOnlyList<Configlue.SourceId> TargetSourceIds { get; }
-    }
     public sealed class StateStorageMigrationResult
     {
         public StateStorageMigrationResult(System.Collections.Generic.IEnumerable<Configlue.SourceId> sourceIds, Configlue.State.StateRevisionVector sourceRevisions, System.Collections.Generic.IEnumerable<Configlue.Migrations.StateStorageMigrationTargetResult> targets, System.Collections.Generic.IEnumerable<Configlue.SourceId>? retiredSourceIds = null) { }
@@ -943,13 +914,6 @@ namespace Configlue.Migrations
         public string? TargetRevision { get; init; }
         public bool WasAlreadyCurrent { get; init; }
         public void Deconstruct(out Configlue.SourceId TargetId, out string? PreviousRevision, out string? TargetRevision, out bool WasAlreadyCurrent) { }
-    }
-    public sealed class StateStorageMigrationTarget<TFragment>
-        where TFragment :  class, Configlue.IConfiglueFragment<TFragment>
-    {
-        public StateStorageMigrationTarget(Configlue.SourceId targetSourceId, System.Func<TFragment, TFragment> project) { }
-        public System.Func<TFragment, TFragment> Project { get; }
-        public Configlue.SourceId TargetSourceId { get; }
     }
 }
 namespace Configlue.Resources

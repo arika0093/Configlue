@@ -143,12 +143,6 @@ namespace Configlue
         public Configlue.StateSourceBuilder<T> Add(string id, Configlue.Sources.ISourceReader<T> reader, int priority = 0, Configlue.Sources.StateFallbackCondition fallbackCondition = 1, string? physicalOrigin = null, Configlue.Resources.ResourceId? fixedResourceId = default) { }
         public Configlue.Sources.StateSourceSet<T> Build() { }
     }
-    public static class StateStorageMigrationExtensions
-    {
-        public static System.Threading.Tasks.ValueTask<Configlue.Migrations.StateStorageMigrationProgress> MigrateAsync<TModel, TFragment>(this Configlue.IConfiglueSources<TModel> sources, Configlue.Migrations.StateStorageMigrationDefinition<TFragment> definition, Configlue.Migrations.IStateStorageMigrationJournal journal, System.Threading.CancellationToken cancellationToken = default)
-            where TModel : Configlue.CompilerServices.IConfiglueModel<TModel, TFragment>
-            where TFragment :  class, Configlue.IConfiglueFragment<TFragment> { }
-    }
 }
 namespace Configlue.Resources
 {

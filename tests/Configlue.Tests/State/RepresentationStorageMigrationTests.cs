@@ -368,7 +368,7 @@ public sealed class RepresentationStorageMigrationTests
     }
 
     [Test]
-    public async Task MigrationJournal_RetriesAfterPartialCompletion()
+    public async Task MigrationRetry_ReusesVerifiedTargetsWithoutJournal()
     {
         using var directory = new TemporaryDirectory();
         var legacyPath = Path.Combine(directory.FullPath, "legacy.yaml");
@@ -395,33 +395,29 @@ public sealed class RepresentationStorageMigrationTests
             });
         });
 
-        var definition = new StateStorageMigrationDefinition<AppSettings.Fragment>(
-            "representation-retry",
-            [SourceId.From("legacy")],
-            [
-                new StateStorageMigrationTarget<AppSettings.Fragment>(
-                    SourceId.From("first"),
-                    static fragment => fragment
-                ),
-                new StateStorageMigrationTarget<AppSettings.Fragment>(
-                    SourceId.From("second"),
-                    static fragment => fragment
-                ),
-            ]
-        );
         var sources = context.GetSources<AppSettings>();
+        Dictionary<SourceId, Func<IConfiglueFragment, IConfiglueFragment>> Projections() =>
+            new()
+            {
+                [SourceId.From("first")] = static fragment => fragment,
+                [SourceId.From("second")] = static fragment => fragment,
+            };
 
-        // A journal failure interrupts the run, but the verified first target survives.
-        var failingJournal = new FlakyMigrationJournal(failOnWriteCount: 1);
-        await Should.ThrowAsync<IOException>(async () =>
-            await sources.MigrateAsync(definition, failingJournal)
+        // An interrupted multi-target run leaves verified targets behind; retrying the same
+        // explicit operation completes the remaining target without a durable journal.
+        await sources.MigrateSourcesToTargetsAsync(
+            [SourceId.From("legacy")],
+            new Dictionary<SourceId, Func<IConfiglueFragment, IConfiglueFragment>>
+            {
+                [SourceId.From("first")] = static fragment => fragment,
+            }
         );
 
-        // Retrying with a working journal completes the remaining target without rework.
-        var journal = new InMemoryMigrationJournal();
-        var progress = await sources.MigrateAsync(definition, journal);
-        (progress.CompletedTargetSourceIds.Count).ShouldBe(2);
-        (progress.SourcesRetired).ShouldBeFalse();
+        var progress = await sources.MigrateSourcesToTargetsAsync(
+            [SourceId.From("legacy")],
+            Projections()
+        );
+        (progress.Targets.Count).ShouldBe(2);
 
         var first = await ReadJsonFileAsync(firstPath);
         var second = await ReadJsonFileAsync(secondPath);
@@ -430,11 +426,7 @@ public sealed class RepresentationStorageMigrationTests
 
         var idempotent = await sources.MigrateSourcesToTargetsAsync(
             [SourceId.From("legacy")],
-            new Dictionary<SourceId, Func<IConfiglueFragment, IConfiglueFragment>>
-            {
-                [SourceId.From("first")] = static fragment => fragment,
-                [SourceId.From("second")] = static fragment => fragment,
-            }
+            Projections()
         );
         (idempotent.Targets.All(static target => target.WasAlreadyCurrent)).ShouldBeTrue();
     }
@@ -1004,62 +996,6 @@ public sealed class RepresentationStorageMigrationTests
                     reads.ToString(System.Globalization.CultureInfo.InvariantCulture)
                 )
             );
-        }
-    }
-
-    private sealed class InMemoryMigrationJournal : IStateStorageMigrationJournal
-    {
-        private readonly Dictionary<string, StateStorageMigrationProgress> _stored = new();
-
-        public ValueTask<StateStorageMigrationProgress?> ReadAsync(
-            string migrationId,
-            CancellationToken cancellationToken = default
-        )
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            _stored.TryGetValue(migrationId, out var progress);
-            return ValueTaskCompat.FromResult<StateStorageMigrationProgress?>(progress);
-        }
-
-        public ValueTask WriteAsync(
-            StateStorageMigrationProgress progress,
-            CancellationToken cancellationToken = default
-        )
-        {
-            ArgumentNullException.ThrowIfNull(progress);
-            cancellationToken.ThrowIfCancellationRequested();
-            _stored[progress.MigrationId] = progress;
-            return ValueTask.CompletedTask;
-        }
-    }
-
-    private sealed class FlakyMigrationJournal(int failOnWriteCount) : IStateStorageMigrationJournal
-    {
-        private int _writes;
-
-        public ValueTask<StateStorageMigrationProgress?> ReadAsync(
-            string migrationId,
-            CancellationToken cancellationToken = default
-        )
-        {
-            _ = migrationId;
-            cancellationToken.ThrowIfCancellationRequested();
-            return ValueTaskCompat.FromResult<StateStorageMigrationProgress?>(null);
-        }
-
-        public ValueTask WriteAsync(
-            StateStorageMigrationProgress progress,
-            CancellationToken cancellationToken = default
-        )
-        {
-            _ = progress;
-            cancellationToken.ThrowIfCancellationRequested();
-            if (Interlocked.Increment(ref _writes) <= failOnWriteCount)
-            {
-                return ValueTaskCompat.FromException(new IOException("journal unavailable"));
-            }
-
-            return ValueTask.CompletedTask;
         }
     }
 
