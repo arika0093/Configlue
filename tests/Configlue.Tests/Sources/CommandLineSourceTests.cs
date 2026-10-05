@@ -129,45 +129,9 @@ public sealed class CommandLineSourceTests
         }
     }
 
-    [Test]
-    public async Task LaterMappingsWinWhenSeveralSymbolsTargetOneMember()
-    {
-        var firstOption = new Option<int>("--first");
-        var secondOption = new Option<int>("--second");
-        var root = new RootCommand();
-        root.Options.Add(firstOption);
-        root.Options.Add(secondOption);
-        var parseResult = root.Parse(["--first", "1", "--second", "2"]);
-
-        await using (
-            var context = CreateContext(
-                parseResult,
-                mappings =>
-                {
-                    mappings.Map(firstOption, "RetryCount");
-                    mappings.Map(secondOption, "RetryCount");
-                }
-            )
-        )
-        {
-            (await context.GetState<AppSettings>().GetValueAsync()).RetryCount.ShouldBe(2);
-        }
-
-        await using (
-            var reversed = CreateContext(
-                parseResult,
-                mappings =>
-                {
-                    mappings.Map(secondOption, "RetryCount");
-                    mappings.Map(firstOption, "RetryCount");
-                }
-            )
-        )
-        {
-            (await reversed.GetState<AppSettings>().GetValueAsync()).RetryCount.ShouldBe(1);
-        }
-    }
-
+    // Duplicate handling (last-wins) and typed-sequence binding are covered
+    // once in TextAssignmentBinderTests; command-line tests keep transport
+    // concerns only (extraction, converters, parser errors, and propagation).
     [Test]
     public void MappingTheSameSymbolToTheSamePathTwiceIsRejected()
     {
@@ -231,25 +195,6 @@ public sealed class CommandLineSourceTests
             var value = await context.GetState<AppSettings>().GetValueAsync();
             (value.Database!.Host).ShouldBe("db.example.test");
             (value.Database.Port).ShouldBe(6432);
-        }
-    }
-
-    [Test]
-    public async Task CollectionOptionsBindWithoutJsonSerialization()
-    {
-        var pluginOption = new Option<string[]>("--plugin");
-        var root = new RootCommand();
-        root.Options.Add(pluginOption);
-
-        await using (
-            var context = CreateContext(
-                root.Parse(["--plugin", "nord", "--plugin", "dracula"]),
-                mappings => mappings.Map(pluginOption, "Plugins")
-            )
-        )
-        {
-            var value = await context.GetState<AppSettings>().GetValueAsync();
-            (value.Plugins).ShouldBe(["nord", "dracula"]);
         }
     }
 

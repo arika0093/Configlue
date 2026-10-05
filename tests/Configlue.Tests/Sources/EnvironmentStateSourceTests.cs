@@ -121,7 +121,7 @@ public sealed class EnvironmentStateSourceTests
     }
 
     [Test]
-    public async Task EnvironmentSource_RevisionMatchesLegacyDeterministicEncoding()
+    public async Task EnvironmentSource_RevisionMatchesBinderDeterministicEncoding()
     {
         var variables = new Dictionary<string, string?>(StringComparer.Ordinal)
         {
@@ -143,75 +143,10 @@ public sealed class EnvironmentStateSourceTests
         );
     }
 
-    [Test]
-    public async Task EnvironmentSource_UsesCallerParserForApplicationSpecificTypes()
-    {
-        var variables = new Dictionary<string, string?>(StringComparer.Ordinal)
-        {
-            ["APP__RETRYCOUNT"] = "unlimited",
-        };
-        var source = EnvironmentStateSource.FromEnvironment<AppSettings, AppSettings.Fragment>(
-            "environment",
-            "APP",
-            environmentVariables: () => variables,
-            valueParser: (value, targetType) =>
-                targetType == typeof(int) && value == "unlimited"
-                    ? int.MaxValue
-                    : throw new FormatException()
-        );
-
-        var read = await source.Reader.ReadAsync();
-
-        (read.Value!.RetryCount.Value).ShouldBe(int.MaxValue);
-    }
-
-    [Test]
-    public async Task EnvironmentSource_InterpretsCollectionMembersAsJson()
-    {
-        var variables = new Dictionary<string, string?>(StringComparer.Ordinal)
-        {
-            ["APP__PLUGINS"] = """["nord","dracula"]""",
-        };
-        var source = EnvironmentStateSource.FromEnvironment<AppSettings, AppSettings.Fragment>(
-            "environment",
-            "APP",
-            environmentVariables: () => variables
-        );
-
-        var read = await source.Reader.ReadAsync();
-
-        (read.Status).ShouldBe(StateReadStatus.Success);
-        (read.Value!.Plugins.IsPresent).ShouldBeTrue();
-        (read.Value.Plugins.Value!).ShouldBe(["nord", "dracula"]);
-    }
-
-    [Test]
-    public async Task EnvironmentSource_InterpretsArraysListsSetsAndObjectsAsJson()
-    {
-        var variables = new Dictionary<string, string?>(StringComparer.Ordinal)
-        {
-            ["APP__ARRAYVALUES"] = """["a","b"]""",
-            ["APP__LISTVALUES"] = """["c"]""",
-            ["APP__SETVALUES"] = """["x","y","x"]""",
-            ["APP__CHILDREN"] = """[{"Name":"first"},{"Name":"second"}]""",
-        };
-        var source = EnvironmentStateSource.FromEnvironment<
-            OwnershipSettings,
-            OwnershipSettings.Fragment
-        >("environment", "APP", environmentVariables: () => variables);
-
-        var read = await source.Reader.ReadAsync();
-
-        (read.Status).ShouldBe(StateReadStatus.Success);
-        (read.Value!.ArrayValues.Value!).ShouldBe(["a", "b"]);
-        (read.Value.ListValues.Value!).ShouldBe(["c"]);
-        (read.Value.SetValues.Value!).ShouldBe(["x", "y"], ignoreOrder: true);
-        (read.Value.Children.Value!.Select(static child => child.Name)).ShouldBe([
-            "first",
-            "second",
-        ]);
-    }
-
+    // Binding semantics (scalar/collection conversion, custom parsers, JSON
+    // fallback and options) are covered once in TextAssignmentBinderTests;
+    // environment tests below keep transport concerns only (naming, revision,
+    // and error propagation through the reader).
     [Test]
     public async Task EnvironmentSource_RejectsInvalidJsonForCollectionMembers()
     {
@@ -226,56 +161,5 @@ public sealed class EnvironmentStateSourceTests
         );
 
         await Should.ThrowAsync<FormatException>(async () => await source.Reader.ReadAsync());
-    }
-
-    [Test]
-    public async Task EnvironmentSource_FallsBackToJsonWhenACustomParserDeclines()
-    {
-        var variables = new Dictionary<string, string?>(StringComparer.Ordinal)
-        {
-            ["APP__RETRYCOUNT"] = "7",
-            ["APP__PLUGINS"] = """["declined-then-json"]""",
-        };
-        var source = EnvironmentStateSource.FromEnvironment<AppSettings, AppSettings.Fragment>(
-            "environment",
-            "APP",
-            environmentVariables: () => variables,
-            valueParser: (value, targetType) =>
-                targetType == typeof(int)
-                    ? int.Parse(value, System.Globalization.CultureInfo.InvariantCulture)
-                    : throw new NotSupportedException()
-        );
-
-        var read = await source.Reader.ReadAsync();
-
-        (read.Status).ShouldBe(StateReadStatus.Success);
-        (read.Value!.RetryCount.Value).ShouldBe(7);
-        (read.Value.Plugins.Value!).ShouldBe(["declined-then-json"]);
-    }
-
-    [Test]
-    public async Task EnvironmentSource_HonorsCustomJsonOptions()
-    {
-        var variables = new Dictionary<string, string?>(StringComparer.Ordinal)
-        {
-            ["APP__CHILDREN"] = """[{"name":"lower"}]""",
-        };
-        var source = EnvironmentStateSource.FromEnvironment<
-            OwnershipSettings,
-            OwnershipSettings.Fragment
-        >(
-            "environment",
-            "APP",
-            environmentVariables: () => variables,
-            jsonSerializerOptions: new System.Text.Json.JsonSerializerOptions
-            {
-                PropertyNameCaseInsensitive = true,
-            }
-        );
-
-        var read = await source.Reader.ReadAsync();
-
-        (read.Status).ShouldBe(StateReadStatus.Success);
-        (read.Value!.Children.Value!.Single().Name).ShouldBe("lower");
     }
 }

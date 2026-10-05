@@ -18,7 +18,6 @@ public sealed class EnvironmentStateReader<TFragment> : ISourceReader<TFragment>
     private readonly Func<string, Type, object?>? _valueParser;
     private readonly JsonSerializerOptions? _jsonOptions;
     private readonly IReadOnlyDictionary<string, IReadOnlyList<EnvironmentMapping>> _mappings;
-    private readonly IReadOnlyDictionary<ConfiglueModelSchema, TextAssignmentMemberLookup> _lookups;
 
     /// <summary>Creates an environment reader for a generated model schema.</summary>
     public EnvironmentStateReader(
@@ -38,14 +37,12 @@ public sealed class EnvironmentStateReader<TFragment> : ISourceReader<TFragment>
         var collectedMappings = new Dictionary<string, List<EnvironmentMapping>>(
             StringComparer.OrdinalIgnoreCase
         );
-        var lookups = new Dictionary<ConfiglueModelSchema, TextAssignmentMemberLookup>();
-        CollectEnvironmentMappings(schema, [], new HashSet<Type>(), collectedMappings, lookups);
+        CollectEnvironmentMappings(schema, [], new HashSet<Type>(), collectedMappings);
         _mappings = collectedMappings.ToDictionary(
             static pair => pair.Key,
             static pair => (IReadOnlyList<EnvironmentMapping>)pair.Value,
             StringComparer.OrdinalIgnoreCase
         );
-        _lookups = lookups;
     }
 
     /// <inheritdoc />
@@ -79,18 +76,19 @@ public sealed class EnvironmentStateReader<TFragment> : ISourceReader<TFragment>
         var keys = new List<string>(values.Keys);
         keys.Sort(StringComparer.OrdinalIgnoreCase);
 
-        // Environment owns naming/prefix rules only: normalize each variable to a
-        // member path (prefix split or explicit mapping), then delegate binding,
-        // conversion, and revision to the shared text-assignment binder.
-        var matchedTargets = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        // Environment owns naming only: normalize each variable to raw member-name
+        // segments (prefix split or explicit mapping) and delegate canonical
+        // resolution, conversion, duplicate handling, and revision to the shared
+        // text-assignment binder. Single-key conflicts (one variable naming two
+        // members) are a naming error detected here by case-insensitive path
+        // comparison; multi-key duplicates are the binder's Throw policy.
         var binderAssignments = new List<TextAssignment>(values.Count);
         foreach (var key in keys)
         {
             cancellationToken.ThrowIfCancellationRequested();
             var value = values[key];
-            string[]? targetPath = null;
-            string? target = null;
-            string[]? rawSegments = null;
+            string[]? prefixSegments = null;
+            string? prefixPath = null;
             if (key.StartsWith(_prefix, StringComparison.OrdinalIgnoreCase))
             {
                 var path = key[_prefix.Length..];
@@ -104,28 +102,25 @@ public sealed class EnvironmentStateReader<TFragment> : ISourceReader<TFragment>
                         );
                     }
 
-                    rawSegments = segments;
-                    targetPath = ResolveCanonicalPath(_schema, segments, key);
-                    if (targetPath is not null)
-                    {
-                        target = string.Join(".", targetPath);
-                    }
+                    prefixSegments = segments;
+                    prefixPath = string.Join(".", segments);
                 }
             }
 
+            string[]? chosenSegments = prefixSegments;
+            string? chosenPath = prefixPath;
             if (_mappings.TryGetValue(key, out var explicitMappings))
             {
                 foreach (var mapping in explicitMappings)
                 {
-                    if (target is null)
+                    if (chosenPath is null)
                     {
-                        target = mapping.PropertyPath;
-                        targetPath = mapping.PropertyPathSegments;
-                        rawSegments ??= mapping.PropertyPathSegments;
+                        chosenPath = mapping.PropertyPath;
+                        chosenSegments = mapping.PropertyPathSegments;
                     }
                     else if (
                         !string.Equals(
-                            target,
+                            chosenPath,
                             mapping.PropertyPath,
                             StringComparison.OrdinalIgnoreCase
                         )
@@ -138,20 +133,11 @@ public sealed class EnvironmentStateReader<TFragment> : ISourceReader<TFragment>
                 }
             }
 
-            if (target is null || targetPath is null)
-            {
-                binderAssignments.Add(new TextAssignment(rawSegments ?? [key], value, key));
-                continue;
-            }
-
-            if (!matchedTargets.TryAdd(target, key))
-            {
-                throw new InvalidOperationException(
-                    $"More than one environment variable maps to model property '{target}'."
-                );
-            }
-
-            binderAssignments.Add(new TextAssignment(targetPath, value, key));
+            binderAssignments.Add(
+                chosenSegments is null
+                    ? new TextAssignment([key], value, key)
+                    : new TextAssignment(chosenSegments, value, key)
+            );
         }
 
         var bound = TextAssignmentBinder.Bind(
@@ -186,8 +172,7 @@ public sealed class EnvironmentStateReader<TFragment> : ISourceReader<TFragment>
         ConfiglueModelSchema schema,
         IReadOnlyList<string> parentPath,
         HashSet<Type> ancestors,
-        Dictionary<string, List<EnvironmentMapping>> mappings,
-        Dictionary<ConfiglueModelSchema, TextAssignmentMemberLookup> lookups
+        Dictionary<string, List<EnvironmentMapping>> mappings
     )
     {
         if (!ancestors.Add(schema.ModelType))
@@ -195,7 +180,6 @@ public sealed class EnvironmentStateReader<TFragment> : ISourceReader<TFragment>
             return;
         }
 
-        lookups[schema] = TextAssignmentMemberLookup.Create(schema);
         foreach (var member in schema.Members)
         {
             var path = parentPath.Append(member.Name).ToArray();
@@ -212,57 +196,11 @@ public sealed class EnvironmentStateReader<TFragment> : ISourceReader<TFragment>
 
             if (member.NestedSchemaFactory is not null)
             {
-                CollectEnvironmentMappings(
-                    member.NestedSchemaFactory(),
-                    path,
-                    ancestors,
-                    mappings,
-                    lookups
-                );
+                CollectEnvironmentMappings(member.NestedSchemaFactory(), path, ancestors, mappings);
             }
         }
 
         ancestors.Remove(schema.ModelType);
-    }
-
-    private string[]? ResolveCanonicalPath(
-        ConfiglueModelSchema schema,
-        IReadOnlyList<string> path,
-        string environmentKey
-    )
-    {
-        var canonicalPath = new string[path.Count];
-        for (var index = 0; index < path.Count; index++)
-        {
-            if (!_lookups[schema].TryResolve(path[index], out var member, out var isAmbiguous))
-            {
-                if (isAmbiguous)
-                {
-                    throw new FormatException(
-                        $"Environment path segment '{path[index]}' is ambiguous in schema '{schema.Id}'."
-                    );
-                }
-
-                return null;
-            }
-
-            canonicalPath[index] = member.Name;
-            if (index == path.Count - 1)
-            {
-                return canonicalPath;
-            }
-
-            if (member.NestedSchemaFactory is null)
-            {
-                throw new FormatException(
-                    $"Environment variable '{environmentKey}' continues past non-nested member '{member.Name}'."
-                );
-            }
-
-            schema = member.NestedSchemaFactory();
-        }
-
-        return null;
     }
 
     internal static string NormalizePrefix(string prefix)

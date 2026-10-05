@@ -99,9 +99,10 @@ public sealed class TextAssignmentBinderTests
         var typedFragment = (AppSettings.Fragment)fromTyped.Fragment;
         (jsonFragment.Plugins.Value!).ShouldBe(["nord", "dracula"]);
         (typedFragment.Plugins.Value!).ShouldBe(["nord", "dracula"]);
-        // Note: JSON text deserializes interfaces to List<T> while typed string[]
-        // stays as an array, so revisions differ by concrete collection type even
-        // though logical values match. Scalar equivalents share revisions above.
+        // Collection rendering is normalized over logical content (concrete
+        // List versus array identity is erased), so JSON text and typed
+        // sequences with equal elements share a revision, like scalars above.
+        (fromJson.Revision).ShouldBe(fromTyped.Revision);
 
         var ownershipSchema = OwnershipSettings.ConfiglueSchema;
         var ownership = TextAssignmentBinder.Bind(
@@ -109,6 +110,7 @@ public sealed class TextAssignmentBinderTests
             [
                 new TextAssignment(["ArrayValues"], """["a","b"]""", "env"),
                 new TextAssignment(["ListValues"], new List<string> { "c" }, "cli"),
+                new TextAssignment(["SetValues"], """["x","y","x"]""", "env"),
                 new TextAssignment(["Children"], """[{"Name":"first"}]""", "env"),
             ],
             new TextAssignmentBinderOptions { DuplicatePolicy = TextAssignmentDuplicatePolicy.LastWins }
@@ -116,7 +118,29 @@ public sealed class TextAssignmentBinderTests
         var owned = (OwnershipSettings.Fragment)ownership.Fragment;
         (owned.ArrayValues.Value!).ShouldBe(["a", "b"]);
         (owned.ListValues.Value!).ShouldBe(["c"]);
+        (owned.SetValues.Value!).ShouldBe(["x", "y"], ignoreOrder: true);
         (owned.Children.Value!.Single().Name).ShouldBe("first");
+        await Task.CompletedTask;
+    }
+
+    [Test]
+    public async Task JsonOptionsAreHonoredForStructuredMembers()
+    {
+        var schema = OwnershipSettings.ConfiglueSchema;
+
+        var bound = TextAssignmentBinder.Bind(
+            schema,
+            [new TextAssignment(["Children"], """[{"name":"lower"}]""", "env")],
+            new TextAssignmentBinderOptions
+            {
+                JsonOptions = new System.Text.Json.JsonSerializerOptions
+                {
+                    PropertyNameCaseInsensitive = true,
+                },
+            }
+        );
+
+        ((OwnershipSettings.Fragment)bound.Fragment).Children.Value!.Single().Name.ShouldBe("lower");
         await Task.CompletedTask;
     }
 

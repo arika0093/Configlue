@@ -53,6 +53,14 @@ internal sealed class TextAssignmentBinderOptions
 }
 
 /// <summary>Result of binding flat assignments into a sparse fragment.</summary>
+/// <remarks>
+/// <c>Revision</c> follows the deterministic binder revision specified on
+/// <see cref="TextAssignmentBinder"/>:
+/// converted (not raw) values for matched members plus raw values for unmatched
+/// origins. Two binds with equal logical content share a revision even when
+/// their transports differ (text versus typed scalars, JSON list versus typed
+/// array) or their input order differs.
+/// </remarks>
 internal readonly record struct BoundTextFragment(
     IConfiglueFragment Fragment,
     bool MatchedAny,
@@ -66,8 +74,51 @@ internal readonly record struct BoundTextFragment(
 /// Transports own naming/symbol extraction only; custom parsers are hooks here.
 /// Supports only Configlue's documented model shapes.
 /// </summary>
+/// <remarks>
+/// Transport contract: transports pass raw member-name segments without resolving
+/// them (environment splits prefixed keys on "__" and maps explicit names;
+/// command line passes registration-validated mapping paths) and select a
+/// duplicate policy (environment rejects duplicates, command line lets later
+/// mappings win). The binder owns canonical case-insensitive resolution,
+/// conversion, deduplication by canonical path, and revision, so transports
+/// must not pre-resolve or pre-deduplicate.
+/// <para>
+/// Conversion rules (intentional unification of the legacy transports):
+/// values already assignable to the target type pass through untouched;
+/// string values for scalar targets use invariant-culture scalar parsing while
+/// strings for collection/object targets fall back to JSON deserialization.
+/// The JSON fallback is new for command-line transports (which previously
+/// rejected such text); it is intentional so both transports share one matrix.
+/// All conversion failures throw <see cref="FormatException"/> shaped
+/// "The value for model path '{path}' from '{origin}' ..." regardless of
+/// transport, replacing the legacy "Environment variable ..." and
+/// "The command-line value ..." prefixes.
+/// </para>
+/// <para>
+/// Unknown path segments are unmatched rather than errors: binding ignores them
+/// but folds their origins into the revision, and a fully unmatched bind yields
+/// <c>MatchedAny == false</c> (readers surface that as NotFound). This matches
+/// the environment transport's legacy behavior; for command line it is
+/// unreachable via the public API because mapping paths are validated at
+/// registration, so the legacy throw for unknown segments was dead code.
+/// </para>
+/// </remarks>
 internal static class TextAssignmentBinder
 {
+    /// <summary>Binds flat assignments into a sparse fragment.</summary>
+    /// <remarks>
+    /// Revision is a deterministic SHA256 (uppercase hex) over length-prefixed
+    /// entries: matched entries as (canonical dotted path,
+    /// rendered converted value) sorted with ordinal comparison, then unmatched
+    /// entries as (origin, rendered raw value) sorted by origin.
+    /// The converted-value basis is an intentional spec change from the legacy
+    /// transports (environment hashed upper-cased keys with raw text; command
+    /// line hashed raw parsed values): text "8" and typed 8 bound to one member
+    /// now share a revision, and concrete collection identity is erased
+    /// (a JSON list and a typed array with equal elements share a revision).
+    /// Unmatched origins are included so callers observe underlying changes
+    /// even when nothing binds. Input order does not affect the revision.
+    /// </remarks>
     public static BoundTextFragment Bind(
         ConfiglueModelSchema schema,
         IReadOnlyList<TextAssignment> assignments,
@@ -827,6 +878,14 @@ internal static class TextAssignmentBinder
             inner
         );
 
+    /// <summary>Renders a converted or raw value for deterministic revision hashing.</summary>
+    /// <remarks>
+    /// Rendering is logical, not concrete: sequences render as
+    /// "[element,...]" and dictionaries as "{key=value,...}" without the
+    /// concrete collection type name, so a JSON-deserialized
+    /// <c>List&lt;T&gt;</c> and a typed <c>T[]</c> with equal elements hash
+    /// equally. Scalar rendering keeps the concrete type name.
+    /// </remarks>
     internal static string Render(object? value)
     {
         if (value is null)
@@ -898,7 +957,7 @@ internal static class TextAssignmentBinder
         if (value is IDictionary dictionary)
         {
             var builder = new StringBuilder();
-            builder.Append(type.FullName).Append(":{");
+            builder.Append('{');
             var first = true;
             foreach (DictionaryEntry entry in dictionary)
             {
@@ -918,7 +977,7 @@ internal static class TextAssignmentBinder
         if (value is IEnumerable sequence)
         {
             var builder = new StringBuilder();
-            builder.Append(type.FullName).Append('[');
+            builder.Append('[');
             var first = true;
             foreach (var item in sequence)
             {
