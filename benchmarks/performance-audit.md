@@ -397,6 +397,60 @@ with 17 external-service skips and no failures (including three upcoming binder
 cache semantic guards). Logs are retained in artifacts/destination-buffer-*.
 The goal remains active; source binding and codec coverage are next.
 
+## Round 14: reuse immutable text assignment name indexes (2026-10-05)
+
+Added `TextAssignmentBindingBenchmarks` and guards for schema identity, changing
+nested factories, and concurrent independent values/revisions (`979cb1db`).
+The benchmark distinguishes reused schemas from constructing a fresh 16-member
+schema on each operation, binding 1/4/16 values. Reports:
+[initial baseline](reports/text-binding/before-short.md),
+[confirmed baseline](reports/text-binding/before-confirm.md),
+[rejected weak cache](reports/text-binding/rejected-weak-cache.md), and
+[final schema-owned cache](reports/text-binding/owned-final.md).
+Confirmation/final runs use five warmups and ten measurements.
+
+| Reused schema assignments | Before mean | Final mean | Before allocation | Final allocation |
+| --- | ---: | ---: | ---: | ---: |
+| 1 | 1.394 us | 0.718 us | 5.27 KiB | 2.06 KiB |
+| 4 | 2.235 us | 1.748 us | 7.40 KiB | 4.20 KiB |
+| 16 | 5.769 us | 5.683 us | 14.77 KiB | 11.57 KiB |
+
+Warm allocation falls 61%/43%/22%. Cold allocation (including schema construction)
+falls 6.80/8.94/16.31 KiB to 5.66/7.79/15.17 KiB. Cold means are
+1.444/2.481/6.159 us before and 1.480/2.252/6.105 us after: the 1-member point
+estimate increases slightly with a wide interval, and the 16-member difference
+is within noise. No general claim of zero cold latency regression is made.
+Warm 1/4 means improve 48%/22%; the 16-member timing difference is within noise.
+The initial short baseline was very noisy and is retained, not used for speed
+percentages. Allocation budgets agree across baseline and confirmation runs.
+
+A ConditionalWeakTable candidate improved warm costs but its cold 1-member mean
+increased to 1.755 us, and a cold 4-member run introduced Gen2 collections. It was
+rejected. The final cache is an internal schema-owned reference, initialized with
+Volatile.Read/Interlocked.CompareExchange, and a count-sized member dictionary.
+It adds one reference slot to each schema (8 B on this x64 host), without a global
+root or weak-handle table. Simultaneous first use may build redundant immutable
+indexes; only one is published. Metadata remains logically immutable. Nested
+factory traversal, case-insensitive ambiguity handling, conversions, cancellation,
+and revision inputs remain unchanged. No values or nested factory results are cached.
+
+Public environment reader allocation falls 3.84 to 3.27 KiB
+([before](reports/text-binding/environment-before.md),
+[final](reports/text-binding/environment-final.md)); its timing has large variance.
+The command-line cached runtime read remains 2.09 KiB
+([before](reports/text-binding/command-line-before.md),
+[final](reports/text-binding/command-line-final.md)); this fixture does not bind
+fresh assignments on every measured read and is not evidence of binder speedup.
+
+The oversized binder file was split into binding, conversion, revision, and
+lookup files, each below 800 lines. A token comparison confirms the split alone
+does not change binder methods. Final full Release net10.0 testing passes 1,717
+tests, 17 external-service skips, zero failures. Core and Abstraction build for
+netstandard2.0, netstandard2.1, and net10.0 with zero warnings/errors. CSharpier
+checks pass. Logs are retained in artifacts/text-binding-*.
+The goal remains active; per-bind schema traversal and revision storage remain
+allocation candidates before continuing the broader codec/resource audit.
+
 ## Remaining audit
 
 

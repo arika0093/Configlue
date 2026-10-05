@@ -1,3 +1,5 @@
+using Configlue.Sources;
+
 namespace Configlue;
 
 /// <summary>Describes one generated model member.</summary>
@@ -194,6 +196,21 @@ public readonly record struct ConfiglueMemberSchema
 public sealed class ConfiglueModelSchema
 {
     private readonly Func<IConfiglueFragment>? _emptyFragmentFactory;
+    private TextAssignmentMemberLookup? _textAssignmentMemberLookup;
+
+    internal TextAssignmentMemberLookup GetTextAssignmentMemberLookup()
+    {
+        var lookup = Volatile.Read(ref _textAssignmentMemberLookup);
+        if (lookup is not null)
+        {
+            return lookup;
+        }
+
+        // Only immutable member names are indexed. The schema owns this memoized
+        // value, so neither it nor nested factory results need a global cache.
+        lookup = TextAssignmentMemberLookup.Build(this);
+        return Interlocked.CompareExchange(ref _textAssignmentMemberLookup, lookup, null) ?? lookup;
+    }
 
     /// <summary>Creates immutable model metadata.</summary>
     public ConfiglueModelSchema(
