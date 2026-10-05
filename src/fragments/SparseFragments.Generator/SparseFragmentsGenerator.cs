@@ -133,9 +133,14 @@ public sealed class SparseFragmentsGenerator : IIncrementalGenerator
         var bclSetSupport = context
             .CompilationProvider.Select(
                 static (compilation, _) =>
-                    SparseCollectionAnalyzer.HashSetImplementsReadOnlySet(compilation)
+                    (
+                        ReadOnlySet: SparseCollectionAnalyzer.HashSetImplementsReadOnlySet(
+                            compilation
+                        ),
+                        Capacity: SparseCollectionAnalyzer.HashSetSupportsCapacity(compilation)
+                    )
             )
-            .WithComparer(EqualityComparer<bool>.Default)
+            .WithComparer(EqualityComparer<(bool ReadOnlySet, bool Capacity)>.Default)
             .WithTrackingName("SparseFragmentsGenerator.BclSetSupport");
         var hasJsonPatch = context
             .CompilationProvider.Select(
@@ -157,7 +162,13 @@ public sealed class SparseFragmentsGenerator : IIncrementalGenerator
             .Combine(hasJsonPatch)
             .Select(
                 static (input, cancellationToken) =>
-                    Render(input.Left.Left, input.Left.Right, input.Right, cancellationToken)
+                    Render(
+                        input.Left.Left,
+                        input.Left.Right.ReadOnlySet,
+                        input.Left.Right.Capacity,
+                        input.Right,
+                        cancellationToken
+                    )
             )
             .WithTrackingName("SparseFragmentsGenerator.Output");
 
@@ -240,6 +251,7 @@ public sealed class SparseFragmentsGenerator : IIncrementalGenerator
     private static SparseGenerationResult Render(
         SparseGenerationAnalysis analysis,
         bool bclHashSetImplementsReadOnlySet,
+        bool bclHashSetSupportsCapacity,
         bool hasJsonPatch,
         CancellationToken cancellationToken
     )
@@ -280,6 +292,7 @@ public sealed class SparseFragmentsGenerator : IIncrementalGenerator
             analysis.PocoCloneModels,
             analysis.StructuralModels,
             bclHashSetImplementsReadOnlySet,
+            bclHashSetSupportsCapacity,
             hasJsonPatch,
             cancellationToken
         );

@@ -251,6 +251,51 @@ revalidated there (1,703 Configlue and 108 SparseFragments tests passing, all
 three consumer targets building). Further optimization work uses that isolated
 tree. Full logs are retained in its ignored `artifacts/clone-*` files.
 
+## Round 11: reserve HashSet clone capacity where supported (2026-10-05)
+
+The round 10 isolated-tree [confirmation](reports/collection-clone/confirm-list-dictionary.md)
+reproduces its allocation budgets exactly (large dictionary allocation rounds to
+136,604 B). It is the baseline for this round's
+[HashSet candidate](reports/collection-clone/after-set.md), using the same twelve
+cases, runtime, three warmups and five measurements. Both sets of reports are
+tracked, including error and GC columns.
+
+| Path | Before mean | After mean | Before allocation | After allocation |
+| --- | ---: | ---: | ---: | ---: |
+| Set, 16 | 221.08 ns | 180.02 ns | 1,096 B | 792 B |
+| Set, 4,096 | 103.66 us | 39.58 us | 322,966 B | 97,672 B |
+| All collections, 4,096 | 245.82 us | 150.18 us | 492,370 B | 267,076 B |
+
+The generators inspect the consumer compilation's public HashSet(int,
+IEqualityComparer<T>) constructor once per compilation. A supported target
+reserves a known collection count before cloning elements; an unsupported target
+emits the existing portable constructor. This covers native sets and the
+portable IReadOnlySet view, including repeated cloning of that view. There is
+no runtime reflection or target-framework-name heuristic. Comparers, context
+publication before element cloning, aliases and cycles are preserved.
+
+Large set allocation falls 70%, and Gen2 collections per 1,000 operations fall
+from 41.63 to zero: reserving the final count avoids growth into an oversized
+LOH entry array. The large combined case falls a further 46% relative to round
+10, or 68% relative to its original 824,181 B baseline. Empty allocation budgets
+and unaffected list/dictionary budgets are unchanged. Timing improvements are
+observations with noise (unaffected list means also move); allocation and GC
+reductions are the principal evidence.
+
+Validation: full Configlue Release net10.0 suite 1,703 passed, zero failures,
+17 external-service skips; SparseFragments 108 passed; generator compatibility
+7 passed. Explicit `-f netstandard2.0`, `-f net48` and net10.0 set-clones consumer
+builds pass with zero warnings/errors. All four execution combinations pass:
+native net10.0, native net48, and the netstandard2.0 consumer loaded on each
+runtime. These runs exercise both Configlue and standalone generators, retained
+comparers, mutable/read-only aliases, and re-cloning. Earlier unqualified consumer
+build commands selected only net10.0; the explicit builds here supply the actual
+portable-target evidence. Logs are retained in `artifacts/set-capacity-*`.
+
+Collection model public-read benchmarks are being added to measure the next
+candidate (scalar element copying) through runtime resolution and returned-model
+cloning, not only fragment clone helpers. The goal remains active.
+
 ## Remaining audit
 
 

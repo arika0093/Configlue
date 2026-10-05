@@ -24,9 +24,11 @@ internal static class SparseFragmentCollectionCloneEmitter
 
     public static void AppendCollectionCloneHelpers(
         SharedIndentedBuilder code,
-        bool includePortableSetView
+        bool includePortableSetView,
+        bool hashSetSupportsCapacity
     )
     {
+        var setCapacity = hashSetSupportsCapacity ? "__CloneCollectionCount(source), " : "";
         code.AppendLineAt(
             1,
             "private static int __CloneCollectionCount<T>(global::System.Collections.Generic.IEnumerable<T> source) => (source as global::System.Collections.Generic.ICollection<T>)?.Count ?? (source as global::System.Collections.Generic.IReadOnlyCollection<T>)?.Count ?? 0;"
@@ -49,7 +51,9 @@ internal static class SparseFragmentCollectionCloneEmitter
         code.AppendLineAt(2, "global::System.Collections.Generic.ISet<T> clone;");
         code.AppendLineAt(
             2,
-            "clone = new global::System.Collections.Generic.HashSet<T>((source as global::System.Collections.Generic.HashSet<T>)?.Comparer);"
+            "clone = new global::System.Collections.Generic.HashSet<T>("
+                + setCapacity
+                + "(source as global::System.Collections.Generic.HashSet<T>)?.Comparer);"
         );
         code.AppendLineAt(2, "context.Add(source, clone);");
         code.AppendLineAt(2, "foreach (var item in source) clone.Add(cloneElement(item));");
@@ -83,7 +87,9 @@ internal static class SparseFragmentCollectionCloneEmitter
             );
             code.AppendLineAt(
                 2,
-                "else clone = new global::System.Collections.Generic.HashSet<T>((source as global::System.Collections.Generic.HashSet<T>)?.Comparer);"
+                "else clone = new global::System.Collections.Generic.HashSet<T>("
+                    + setCapacity
+                    + "(source as global::System.Collections.Generic.HashSet<T>)?.Comparer);"
             );
             code.AppendLineAt(2, "var view = new __SparseReadOnlySet<T>(clone);");
             code.AppendLineAt(2, "context.Add(source, view);");
@@ -255,9 +261,16 @@ internal static class SparseFragmentCollectionCloneEmitter
             code.AppendLineAt(2, "{");
             code.AppendLineAt(
                 3,
-                "if (__inner is global::System.Collections.Generic.HashSet<T> hash) return new global::System.Collections.Generic.HashSet<T>(hash.Comparer);"
+                "if (__inner is global::System.Collections.Generic.HashSet<T> hash) return new global::System.Collections.Generic.HashSet<T>("
+                    + (hashSetSupportsCapacity ? "hash.Count, " : "")
+                    + "hash.Comparer);"
             );
-            code.AppendLineAt(3, "return new global::System.Collections.Generic.HashSet<T>();");
+            code.AppendLineAt(
+                3,
+                "return new global::System.Collections.Generic.HashSet<T>("
+                    + (hashSetSupportsCapacity ? "Count, null" : "")
+                    + ");"
+            );
             code.AppendLineAt(2, "}");
             code.AppendLineAt(1, "}");
         }

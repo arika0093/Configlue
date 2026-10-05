@@ -39,6 +39,9 @@ public sealed partial class ConfiglueGenerator
                             ),
                         BclSetSupportsReadOnlySet: SparseFragments.Generator.Shared.SparseCollectionAnalyzer.HashSetImplementsReadOnlySet(
                             compilation
+                        ),
+                        BclSetSupportsCapacity: SparseFragments.Generator.Shared.SparseCollectionAnalyzer.HashSetSupportsCapacity(
+                            compilation
                         )
                     )
             )
@@ -47,7 +50,8 @@ public sealed partial class ConfiglueGenerator
                     bool Json,
                     bool MessagePack,
                     bool JsonPatch,
-                    bool BclSetSupportsReadOnlySet
+                    bool BclSetSupportsReadOnlySet,
+                    bool BclSetSupportsCapacity
                 )>.Default
             );
 
@@ -89,6 +93,7 @@ public sealed partial class ConfiglueGenerator
                         input.Right.MessagePack,
                         input.Right.JsonPatch,
                         input.Right.BclSetSupportsReadOnlySet,
+                        input.Right.BclSetSupportsCapacity,
                         cancellationToken
                     )
             )
@@ -239,6 +244,7 @@ public sealed partial class ConfiglueGenerator
         bool hasMessagePackFragmentRegistry,
         bool hasJsonPatch,
         bool bclSetSupportsReadOnlySet,
+        bool bclSetSupportsCapacity,
         CancellationToken cancellationToken
     )
     {
@@ -259,6 +265,7 @@ public sealed partial class ConfiglueGenerator
             hasMessagePackFragmentRegistry,
             hasJsonPatch,
             bclSetSupportsReadOnlySet,
+            bclSetSupportsCapacity,
             cancellationToken
         );
         return new GenerationResult(analysis.HintName, source, analysis.Diagnostics);

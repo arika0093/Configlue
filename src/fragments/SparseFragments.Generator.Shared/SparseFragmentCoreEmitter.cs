@@ -71,11 +71,13 @@ internal sealed class SparseFragmentCoreEmitter
 
     public static void AppendCollectionCloneHelpers(
         SharedIndentedBuilder code,
-        bool includePortableSetView
+        bool includePortableSetView,
+        bool hashSetSupportsCapacity
     ) =>
         SparseFragmentCollectionCloneEmitter.AppendCollectionCloneHelpers(
             code,
-            includePortableSetView
+            includePortableSetView,
+            hashSetSupportsCapacity
         );
 
     public void AppendDeepClone(

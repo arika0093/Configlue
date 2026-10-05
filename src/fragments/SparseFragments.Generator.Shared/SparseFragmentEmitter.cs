@@ -28,6 +28,7 @@ internal static class SparseFragmentEmitter
         ImmutableArray<SparsePocoCloneModel> pocoCloneModels,
         ImmutableArray<SparseStructuralModel> structuralModels,
         bool bclHashSetImplementsReadOnlySet,
+        bool bclHashSetSupportsCapacity,
         bool hasJsonPatch,
         CancellationToken cancellationToken
     )
@@ -107,7 +108,11 @@ internal static class SparseFragmentEmitter
                 poco.Members,
                 poco.Model.Constructor
             );
-        SparseFragmentCoreEmitter.AppendCollectionCloneHelpers(code, portableSetView);
+        SparseFragmentCoreEmitter.AppendCollectionCloneHelpers(
+            code,
+            portableSetView,
+            bclHashSetSupportsCapacity
+        );
         AppendFragment(
             code,
             modelType,

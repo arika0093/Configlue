@@ -21,6 +21,7 @@ public sealed partial class ConfiglueGenerator
         bool hasMessagePackFragmentRegistry,
         bool hasJsonPatch,
         bool bclSetSupportsReadOnlySet,
+        bool bclSetSupportsCapacity,
         CancellationToken cancellationToken
     )
     {
@@ -113,7 +114,8 @@ public sealed partial class ConfiglueGenerator
             );
         SparseFragments.Generator.Shared.SparseFragmentCoreEmitter.AppendCollectionCloneHelpers(
             code,
-            portableSetView
+            portableSetView,
+            bclSetSupportsCapacity
         );
         AppendFragment(
             code,

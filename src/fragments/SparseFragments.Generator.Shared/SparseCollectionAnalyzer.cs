@@ -58,6 +58,18 @@ internal sealed class SparseSymbolCollectionInfo(
 /// <summary>Discovers merge and clone semantics for candidate member types.</summary>
 internal static class SparseCollectionAnalyzer
 {
+    public static bool HashSetSupportsCapacity(Compilation compilation) =>
+        compilation
+            .GetTypeByMetadataName("System.Collections.Generic.HashSet`1")
+            ?.InstanceConstructors.Any(static constructor =>
+                constructor.DeclaredAccessibility == Accessibility.Public
+                && constructor.Parameters.Length == 2
+                && constructor.Parameters[0].Type.SpecialType == SpecialType.System_Int32
+                && constructor.Parameters[1].Type is INamedTypeSymbol comparer
+                && comparer.OriginalDefinition.ToDisplayString()
+                    == "System.Collections.Generic.IEqualityComparer<T>"
+            ) == true;
+
     public static bool HashSetImplementsReadOnlySet(Compilation compilation)
     {
         var readOnlySet = compilation.GetTypeByMetadataName(
