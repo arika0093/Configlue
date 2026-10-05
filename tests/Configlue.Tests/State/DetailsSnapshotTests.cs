@@ -183,7 +183,7 @@ public sealed class DetailsSnapshotTests
 
         (details.Label.Value).ShouldBe("snapshot");
         (details.Database!.Host.Value).ShouldBe("db.local");
-        (details.Plugins!.Elements.Count).ShouldBe(2);
+        (details.Plugins!.Value.Count).ShouldBe(2);
         (reader.ReadCount).ShouldBe(1);
     }
 
@@ -307,12 +307,10 @@ public sealed class DetailsSnapshotTests
         (details.Database!.Host.Value).ShouldBe("db.local");
         (details.Database.Host.Source?.Key).ShouldBe(details.Database.Host.Sources[0].Source.Key);
         (details.Plugins!.Value.Count).ShouldBe(2);
-        (details.Plugins.Elements.Count).ShouldBe(2);
-        (details.Plugins.Elements[0].Value).ShouldBe("admin");
-        (details.Plugins.Elements[0].Contributions.Count).ShouldBe(1);
-        (details.Plugins.Elements[0].Contributions[0].Source.Key).ShouldBe(
-            details.Plugins.Sources[0].Source.Key
-        );
+        (details.Plugins.Value).ShouldBe(["admin", "metrics"]);
+        (details.Plugins.Source).ShouldBeNull();
+        (details.Plugins.Sources.Count).ShouldBeGreaterThan(0);
+        (details.Plugins.Elements.Count).ShouldBe(0);
     }
 
     [Test]
@@ -346,8 +344,7 @@ public sealed class DetailsSnapshotTests
         (details.ArrayValues.Source?.Key).ShouldBe(details.ArrayValues.Sources[0].Source.Key);
         (details.SetValues!.Value).ShouldBe(["x"]);
         (details.Children!.Value.Count).ShouldBe(1);
-        (details.Children.Elements.Count).ShouldBe(1);
-        (details.Children.Elements[0].Value!.Name).ShouldBe("first");
+        (details.Children.Value[0].Name).ShouldBe("first");
     }
 
     [Test]

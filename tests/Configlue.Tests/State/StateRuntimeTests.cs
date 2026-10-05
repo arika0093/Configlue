@@ -466,26 +466,6 @@ public sealed partial class StateRuntimeTests
                 : ValidateOptionsResult.Success;
     }
 
-    private static void ShouldHaveElementSources(
-        ConfigCollectionDetails<string> details,
-        int index,
-        object? value,
-        params int[] sourceIndices
-    )
-    {
-        var element = details.Elements[index];
-        element.Index.ShouldBe(index);
-        element.Value.ShouldBe(value);
-        element
-            .Contributions.Select(contribution => contribution.Source.Key)
-            .ToArray()
-            .ShouldBe(
-                sourceIndices
-                    .Select(sourceIndex => details.Sources[sourceIndex].Source.Key)
-                    .ToArray()
-            );
-    }
-
     private sealed class ProfileScopedRetryCountValidator : IValidateOptions<AppSettings>
     {
         public ValidateOptionsResult Validate(string? name, AppSettings options) =>

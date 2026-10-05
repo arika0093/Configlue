@@ -515,9 +515,6 @@ internal static class ConfiglueDevToolsViewerProjection
             && array.Any(static element => element is JsonObject)
                 ? member.NestedSchemaFactory()
                 : null;
-        IReadOnlyList<ConfigCollectionElementData>? elementData = snapshot?.CollectionElements(
-            path
-        );
         writer.Append("[");
         for (var index = 0; index < array.Count; index++)
         {
@@ -588,12 +585,10 @@ internal static class ConfiglueDevToolsViewerProjection
 
             if (snapshot is not null)
             {
-                AppendElementProvenance(
+                AppendElementMarker(
                     snapshot,
                     path,
                     elementPath,
-                    index,
-                    elementData,
                     new ConfiglueViewerRange(
                         elementStart.Line,
                         elementStart.Column,
@@ -706,35 +701,19 @@ internal static class ConfiglueDevToolsViewerProjection
         hovers.Add(BuildHover(snapshot, member, path, memberPath, provenance, editability));
     }
 
-    private static void AppendElementProvenance(
+    private static void AppendElementMarker(
         ConfiglueDetailsSnapshot snapshot,
         ConfiglueMemberPath path,
         string elementPath,
-        int elementIndex,
-        IReadOnlyList<ConfigCollectionElementData>? elementData,
         ConfiglueViewerRange valueRange,
         bool isSecret,
         List<ConfiglueViewerDecoration> decorations,
         List<ConfiglueViewerHover> hovers
     )
     {
-        var contributors =
-            elementData?.FirstOrDefault(data => data.Index == elementIndex).SourceIndices ?? [];
-        ConfigSourceDetails? effective = null;
-        if (contributors.Count == 1)
-        {
-            effective = snapshot.Sources[contributors[0]];
-            decorations.Add(
-                new ConfiglueViewerDecoration(
-                    elementPath,
-                    valueRange,
-                    ConfiglueViewerDecorationKind.Effective,
-                    effective.DisplayName,
-                    "configlue-effective"
-                )
-            );
-        }
-
+        // Member-level provenance only (#288). Per-element collection provenance is an
+        // explicit advanced opt-in via ConfiglueMergeProvenance and is not shown by default.
+        // Elements keep secret markers and inherit the parent member's editability.
         if (isSecret)
         {
             decorations.Add(
@@ -748,51 +727,28 @@ internal static class ConfiglueDevToolsViewerProjection
             );
         }
 
-        var contributions = snapshot
-            .Sources.Select(
-                (source, index) =>
-                {
-                    var contributes = contributors.Contains(index);
-                    return new ConfiglueViewerContribution(
-                        source.Key,
-                        source.DisplayName,
-                        source.Kind,
-                        contributes
-                            ? ConfigSourceValueState.Present.ToString()
-                            : ConfigSourceValueState.Missing.ToString(),
-                        contributes && contributors.Count == 1,
-                        false,
-                        source.Locator
-                    );
-                }
-            )
-            .ToArray();
-
+        var editability = snapshot.Editability(path);
+        var editableText =
+            editability == ConfiglueEditability.Editable ? "Yes" : $"No ({editability})";
         string markdown;
         if (isSecret)
         {
-            var presence = contributors.Count > 0 ? "Yes" : "No";
-            markdown =
-                $"### {elementPath}\n\nSecret: Yes\n\nPresent: {presence}\n\nEffective source: {effective?.DisplayName ?? "—"}";
+            markdown = $"### {elementPath}\n\nSecret: Yes\n\nEditable: {editableText}";
         }
         else
         {
-            var rows = string.Join(
-                "\n",
-                contributions.Select(static c => $"- {c.DisplayName}: {c.State}")
-            );
             markdown =
-                $"### {elementPath}\n\nEffective source: {effective?.DisplayName ?? "—"}\n\nContributions\n\n{rows}";
+                $"### {elementPath}\n\nSee the parent collection member for effective source and contributions.\n\nEditable: {editableText}";
         }
         hovers.Add(
             new ConfiglueViewerHover(
                 elementPath,
                 elementPath,
                 markdown,
-                effective?.DisplayName,
-                snapshot.Editability(path).ToString(),
+                null,
+                editability.ToString(),
                 isSecret,
-                contributions,
+                [],
                 snapshot.Sources.FirstOrDefault()?.Locator
             )
         );

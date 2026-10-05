@@ -250,7 +250,6 @@ public sealed partial class ConfiglueGenerator
             2,
             "var values = new global::Configlue.ConfigSourceValueDetails<global::System.Collections.Generic.IReadOnlyList<E>?>[snapshot.Sources.Count];"
         );
-        code.AppendLineAt(2, "var elementData = snapshot.CollectionElements(fullPath);");
         code.AppendLineAt(2, "global::Configlue.ConfigSourceDetails? effectiveSource = null;");
         code.AppendLineAt(2, "for (var index = 0; index < snapshot.Sources.Count; index++)");
         code.AppendLineAt(2, "{");
@@ -271,35 +270,23 @@ public sealed partial class ConfiglueGenerator
         );
         code.AppendLineAt(
             3,
-            "var isShadowed = present && (replaceSemantics ? effectiveSource is not null : list is not null && list.Count > 0 && !global::System.Linq.Enumerable.Any(elementData, element => global::System.Linq.Enumerable.Contains(element.SourceIndices, index)));"
+            "var isShadowed = present && replaceSemantics && effectiveSource is not null;"
         );
         code.AppendLineAt(3, "if (present && list is not null && effectiveSource is null)");
         code.AppendLineAt(3, "{");
-        code.AppendLineAt(4, "effectiveSource = snapshot.Sources[index];");
+        code.AppendLineAt(4, "if (replaceSemantics)");
+        code.AppendLineAt(4, "{");
+        code.AppendLineAt(5, "effectiveSource = snapshot.Sources[index];");
+        code.AppendLineAt(4, "}");
         code.AppendLineAt(3, "}");
         code.AppendLineAt(
             3,
             "values[index] = new global::Configlue.ConfigSourceValueDetails<global::System.Collections.Generic.IReadOnlyList<E>?>(snapshot.Sources[index], state, list, isSecret) { IsShadowed = isShadowed };"
         );
         code.AppendLineAt(2, "}");
-        code.AppendLineAt(2, "if (!replaceSemantics)");
-        code.AppendLineAt(2, "{");
-        code.AppendLineAt(
-            3,
-            "var elementSourceIndices = global::System.Linq.Enumerable.ToArray(global::System.Linq.Enumerable.Take(global::System.Linq.Enumerable.Distinct(global::System.Linq.Enumerable.SelectMany(elementData, element => element.SourceIndices)), 2));"
-        );
-        code.AppendLineAt(
-            3,
-            "effectiveSource = elementSourceIndices.Length == 1 ? snapshot.Sources[elementSourceIndices[0]] : null;"
-        );
-        code.AppendLineAt(2, "}");
         code.AppendLineAt(
             2,
-            "var elements = global::System.Linq.Enumerable.ToArray(global::System.Linq.Enumerable.Select(elementData, element => new global::Configlue.ConfigCollectionElementDetails<E>(element.Index, (E?)element.Value, global::System.Linq.Enumerable.ToArray(global::System.Linq.Enumerable.Select(element.SourceIndices, sourceIndex => new global::Configlue.ConfigSourceValueDetails<E?>(snapshot.Sources[sourceIndex], global::Configlue.ConfigSourceValueState.Present, (E?)element.Value, isSecret))), isSecret)));"
-        );
-        code.AppendLineAt(
-            2,
-            "return new global::Configlue.ConfigCollectionDetails<E>(effective, snapshot.Editability(fullPath), effectiveSource, values, elements, isSecret);"
+            "return new global::Configlue.ConfigCollectionDetails<E>(effective, snapshot.Editability(fullPath), effectiveSource, values, isSecret);"
         );
         code.AppendLineAt(1, "}");
     }

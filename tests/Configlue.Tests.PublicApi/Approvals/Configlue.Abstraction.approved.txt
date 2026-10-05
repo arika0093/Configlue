@@ -71,6 +71,7 @@ namespace Configlue
     [System.Diagnostics.DebuggerDisplay("Count = {Value.Count}")]
     public sealed class ConfigCollectionDetails<T>
     {
+        public ConfigCollectionDetails(System.Collections.Generic.IReadOnlyList<T> value, Configlue.ConfiglueEditability editability, Configlue.ConfigSourceDetails? source, System.Collections.Generic.IReadOnlyList<Configlue.ConfigSourceValueDetails<System.Collections.Generic.IReadOnlyList<T>?>> sources, bool isSecret = false) { }
         public ConfigCollectionDetails(System.Collections.Generic.IReadOnlyList<T> value, Configlue.ConfiglueEditability editability, Configlue.ConfigSourceDetails? source, System.Collections.Generic.IReadOnlyList<Configlue.ConfigSourceValueDetails<System.Collections.Generic.IReadOnlyList<T>?>> sources, System.Collections.Generic.IReadOnlyList<Configlue.ConfigCollectionElementDetails<T>> elements, bool isSecret = false) { }
         public Configlue.ConfiglueEditability Editability { get; }
         public System.Collections.Generic.IReadOnlyList<Configlue.ConfigCollectionElementDetails<T>> Elements { get; }

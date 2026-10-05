@@ -14,40 +14,10 @@ public partial class ProvenanceReviewSettings
 
 public sealed class MergeProvenanceTests
 {
-    [Test]
-    public void SetUnionExplanationUsesSetComparersAndMapsPriorityIndices()
-    {
-        var member = ProvenanceReviewSettings.ConfiglueSchema.Members.Single(member =>
-            member.Name == "Set"
-        );
-        var lower = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "alpha" };
-        var higher = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "ALPHA" };
-        var elements = ConfiglueMergeProvenance.ExplainElements(
-            member,
-            lower,
-            [(SourceId.From("higher"), higher), (SourceId.From("lower"), lower)]
-        );
-        elements.Single().SourceIndices.ShouldBe([0, 1]);
-    }
-
-    [Test]
-    public void AppendExplanationHonorsNullReset()
-    {
-        var member = ProvenanceReviewSettings.ConfiglueSchema.Members.Single(member =>
-            member.Name == "Appended"
-        );
-        var elements = ConfiglueMergeProvenance.ExplainElements(
-            member,
-            new[] { "same" },
-            [
-                (SourceId.From("higher"), new[] { "same" }),
-                (SourceId.From("reset"), null),
-                (SourceId.From("lower"), new[] { "same" }),
-            ]
-        );
-        elements.Single().SourceIndices.ShouldBe([0]);
-    }
-
+    // Per-element provenance is an explicit advanced opt-in (#288) exercised here directly.
+    // Default generated Details carry member-level provenance only; Append/SetUnion/custom
+    // per-element graphs are not part of the default API, so only the member replace
+    // representative is kept.
     [Test]
     public void ReplaceExplanationUsesOnlyTheWinningSource()
     {

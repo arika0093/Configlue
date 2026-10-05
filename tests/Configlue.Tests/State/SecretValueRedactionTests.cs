@@ -292,23 +292,14 @@ public sealed class SecretValueRedactionTests
         (details.Tokens!.IsSecret).ShouldBeTrue();
         (details.Tags!.IsSecret).ShouldBeFalse();
         (details.Tokens.Value).ShouldBe(["token-a"]);
-        foreach (var element in details.Tokens.Elements)
-        {
-            (element.IsSecret).ShouldBeTrue();
-            (element.Value).ShouldBe("token-a");
-            (element.ToString()).ShouldBe(ConfiglueSecrets.RedactedText);
-            foreach (var contribution in element.Contributions)
-            {
-                (contribution.Value).ShouldBe("token-a");
-                (contribution.ToString().Contains("token-a")).ShouldBeFalse();
-            }
-        }
-
-        foreach (var element in details.Tags!.Elements)
-        {
-            (element.IsSecret).ShouldBeFalse();
-            (element.ToString()).ShouldBe("tag-a");
-        }
+        // Default Details carry member-level provenance only; per-element graphs are opt-in.
+        (details.Tokens.Elements.Count).ShouldBe(0);
+        (details.Tokens.ToString()).ShouldBe("Count = 1");
+        (details.Tokens.Sources[0].IsSecret).ShouldBeTrue();
+        (details.Tokens.Sources[0].Value).ShouldBe(["token-a"]);
+        (details.Tokens.Sources[0].ToString().Contains("token-a")).ShouldBeFalse();
+        (details.Tokens.Sources[0].ToString().Contains(ConfiglueSecrets.RedactedText)).ShouldBeTrue();
+        (details.Tags!.Sources[0].IsSecret).ShouldBeFalse();
     }
 
     [Test]

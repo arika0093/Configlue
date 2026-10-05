@@ -1,17 +1,8 @@
 [assembly: System.Reflection.AssemblyMetadata("RepositoryUrl", "https://github.com/arika0093/Configlue")]
 namespace Configlue.CompilerServices
 {
-    public readonly struct ConfigCollectionElementData : System.IEquatable<Configlue.CompilerServices.ConfigCollectionElementData>
-    {
-        public ConfigCollectionElementData(int Index, object? Value, System.Collections.Generic.IReadOnlyList<int> SourceIndices) { }
-        public int Index { get; init; }
-        public System.Collections.Generic.IReadOnlyList<int> SourceIndices { get; init; }
-        public object? Value { get; init; }
-        public void Deconstruct(out int Index, out object? Value, out System.Collections.Generic.IReadOnlyList<int> SourceIndices) { }
-    }
     public sealed class ConfiglueDetailsSnapshot
     {
-        public System.Func<Configlue.CompilerServices.ConfiglueMemberPath, System.Collections.Generic.IReadOnlyList<Configlue.CompilerServices.ConfigCollectionElementData>> CollectionElements { get; }
         public System.Func<Configlue.CompilerServices.ConfiglueMemberPath, Configlue.ConfiglueEditability> Editability { get; }
         public Configlue.ConfiglueModelSchema Schema { get; }
         public System.Collections.Generic.IReadOnlyList<Configlue.IConfiglueFragment?> SourceFragments { get; }

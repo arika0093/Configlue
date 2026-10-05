@@ -266,8 +266,7 @@ internal sealed class RuntimeInspectionCoordinator<TModel, TFragment>
             Array.AsReadOnly(descriptors),
             Array.AsReadOnly(fragments),
             Array.AsReadOnly(statuses),
-            path => GetEditability(path, contributions),
-            path => GetCollectionElementData(path, value, contributions)
+            path => GetEditability(path, contributions)
         );
     }
 
@@ -324,41 +323,6 @@ internal sealed class RuntimeInspectionCoordinator<TModel, TFragment>
         }
 
         return ConfiglueEditability.Editable;
-    }
-
-    private static IReadOnlyList<ConfigCollectionElementData> GetCollectionElementData(
-        ConfiglueMemberPath propertyPath,
-        TModel value,
-        IReadOnlyList<ResolvedContribution<TFragment>> contributions
-    )
-    {
-        var effectiveValue = propertyPath.GetModelValue(value, out var member);
-        var sourceContributions = new List<(SourceId SourceId, object? Value)>();
-        foreach (var contribution in contributions)
-        {
-            if (
-                contribution.Result.Value is not null
-                && propertyPath.TryGetFragmentValue(contribution.Result.Value, out var memberValue)
-            )
-            {
-                sourceContributions.Add((contribution.Source.Id, memberValue));
-            }
-        }
-
-        return ConfiglueMergeProvenance
-            .ExplainElements(
-                member,
-                effectiveValue,
-                sourceContributions
-                    .Select(static contribution => (contribution.SourceId, contribution.Value))
-                    .ToArray()
-            )
-            .Select(provenance => new ConfigCollectionElementData(
-                provenance.Index,
-                provenance.Value,
-                provenance.SourceIndices
-            ))
-            .ToArray();
     }
 
     private ConfigSourceDetails DescribeModelDefaults() =>

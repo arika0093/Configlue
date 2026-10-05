@@ -38,8 +38,14 @@ public sealed class ConfiglueCollectionElementProvenance
 /// Product-neutral per-element provenance for a merged collection member. Host source identities are supplied only to
 /// resolve custom strategy provenance back to their contribution positions.
 /// </summary>
-/// <remarks>Runtime helper consumed by details; custom strategies expose provenance through
-/// <see cref="IConfiglueMergeElementProvenanceProvider"/> instead of calling this type.</remarks>
+/// <remarks>
+/// Advanced opt-in explanation API. Default generated details do not call this type;
+/// request per-element provenance explicitly where the merge mode gives it clear meaning
+/// (typically member-level replace). Runtime helper consumed by advanced diagnostics;
+/// custom strategies expose provenance through
+/// <see cref="IConfiglueMergeElementProvenanceProvider"/> instead of calling this type.
+/// Normal <c>GetValueAsync</c> reads never retain contribution data for this API.
+/// </remarks>
 [System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Advanced)]
 public static class ConfiglueMergeProvenance
 {

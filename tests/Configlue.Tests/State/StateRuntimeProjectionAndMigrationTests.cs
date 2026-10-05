@@ -156,73 +156,10 @@ public sealed partial class StateRuntimeTests
         (details.Enabled.Sources[^1].IsPresent).ShouldBeTrue();
     }
 
+    // Member-level replace representative (#288). Per-element Append/SetUnion explanation
+    // is an advanced opt-in via ConfiglueMergeProvenance and is not asserted on default Details.
     [Test]
-    public async Task Options_ExplainsAppendElementOriginsIncludingDuplicates()
-    {
-        var user = new InMemoryStateSource<AppSettings.Fragment>(
-            new AppSettings.Fragment
-            {
-                Plugins = Optional<IReadOnlyList<string>>.Present(["user", "shared"]),
-            }
-        );
-        var defaults = new InMemoryStateSource<AppSettings.Fragment>(
-            new AppSettings.Fragment
-            {
-                Plugins = Optional<IReadOnlyList<string>>.Present(["base", "shared"]),
-            }
-        );
-        var options = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
-            new StateSourceSet<AppSettings.Fragment>([
-                new StateSource<AppSettings.Fragment>("user", user, new StateSourceOptions<AppSettings.Fragment> { Priority = 100 }),
-                new StateSource<AppSettings.Fragment>("defaults", defaults, new StateSourceOptions<AppSettings.Fragment> { Priority = 0 }),
-            ])
-        );
-
-        var details = await options.GetDetailsAsync();
-        var plugins = details.Plugins!;
-
-        (plugins.Value).ShouldBe(["base", "shared", "user", "shared"]);
-        plugins.Elements.Count.ShouldBe(4);
-        ShouldHaveElementSources(plugins, 0, "base", 1);
-        ShouldHaveElementSources(plugins, 1, "shared", 1);
-        ShouldHaveElementSources(plugins, 2, "user", 0);
-        ShouldHaveElementSources(plugins, 3, "shared", 0);
-    }
-
-    [Test]
-    public async Task Options_ExplainsSetUnionElementOriginsForOverlappingValues()
-    {
-        var user = new InMemoryStateSource<SetUnionSettings.Fragment>(
-            new SetUnionSettings.Fragment
-            {
-                Tags = Optional<IReadOnlyList<string>>.Present(["user", "shared"]),
-            }
-        );
-        var defaults = new InMemoryStateSource<SetUnionSettings.Fragment>(
-            new SetUnionSettings.Fragment
-            {
-                Tags = Optional<IReadOnlyList<string>>.Present(["base", "shared"]),
-            }
-        );
-        var options = new ConfiglueRuntime<SetUnionSettings, SetUnionSettings.Fragment>(
-            new StateSourceSet<SetUnionSettings.Fragment>([
-                new StateSource<SetUnionSettings.Fragment>("user", user, new StateSourceOptions<SetUnionSettings.Fragment> { Priority = 100 }),
-                new StateSource<SetUnionSettings.Fragment>("defaults", defaults, new StateSourceOptions<SetUnionSettings.Fragment> { Priority = 0 }),
-            ])
-        );
-
-        var details = await options.GetDetailsAsync();
-        var tags = details.Tags!;
-
-        (tags.Value).ShouldBe(["base", "shared", "user"]);
-        tags.Elements.Count.ShouldBe(3);
-        ShouldHaveElementSources(tags, 0, "base", 1);
-        ShouldHaveElementSources(tags, 1, "shared", 0, 1);
-        ShouldHaveElementSources(tags, 2, "user", 0);
-    }
-
-    [Test]
-    public async Task Options_ExplainsOnlyTheWinningSourceForReplacementCollectionElements()
+    public async Task Options_ExplainsOnlyTheWinningSourceForReplacementCollections()
     {
         var user = new InMemoryStateSource<ReplaceCollectionSettings.Fragment>(
             new ReplaceCollectionSettings.Fragment
@@ -249,8 +186,14 @@ public sealed partial class StateRuntimeTests
         var details = await options.GetDetailsAsync();
         var values = details.Values!;
 
-        values.Elements.Count.ShouldBe(1);
-        ShouldHaveElementSources(values, 0, "user", 0);
+        (values.Value).ShouldBe(["user"]);
+        (values.Source).ShouldNotBeNull();
+        (values.Sources[0].IsPresent).ShouldBeTrue();
+        (values.Sources[0].IsShadowed).ShouldBeFalse();
+        (values.Sources[0].Value).ShouldBe(["user"]);
+        (values.Sources[1].IsPresent).ShouldBeTrue();
+        (values.Sources[1].IsShadowed).ShouldBeTrue();
+        (values.Elements.Count).ShouldBe(0);
     }
 
     [Test]
