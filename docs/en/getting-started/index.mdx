@@ -42,12 +42,15 @@ public partial class AppSettings
 
 The model must be `partial` because the generator produces the patch type (`AppSettings.Patch`) and the `SaveAsync(patch => ...)` overload used below. `Version = 1` gives the persisted document a stable schema identity from day one.
 
+In a `dotnet new console` project, keep this model in the same file below the top-level statements (or in a separate `AppSettings.cs`). Type declarations must come after top-level statements.
+
 ## 2. Initialize with local JSON
 
 Configure once at startup:
 
 ```csharp
 using Configlue;
+using Configlue.Provider.Json;
 
 ConfiglueApp.Initialize(config =>
 {

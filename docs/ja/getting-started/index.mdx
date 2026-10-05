@@ -42,12 +42,15 @@ public partial class AppSettings
 
 モデルは `partial` にします。ジェネレーターが patch 型（`AppSettings.Patch`）と下で使う `SaveAsync(patch => ...)` オーバーロードを生成するためです。`Version = 1` により、保存ドキュメントに初日から安定した schema identity が付きます。
 
+`dotnet new console` で作ったプロジェクトでは、このモデルはトップレベルステートメントより下の同じファイル内（または別の `AppSettings.cs`）に置きます。型宣言はトップレベルステートメントの後に書く必要があります。
+
 ## 2. ローカル JSON で初期化する
 
 起動時に 1 回だけ構成します。
 
 ```csharp
 using Configlue;
+using Configlue.Provider.Json;
 
 ConfiglueApp.Initialize(config =>
 {
