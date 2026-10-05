@@ -4,7 +4,7 @@
     <AssemblyName>SparseFragments</AssemblyName>
     <RootNamespace>SparseFragments</RootNamespace>
     <IsPackable>true</IsPackable>
-    <PackageDescription>Source-generated presence-aware partial models for C#. Distinguish missing, null, and values, then merge, diff, patch, rebase, and clone ordinary POCOs without reflection.</PackageDescription>
+    <PackageDescription>Typed partial state for C#. Distinguish missing, null, and values with source-generated fragments from ordinary POCOs, then merge, diff, and patch without reflection.</PackageDescription>
     <PackageTags>partial-update;optional;patch;diff;merge;source-generator;poco;json-patch;aot</PackageTags>
   </PropertyGroup>
   <ItemGroup>

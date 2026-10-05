@@ -1,10 +1,11 @@
 # SparseFragments
 
-*Presence-aware merge, diff/patch, and deep clone for plain C# models — generated at compile time.*
+**Typed partial state for C#.**
+Distinguish missing, null, and values. Generate fragments, merge, diff, and typed patches from ordinary POCOs at compile time.
 
-Annotate a partial class with `[SparseFragmentModel]`, and the generator emits a typed **Fragment** (each member tracks whether it was specified), a **Patch**, semantic **Diff**, layered **Merge**, and **DeepClone**. Targets netstandard2.0.
+Annotate a partial class with `[SparseFragmentModel]`, and the generator emits a typed **Fragment** — a presence-aware view where each member tracks whether it was specified — plus merge, semantic diff, and typed patch operations over that partial state. Targets netstandard2.0.
 
-## The Problem
+## The Problem: Missing Is Not Null
 
 Plain C# properties cannot distinguish "the caller did not specify this member" from "the caller explicitly set it to `null`/`default`". That distinction becomes essential the moment data is layered:
 
@@ -16,18 +17,39 @@ Plain C# properties cannot distinguish "the caller did not specify this member" 
 
 Hand-writing this per model is boilerplate-heavy and error-prone, and reflection-based solutions sacrifice startup performance and AOT/trim compatibility.
 
-## What You Get
+### Presence in one glance
 
-* **Nearly zero adoption effort.** One attribute on a partial class; everything else is generated.
-* **Predictable, source-generated operations.** Plain generated C# — reflection-free core operations, no runtime code generation, no generator warmup at runtime. Measure the representative paths locally with `SparseFragmentBenchmarks318` (see `benchmarks/README.md`).
-* **Exact presence semantics.** `Optional<T>` distinguishes *missing*, *present null*, and *present default*.
-* **Typed, source-generated API.** `Fragment`, `Patch`, and a builder per model, all compiler-checked.
-* **Per-member merge algebra.** `Replace` / `Deep` / `Append` / `SetUnion`, or custom strategies via `[SparseMerge]`.
-* **Semantic diff and patch.** Minimal deltas between states, applied with `Set` / `Unset` / `Unchanged`, including nested `SetNull`.
-* **RFC 6902 JSON Patch interop.** Import (`Patch.FromJsonPatch`) and export (`patch.ToJsonPatch`) patches as standard JSON Patch documents via the `SparseFragments.JsonPatch` package.
-* **Immutable edits with structural isolation.** Originals never mutate; `DeepClone` is fully independent.
-* **Reflection-free metadata.** Generated schema descriptors enumerate present members for serializers and tooling.
-* **Legacy-friendly.** Generator ships as an analyzer in the package; automatic `IsExternalInit` emission for init-only members.
+An explicitly set `null` overrides a lower layer; an unspecified member falls through. The generated typed API preserves that distinction:
+
+```csharp
+// Given the Settings model defined in Usage §2 below:
+var defaults = Settings.Fragment.From(new Settings
+{
+    Label = "fallback",
+    Child = new Child { Host = "db.local" },
+});
+
+// Explicit null is present: it overrides the lower layer.
+var clearsLabel = new Settings.Fragment { Label = (string?)null };
+// Nothing set: everything is missing, so the lower layer survives.
+var saysNothing = new Settings.Fragment();
+
+defaults.Merge(clearsLabel).ToModel().Label; // null (explicit null wins)
+defaults.Merge(saysNothing).ToModel().Label; // "fallback" (missing falls through)
+```
+
+`Merge`, `Diff`, and typed `Patch` below are operations on this partial state — not separate features bolted together.
+
+## What You Get: Layers Over Typed Partial State
+
+1. **Presence-aware `Fragment`.** `Optional<T>` distinguishes *missing*, *present null*, and *present value* per member. Sparse construction (`new Settings.Fragment { ... }`) carries only what a layer actually sets.
+2. **Merge, diff, and typed patch as operations on partial state.** Layered `Merge` overrides only present members; `Diff` captures the minimal delta between states; a typed `Patch` applies `Set` / `Unset` / `Unchanged` edits (including nested `SetNull`) without mutating the original.
+3. **Advanced capabilities, when you need them.** Per-member merge algebra (`Replace` / `Deep` / `Append` / `SetUnion`, or custom strategies), immutable builders, structural `DeepClone`, and diagnostics such as rebase and contribution provenance stay available but secondary to the core mental model.
+4. **Boundary interop as an opt-in.** Crossing a process boundary? Convert a typed patch to a standard RFC 6902 JSON Patch document (and back) with the `SparseFragments.JsonPatch` package. In-process code never needs to think in JSON Patch terms.
+
+Details for each layer follow in Usage; advanced and interop sections live at the end so they do not obscure the core model.
+
+Adoption is one attribute on a partial class; the generator ships as an analyzer in the package and emits predictable, source-generated operations: plain generated C# — reflection-free core operations, no runtime code generation, no generator warmup at runtime — with automatic `IsExternalInit` emission for init-only members. Measure the representative paths locally with `SparseFragmentBenchmarks318` (see `benchmarks/README.md`).
 
 ## Usage
 
@@ -161,7 +183,9 @@ toNull.Child.SetNull();                                        // explicit null,
 
 `Patch.IsEmpty` tells you at a glance whether the patch changes anything at all.
 
-### 7. Build and clone
+### 7. Build and clone (secondary helpers)
+
+Builders and `DeepClone` work around the same partial state when you need an edited copy or an isolated graph:
 
 ```csharp
 var builder = original.ToBuilder();
@@ -174,9 +198,9 @@ clone.Child!.Count = 42;                                       // original.Child
 
 `DeepClone` preserves shared references and object cycles. `Fragment.From` and `Fragment.Diff` do not support cyclic object graphs: shared (non-cyclic) references are allowed, but a cycle throws `NotSupportedException` naming the member path instead of overflowing the stack.
 
-### 8. Customize merging
+### 8. Customize merging (advanced)
 
-`[SparseMerge]` changes the merge rule per member:
+`[SparseMerge]` changes the merge rule per member. The defaults already cover the common cases, so reach for this only when a member needs its own algebra:
 
 | MergeMode | Behavior |
 | --- | --- |
@@ -186,9 +210,9 @@ clone.Child!.Count = 42;                                       // original.Child
 | `SetUnion` | Combine as an insertion-ordered set union |
 | `Custom` | Delegate to your own `FragmentMergeStrategy<T>` implementation |
 
-### 9. Exchange patches as RFC 6902 JSON Patch
+### 9. Exchange patches as RFC 6902 JSON Patch (opt-in boundary interop)
 
-Typed `Patch` values stay in-process. When a patch has to cross a process boundary — an HTTP PATCH endpoint, another service, or stored JSON — convert it to a standard [RFC 6902](https://datatracker.ietf.org/doc/html/rfc6902) document with the `SparseFragments.JsonPatch` package. The same bridge is generated for standalone `[SparseFragmentModel]` types and for Configlue `[ConfiglueModel]` types.
+Typed `Patch` values stay in-process. When a patch has to cross a process boundary — an HTTP PATCH endpoint, another service, or stored JSON — convert it to a standard [RFC 6902](https://datatracker.ietf.org/doc/html/rfc6902) document with the `SparseFragments.JsonPatch` package.
 
 #### 9.1. Install the interop package
 
@@ -299,13 +323,15 @@ catch (JsonPatchException ex) when (ex.Kind == JsonPatchErrorKind.MissingTarget)
 
 ## Main Use Cases
 
-* **Layered configuration and overlay models.** Combine defaults with per-environment, per-user, or per-tenant overrides. Each layer only carries what it changes, and a priority-ordered `Merge` produces the effective state — the very workload this algebra was [extracted from Configlue](https://github.com/arika0093/Configlue/issues/61) for.
-* **Partial-update APIs and DTO patching.** HTTP PATCH / JSON Merge Patch-style endpoints where "absent", "null", and "value" must be handled as three distinct intents. Keep the incoming partial update as a typed fragment and `ApplyChanges` it onto the current state — no reflection involved.
-* **RFC 6902 interop with external systems.** Accept standard JSON Patch documents at the boundary with `Patch.FromJsonPatch`, work with them as typed semantic patches in-process, and send them back out with `patch.ToJsonPatch`. `test` operations validate before mutation, and the export stays minimal (recursive for objects, whole-value for arrays/scalars).
+All of these are uses of the same typed partial state: keep an edit, override, or delta as a `Fragment`/`Patch` that remembers what was specified, then combine it with `Merge`, `Diff`, or `Apply`.
+
+* **Layered overlays.** Combine defaults with per-environment, per-user, or per-tenant overrides. Each layer only carries what it changes, and a priority-ordered `Merge` produces the effective state.
+* **Partial-update APIs and DTO patching.** HTTP PATCH-style endpoints where "absent", "null", and "value" are three distinct intents. Keep the incoming partial update as a typed fragment and apply it onto the current state — no reflection involved.
 * **Storing only user-modified settings.** `Diff` the current settings against the defaults and persist only the resulting fragment. Saved data stays minimal, and future default changes still reach users who never overrode them.
 * **Edit sessions and dirty tracking.** Accumulate user edits in a `Patch`, check `IsEmpty` to know whether anything changed, apply it for a preview, or drop it to cancel. The original model is never mutated, so there is no manual restore logic to write.
 * **State diffs between snapshots.** Derive `Diff(before, after)` and apply it to another in-process snapshot with `ApplyChanges`. Serialization and cross-version wire formats are separate application concerns.
-* **Safe duplication of rich models.** `DeepClone` copies models with nested and mutable members (including collections and shared references) without handwritten copy constructors.
+* **Boundary exchange (secondary).** Accept standard JSON Patch documents at the edge with `Patch.FromJsonPatch`, work with them as typed semantic patches in-process, and send them back out with `patch.ToJsonPatch`. `test` operations validate before mutation, and the export stays minimal (recursive for objects, whole-value for arrays/scalars).
+* **Safe duplication (secondary).** `DeepClone` copies models with nested and mutable members (including collections and shared references) without handwritten copy constructors.
 
 ## License
 
