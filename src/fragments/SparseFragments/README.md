@@ -24,6 +24,7 @@ Hand-writing this per model is boilerplate-heavy and error-prone, and reflection
 * **Typed, source-generated API.** `Fragment`, `Patch`, and a builder per model, all compiler-checked.
 * **Per-member merge algebra.** `Replace` / `Deep` / `Append` / `SetUnion`, or custom strategies via `[SparseMerge]`.
 * **Semantic diff and patch.** Minimal deltas between states, applied with `Set` / `Unset` / `Unchanged`, including nested `SetNull`.
+* **RFC 6902 JSON Patch interop.** Import (`Patch.FromJsonPatch`) and export (`patch.ToJsonPatch`) patches as standard JSON Patch documents via the `SparseFragments.JsonPatch` package.
 * **Immutable edits with structural isolation.** Originals never mutate; `DeepClone` is fully independent.
 * **Reflection-free metadata.** Generated schema descriptors enumerate present members for serializers and tooling.
 * **Legacy-friendly.** Generator ships as an analyzer in the package; automatic `IsExternalInit` emission for init-only members.
@@ -68,6 +69,8 @@ Once you build, the generator adds the following members inside your model type:
 | --- | --- |
 | `Settings.Fragment` | A sparse, presence-aware view shaped like your model |
 | `Settings.Patch` | Member-level mutation directives (Set / Unset / unchanged) |
+| `Settings.Patch.FromJsonPatch` / `patch.ToJsonPatch` | RFC 6902 import/export bridge (requires the `SparseFragments.JsonPatch` package) |
+| `Fragment.FragmentJsonConverter` | `System.Text.Json` converter for the canonical fragment JSON used by the bridge |
 | Fragment builder | Copies a fragment while changing only the members you touch |
 | `DeepClone()` | Returns a fully independent copy of a model or fragment |
 
@@ -182,10 +185,122 @@ clone.Child!.Count = 42;                                       // original.Child
 | `SetUnion` | Combine as an insertion-ordered set union |
 | `Custom` | Delegate to your own `FragmentMergeStrategy<T>` implementation |
 
+### 9. Exchange patches as RFC 6902 JSON Patch
+
+Typed `Patch` values stay in-process. When a patch has to cross a process boundary — an HTTP PATCH endpoint, another service, or stored JSON — convert it to a standard [RFC 6902](https://datatracker.ietf.org/doc/html/rfc6902) document with the `SparseFragments.JsonPatch` package. The same bridge is generated for standalone `[SparseFragmentModel]` types and for Configlue `[ConfiglueModel]` types.
+
+#### 9.1. Install the interop package
+
+```shell
+dotnet add package SparseFragments.JsonPatch
+```
+
+No extra setup is needed: `FromJsonPatch` / `ToJsonPatch` are generated alongside `Fragment` / `Patch`, and the package itself has no ASP.NET dependencies.
+
+#### 9.2. Import a JSON Patch document
+
+`Patch.FromJsonPatch` applies an RFC 6902 document to the canonical JSON of a baseline fragment, then derives the equivalent typed semantic `Patch`:
+
+```csharp
+using System.Text;
+using SparseFragments;
+using SparseFragments.JsonPatch;
+
+var baseline = new Settings.Fragment { Label = "base" };
+var document = Encoding.UTF8.GetBytes(
+    """[{"op":"replace","path":"/Label","value":"patched"}]""");
+
+var patch = Settings.Patch.FromJsonPatch(
+    Optional<Settings.Fragment?>.Present(baseline),
+    document);
+
+var updated = baseline.Apply(patch);
+// updated.Label == "patched"
+```
+
+The baseline is presence-aware, so the mapping is exact:
+
+* `replace` with a JSON `null` value becomes a present null; `remove` becomes absent (`Missing`).
+* A nested `add` fails when its parent fragment is absent (`JsonPatchErrorKind.MissingParent`).
+* Whole-contribution transitions use the root pointer `""`: `add` from `Optional<Fragment?>.Missing`, `replace` with `null`, and `remove` to absent.
+* Array element operations (`/Tags/1`, `/Tags/-`) work on import; collections are whole values on export (see below).
+* Pointers follow RFC 6901 (`~0` for `~`, `~1` for `/`) and honor `[JsonPropertyName]` wire names, `JsonSerializerOptions.PropertyNamingPolicy`, and `PropertyNameCaseInsensitive`.
+
+An overload taking a present `Fragment` directly (`FromJsonPatch(baseline, document, options)`) covers the common case. If a model happens to declare members named `FromJsonPatch` / `ToJsonPatch`, the bridge is emitted with a `Sparse` prefix instead (`SparseFromJsonPatch` / `SparseToJsonPatch`).
+
+#### 9.3. Export a typed patch
+
+`ToJsonPatch` runs the typed patch against the same baseline and diffs the before/after canonical JSON:
+
+```csharp
+var baselineOpt = Optional<Settings.Fragment?>.Present(baseline);
+var exported = patch.ToJsonPatch(baselineOpt); // ReadOnlyMemory<byte>, UTF-8 JSON
+Console.WriteLine(Encoding.UTF8.GetString(exported.ToArray()));
+// [{"op":"replace","path":"/Label","value":"patched"}]
+```
+
+Export is semantic, not a verbatim replay of the import:
+
+| Input shape | Exported shape |
+| --- | --- |
+| Objects | Diffed recursively member by member |
+| Arrays and scalars | Collapsed to a whole-value `add` / `remove` / `replace` on the member path |
+| `move` / `copy` | Collapsed to the equivalent `remove` plus `add` / `replace` |
+| `test` | Validation-only; never appears in the export |
+
+Round-tripping holds semantically: applying the re-imported export to the same baseline produces the same fragment as applying the original typed patch.
+
+#### 9.4. Options, converters, and NativeAOT
+
+Both directions accept an optional `JsonSerializerOptions`:
+
+```csharp
+var options = new JsonSerializerOptions
+{
+    PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+    PropertyNameCaseInsensitive = true,
+};
+
+// Scalar/collection members resolve through options.TypeInfoResolver.
+var patch = Settings.Patch.FromJsonPatch(baselineOpt, document, options);
+var exported = patch.ToJsonPatch(baselineOpt, options);
+```
+
+The fragment itself never needs `JsonTypeInfo` metadata: conversion goes through the generated `Fragment.FragmentJsonConverter` directly. Only scalar/collection member types use the supplied resolver, so NativeAOT applications just pass a source-generated context:
+
+```csharp
+[JsonSerializable(typeof(string))]
+[JsonSerializable(typeof(int))]
+[JsonSerializable(typeof(List<string>))]
+internal sealed partial class PatchContext : JsonSerializerContext;
+```
+
+```csharp
+var options = new JsonSerializerOptions { TypeInfoResolver = PatchContext.Default };
+```
+
+When reflection-based serialization is disabled and no resolver is supplied, the bridge fails fast with a clear `InvalidOperationException` instead of reaching runtime codegen. `Fragment.FragmentJsonConverter` is also public, so ordinary `JsonSerializer.Serialize(fragment, options)` works with the same presence semantics (present members only, explicit nulls preserved).
+
+#### 9.5. Failures are typed
+
+Malformed documents, unknown operations, bad pointers, missing targets/parents, invalid array indices, failed `test` operations, unmapped properties, and member deserialization failures all throw `JsonPatchException` with a machine-readable `Kind`:
+
+```csharp
+try
+{
+    var patch = Settings.Patch.FromJsonPatch(baselineOpt, document);
+}
+catch (JsonPatchException ex) when (ex.Kind == JsonPatchErrorKind.MissingTarget)
+{
+    // e.g. replace/remove/test on a path that does not exist in the baseline.
+}
+```
+
 ## Main Use Cases
 
 * **Layered configuration and overlay models.** Combine defaults with per-environment, per-user, or per-tenant overrides. Each layer only carries what it changes, and a priority-ordered `Merge` produces the effective state — the very workload this algebra was [extracted from Configlue](https://github.com/arika0093/Configlue/issues/61) for.
 * **Partial-update APIs and DTO patching.** HTTP PATCH / JSON Merge Patch-style endpoints where "absent", "null", and "value" must be handled as three distinct intents. Keep the incoming partial update as a typed fragment and `ApplyChanges` it onto the current state — no reflection involved.
+* **RFC 6902 interop with external systems.** Accept standard JSON Patch documents at the boundary with `Patch.FromJsonPatch`, work with them as typed semantic patches in-process, and send them back out with `patch.ToJsonPatch`. `test` operations validate before mutation, and the export stays minimal (recursive for objects, whole-value for arrays/scalars).
 * **Storing only user-modified settings.** `Diff` the current settings against the defaults and persist only the resulting fragment. Saved data stays minimal, and future default changes still reach users who never overrode them.
 * **Edit sessions and dirty tracking.** Accumulate user edits in a `Patch`, check `IsEmpty` to know whether anything changed, apply it for a preview, or drop it to cancel. The original model is never mutated, so there is no manual restore logic to write.
 * **State diffs between snapshots.** Derive `Diff(before, after)` and apply it to another in-process snapshot with `ApplyChanges`. Serialization and cross-version wire formats are separate application concerns.
