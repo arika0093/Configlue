@@ -84,6 +84,12 @@ UI editing uses `StateEditor<T>` with a standard Blazor `EditContext`; see the p
 - **When:** bridging Configlue state with `IOptions<T>` / `IOptionsMonitor<T>` consumers.
 - **Install:** `dotnet add package Configlue.Extensions.MSOptions`
 
+```csharp
+services.AddConfiglueMicrosoftOptions<AppSettings>();
+```
+
+Register this after `AddConfiglue`; existing `IOptions<AppSettings>` consumers then resolve from Configlue state.
+
 ### Desktop UI
 
 - **Packages:** `Configlue.Hosting.Avalonia`, `Configlue.Hosting.Wpf`, `Configlue.Hosting.WinForms`, `Configlue.Hosting.WinUI`
@@ -115,6 +121,10 @@ ComponentModel adapters (`Configlue.Extensions.ComponentModel`) expose shared de
 - **When:** projecting state changes into an R3 observable pipeline or shared component-model editing adapters.
 - **Install:** `dotnet add package Configlue.Extensions.R3`
 
+```csharp
+R3.Observable<AppSettings> live = state.ObserveValues();
+```
+
 ## Sources and external state
 
 Group by what the application consumes, not by internal source taxonomy.
@@ -144,22 +154,36 @@ config.UseCommonSources(sources =>
 - **When:** projecting `System.CommandLine` parse results as a configuration source.
 - **Install:** `dotnet add package Configlue.Source.CommandLine`
 
+```csharp
+sources.CommandLine(parseResult, mappings =>
+{
+    // map options/arguments to model members
+});
+```
+
 ### PostgreSQL
 
 - **Packages:** `Configlue.Source.PostgreSql` (plus `Configlue.Source.PostgreSql.Migrations` for migration support)
 - **When:** backing state with PostgreSQL as external storage.
 - **Install:** `dotnet add package Configlue.Source.PostgreSql`
 
+```bash
+dotnet add package Configlue.Source.PostgreSql.Migrations
+```
+
 ### Other remote / platform sources
 
 - **Packages:** `Configlue.Source.Consul`, `Configlue.Source.Ssm`
 - **When:** consuming Consul KV or AWS SSM Parameter Store as configuration input. Prefer these over hand-rolled polling readers.
+- **Install:** `dotnet add package Configlue.Source.Consul` or `dotnet add package Configlue.Source.Ssm`
 
 ## Storage resources and cloud backends
 
 Present these as optional persistence and connectivity capabilities. You do not need to understand the internal Source/Resource distinction to pick one; [Concepts](../concepts/) explains it where it matters.
 
-- `Configlue.Resource.S3`, `Configlue.Resource.AzureBlob` — object storage.
+Install only the backend you use, following the `dotnet add package <id>` pattern:
+
+- `Configlue.Resource.S3`, `Configlue.Resource.AzureBlob` — object storage (e.g. `dotnet add package Configlue.Resource.S3`).
 - `Configlue.Resource.AzureAppConfiguration`, `Configlue.Resource.AwsAppConfig` — managed application configuration services.
 - `Configlue.Resource.AzureKeyVault`, `Configlue.Resource.SecretsManager`, `Configlue.Resource.GoogleSecretManager`, `Configlue.Resource.Vault` — secret stores.
 - `Configlue.Resource.Redis`, `Configlue.Resource.Etcd`, `Configlue.Resource.Kubernetes`, `Configlue.Resource.Gcs` — infrastructure backends.
@@ -168,10 +192,10 @@ Do not copy cloud-provider setup guides here. Each backend needs its own infrast
 
 ## Formats and transforms
 
-Opt-in serialization and byte transforms:
+Opt-in serialization and byte transforms. Install only the one you use, following the `dotnet add package <id>` pattern:
 
-- `Configlue.Provider.Yaml`, `Configlue.Provider.MessagePack`, `Configlue.Provider.Xml` — external formats beyond the built-in JSON path.
-- `Configlue.Transformer.AES`, `Configlue.Transformer.Compression` — encryption and compression wrapping. AES narrows TFMs and stays opt-in; check the compatibility matrix before adopting it on constrained targets.
+- `Configlue.Provider.Yaml`, `Configlue.Provider.MessagePack`, `Configlue.Provider.Xml` — external formats beyond the built-in JSON path (e.g. `dotnet add package Configlue.Provider.Yaml`).
+- `Configlue.Transformer.AES`, `Configlue.Transformer.Compression` — encryption and compression wrapping (e.g. `dotnet add package Configlue.Transformer.AES`). AES narrows TFMs and stays opt-in; check the compatibility matrix before adopting it on constrained targets.
 
 ## Testing and tools
 
@@ -181,7 +205,7 @@ Opt-in serialization and byte transforms:
 
 ## When a catalog entry is not enough
 
-A dedicated integration page is justified only when an integration has substantial unique behavior — lifecycle/registration differences, platform storage or threading semantics, client/server setup, authentication, or non-obvious read/write behavior. Until then, this catalog plus a link to the runnable `examples/` scenario is the canonical coverage. Do not create one-page-per-package filler.
+A dedicated integration page is justified only when an integration has substantial unique behavior — lifecycle/registration differences, platform storage or threading semantics, client/server setup, authentication, or non-obvious read/write behavior. Until then, this catalog plus a link to the runnable `examples/` scenario (Aspire Playground, tracked in [#296](https://github.com/arika0093/Configlue/issues/296)) is the canonical coverage. Do not create one-page-per-package filler.
 
 ## Where to go next
 

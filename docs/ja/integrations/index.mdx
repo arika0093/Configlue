@@ -84,6 +84,12 @@ UI 編集は標準 Blazor `EditContext` を持つ `StateEditor<T>` を使いま�
 - **場面:** Configlue state を `IOptions<T>` / `IOptionsMonitor<T>` consumer とつなぐ。
 - **インストール:** `dotnet add package Configlue.Extensions.MSOptions`
 
+```csharp
+services.AddConfiglueMicrosoftOptions<AppSettings>();
+```
+
+`AddConfiglue` のあとに登録します。既存の `IOptions<AppSettings>` consumer は Configlue state から解決されるようになります。
+
 ### Desktop UI
 
 - **パッケージ:** `Configlue.Hosting.Avalonia`、`Configlue.Hosting.Wpf`、`Configlue.Hosting.WinForms`、`Configlue.Hosting.WinUI`
@@ -115,6 +121,10 @@ ComponentModel adapter（`Configlue.Extensions.ComponentModel`）は共通の de
 - **場面:** state 変化を R3 observable パイプラインに流す、または共通 component-model 編集 adapter を使う。
 - **インストール:** `dotnet add package Configlue.Extensions.R3`
 
+```csharp
+R3.Observable<AppSettings> live = state.ObserveValues();
+```
+
 ## source と外部 state
 
 内部の source 分類ではなく、アプリケーションが何を消費するかで分けています。
@@ -144,22 +154,36 @@ config.UseCommonSources(sources =>
 - **場面:** `System.CommandLine` の解析結果を configuration source として投影する。
 - **インストール:** `dotnet add package Configlue.Source.CommandLine`
 
+```csharp
+sources.CommandLine(parseResult, mappings =>
+{
+    // option/argument からモデル member への対応付け
+});
+```
+
 ### PostgreSQL
 
 - **パッケージ:** `Configlue.Source.PostgreSql`（移行対応は `Configlue.Source.PostgreSql.Migrations`）
 - **場面:** PostgreSQL を外部 storage として state を保持する。
 - **インストール:** `dotnet add package Configlue.Source.PostgreSql`
 
+```bash
+dotnet add package Configlue.Source.PostgreSql.Migrations
+```
+
 ### その他の remote / platform source
 
 - **パッケージ:** `Configlue.Source.Consul`、`Configlue.Source.Ssm`
 - **場面:** Consul KV や AWS SSM Parameter Store を設定入力として消費する。自前のポーリング reader よりこちらを使ってください。
+- **インストール:** `dotnet add package Configlue.Source.Consul` または `dotnet add package Configlue.Source.Ssm`
 
 ## storage resource と cloud backend
 
 任意の永続化・接続能力として提示します。選ぶために内部の Source/Resource 区別を理解する必要はありません。必要な場面では[概念](../concepts/)で説明します。
 
-- `Configlue.Resource.S3`、`Configlue.Resource.AzureBlob` — object storage。
+使う backend だけを `dotnet add package <id>` の形でインストールします。
+
+- `Configlue.Resource.S3`、`Configlue.Resource.AzureBlob` — object storage（例: `dotnet add package Configlue.Resource.S3`）。
 - `Configlue.Resource.AzureAppConfiguration`、`Configlue.Resource.AwsAppConfig` — マネージド application configuration サービス。
 - `Configlue.Resource.AzureKeyVault`、`Configlue.Resource.SecretsManager`、`Configlue.Resource.GoogleSecretManager`、`Configlue.Resource.Vault` — secret store。
 - `Configlue.Resource.Redis`、`Configlue.Resource.Etcd`、`Configlue.Resource.Kubernetes`、`Configlue.Resource.Gcs` — infrastructure backend。
@@ -168,10 +192,10 @@ cloud provider の構築手順はここに複写しません。各 backend は i
 
 ## 形式と transform
 
-任意のシリアライズとバイト列 transform:
+任意のシリアライズとバイト列 transform。使うものだけを `dotnet add package <id>` の形でインストールします。
 
-- `Configlue.Provider.Yaml`、`Configlue.Provider.MessagePack`、`Configlue.Provider.Xml` — 組み込み JSON 経路以外の外部形式。
-- `Configlue.Transformer.AES`、`Configlue.Transformer.Compression` — encryption と compression のラップ。AES は TFM を狭め、opt-in のままです。制約のある target で採用する前に互換性マトリックスを確認してください。
+- `Configlue.Provider.Yaml`、`Configlue.Provider.MessagePack`、`Configlue.Provider.Xml` — 組み込み JSON 経路以外の外部形式（例: `dotnet add package Configlue.Provider.Yaml`）。
+- `Configlue.Transformer.AES`、`Configlue.Transformer.Compression` — encryption と compression のラップ（例: `dotnet add package Configlue.Transformer.AES`）。AES は TFM を狭め、opt-in のままです。制約のある target で採用する前に互換性マトリックスを確認してください。
 
 ## テストとツール
 
@@ -181,7 +205,7 @@ cloud provider の構築手順はここに複写しません。各 backend は i
 
 ## カタログ項目では足りないとき
 
-lifecycle/登録の違い、platform 固有の storage や threading 意味論、client/server 構築、認証、非自明な読み書き動作など、integration 固有の実質的動作がある場合にだけ専用ページを作ります。それまではこのカタログ＋実行可能な `examples/` シナリオへのリンクが正規の範囲です。1 パッケージ 1 ページの埋め草は作りません。
+lifecycle/登録の違い、platform 固有の storage や threading 意味論、client/server 構築、認証、非自明な読み書き動作など、integration 固有の実質的動作がある場合にだけ専用ページを作ります。それまではこのカタログ＋実行可能な `examples/` シナリオへのリンク（Aspire Playground、[#296](https://github.com/arika0093/Configlue/issues/296) で追跡）が正規の範囲です。1 パッケージ 1 ページの埋め草は作りません。
 
 ## 次に進む
 
