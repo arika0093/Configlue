@@ -15,7 +15,7 @@
     <ProjectReference Include="../../basic/Configlue.Core/Configlue.Core.csproj" />
   </ItemGroup>
   <ItemGroup Condition="'$(ConfiglueNetStandard)' == 'true'">
-    <PackageReference Include="System.Text.Json" Version="10.0.0" />
+    <PackageReference Include="System.Text.Json" Version="10.0.3" />
   </ItemGroup>
   <ItemGroup>
     <InternalsVisibleTo Include="Configlue.Tests" />
