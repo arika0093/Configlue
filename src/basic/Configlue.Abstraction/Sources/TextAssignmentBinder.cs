@@ -229,13 +229,13 @@ internal static partial class TextAssignmentBinder
         }
 
         lookups[schema] = TextAssignmentMemberLookup.Create(schema);
-        foreach (
-            var nestedFactory in schema
-                .Members.Select(static member => member.NestedSchemaFactory)
-                .OfType<Func<ConfiglueModelSchema>>()
-        )
+        for (var index = 0; index < schema.Members.Count; index++)
         {
-            CollectLookups(nestedFactory(), ancestors, lookups);
+            var nestedFactory = schema.Members[index].NestedSchemaFactory;
+            if (nestedFactory is not null)
+            {
+                CollectLookups(nestedFactory(), ancestors, lookups);
+            }
         }
 
         ancestors.Remove(schema.ModelType);

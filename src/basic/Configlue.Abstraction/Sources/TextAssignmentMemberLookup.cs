@@ -32,8 +32,9 @@ internal sealed class TextAssignmentMemberLookup
             StringComparer.OrdinalIgnoreCase
         );
         var ambiguousNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        foreach (var member in schema.Members)
+        for (var index = 0; index < schema.Members.Count; index++)
         {
+            var member = schema.Members[index];
             if (ambiguousNames.Contains(member.Name))
             {
                 continue;

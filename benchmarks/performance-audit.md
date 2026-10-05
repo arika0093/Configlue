@@ -451,6 +451,34 @@ checks pass. Logs are retained in artifacts/text-binding-*.
 The goal remains active; per-bind schema traversal and revision storage remain
 allocation candidates before continuing the broader codec/resource audit.
 
+## Round 15: traverse schema members without iterator objects (2026-10-05)
+
+Replaced Select/OfType traversal of nested factories with indexing over the
+immutable member list, and similarly indexed cold name-index construction.
+Factory invocation order, ancestor recursion guards, and fresh nested factory
+results are preserved. No additional traversal result is cached.
+
+Reports: [binding](reports/text-binding/traversal.md) and
+[environment reader](reports/text-binding/environment-traversal.md), compared
+with round 14's schema-owned final reports. Both use five warmups and ten
+measurements. Warm binding allocation falls a further 136 B per operation
+(1.93/4.06/11.44 KiB at 1/4/16 assignments). Cold binding falls 168 B
+(5.49/7.63/15.00 KiB). Environment reads fall 136 B, from 3.27 to 3.13 KiB.
+The first savings removes the per-bind iterator chain; cold construction also
+avoids an enumerator over the read-only member collection.
+
+Warm timing means are 1.011/1.775/5.792 us versus 0.718/1.748/5.683 us previously;
+the 1-member run is particularly noisy (0.778 us median). All relevant intervals
+overlap, so no latency improvement is claimed. Cold means are
+1.223/2.403/6.495 us and also overlap the prior intervals. Environment reader
+mean is 1.570 us versus the noisy prior 2.007 us. Allocation savings are the
+evidence for adoption; smaller latency changes need a quieter host.
+
+Full Release net10.0 passes 1,718 tests with 17 external-service skips and zero
+failures (current main added one test). CSharpier formatting and whitespace
+checks pass. Logs are retained in artifacts/text-binding-traversal*.
+The goal remains active; revision work and unmatched-key coverage are next.
+
 ## Remaining audit
 
 
