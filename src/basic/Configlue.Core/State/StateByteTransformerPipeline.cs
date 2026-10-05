@@ -181,7 +181,9 @@ internal static class StateByteTransformerPipeline
             return ((ISynchronousStateByteTransformer)transformer).TransformWrite(content);
         }
 
-        var destination = new ArrayBufferWriter<byte>(Math.Max(1, content.Length));
+        // Let the transformer's output request size the buffer. A minimal initial
+        // capacity also avoids ArrayBufferWriter's 256-byte default for tiny output.
+        var destination = new ArrayBufferWriter<byte>(1);
         destinationTransformer.TransformWrite(content.Span, destination);
         return destination.WrittenMemory;
     }

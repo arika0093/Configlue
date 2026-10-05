@@ -361,6 +361,42 @@ and its native executable passes. Formatting and whitespace checks pass.
 Logs are in `artifacts/scalar-copy-*`; the goal remains active while source,
 codec, I/O, write and notification coverage still needs review.
 
+## Round 13: size transformer write buffers from output requests (2026-10-05)
+
+Destination transformers previously received an ArrayBufferWriter sized to the
+input. AES needs room for its header as well, immediately growing that buffer
+and allocating a second array twice the input size. Writes now begin with a
+one-byte buffer and let GetSpan/GetMemory requests choose the output capacity.
+The one-byte initial capacity avoids the parameterless writer's 256-byte minimum
+for tiny outputs. Read buffering and transformer contracts are unchanged.
+
+Reports: [pipeline baseline](reports/destination-buffer/before.md),
+[AES baseline including empty input](reports/destination-buffer/before-empty.md),
+and [final pipeline](reports/destination-buffer/after.md). All use three warmups
+and five measurements on the same machine.
+
+| AES write payload | Before mean | After mean | Before allocation | After allocation |
+| --- | ---: | ---: | ---: | ---: |
+| 0 B | 535.6 ns | 532.4 ns | 192 B | 192 B |
+| 100 B | 595.7 ns | 573.3 ns | 488 B | 296 B |
+| 4 KiB | 1,424.7 ns | 1,119.3 ns | 12,472 B | 4,288 B |
+| 64 KiB | 42.46 us | 7.44 us | 196,829 B | 65,729 B |
+
+Large AES write mean falls 82%, allocation 67%, and Gen2 collections per 1,000
+operations fall from 41.63 to zero. Two-stage write allocation at 4/64 KiB falls
+from 1,320 B to 776 B; three-stage falls from 1,768/1,992 B to 1,152/1,392 B.
+Reads retain their allocation budgets; their timing differences are noise and
+are not attributed to this write-only change. Zero-transform paths remain
+allocation-free. Arbitrary transformers that request output in small increments
+can still grow their destination; the pipeline does not promise exact sizing.
+
+Eleven new tests cover empty through 64 KiB payloads, incremental destination
+requests, synchronous and mixed asynchronous execution, returned-memory
+ownership, and AES decoding. Full Release net10.0 testing passes 1,717 tests,
+with 17 external-service skips and no failures (including three upcoming binder
+cache semantic guards). Logs are retained in artifacts/destination-buffer-*.
+The goal remains active; source binding and codec coverage are next.
+
 ## Remaining audit
 
 
