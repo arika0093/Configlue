@@ -14,6 +14,12 @@ with distinct or repeated Unicode origins. Setup checks the exact revision again
 a separate whole-input SHA256 calculation, including the first-value behavior for
 repeated origins. Matched binding fixtures also check the revision and input reordering.
 
+`XmlCodecReadBenchmarks` measures decoding and schema-metadata parsing with a
+single array slice, segmented input, and memory from a MemoryManager. Inputs
+include invalid bytes outside the array slice; setup checks typed/untyped decoding,
+Unicode values, and schema metadata. `XmlCodecWriteBenchmarks` isolates writes to
+a reused buffer. Both use 0, 4,096, and 65,536 Unicode characters without storage I/O.
+
 `CollectionCloneBenchmarks` isolates generated fragment deep cloning for lists, sets,
 dictionaries, and a combined collection model at 0, 16, and 4,096 elements. It checks
 structural equality in setup and measures allocations without storage or resolver costs.
