@@ -2,7 +2,6 @@ using System.Text.Json;
 using Configlue.Resources;
 using Configlue.Sources;
 using Configlue.State;
-using SparseFragments.JsonPatch;
 
 namespace Configlue.Source.Http;
 

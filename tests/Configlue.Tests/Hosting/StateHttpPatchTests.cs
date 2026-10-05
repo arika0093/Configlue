@@ -12,7 +12,6 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
-using SparseFragments.JsonPatch;
 
 namespace Configlue.Tests;
 
@@ -93,9 +92,7 @@ public sealed class StateHttpPatchTests
         put.Headers.IfMatch.Add(EntityTagHeaderValue.Parse(etag));
         using var putResponse = await client.SendAsync(put);
         putResponse.StatusCode.ShouldBe(HttpStatusCode.OK);
-        putResponse
-            .Headers.GetValues("Accept-Patch")
-            .ShouldContain("application/json-patch+json");
+        putResponse.Headers.GetValues("Accept-Patch").ShouldContain("application/json-patch+json");
 
         using var options = new HttpRequestMessage(
             HttpMethod.Options,
@@ -192,24 +189,43 @@ public sealed class StateHttpPatchTests
         }
 
         // Unknown operation.
-        using (var bad = PatchRequest("http://localhost/api/settings", """[{"op":"frob","path":"/RetryCount","value":2}]""", etag))
+        using (
+            var bad = PatchRequest(
+                "http://localhost/api/settings",
+                """[{"op":"frob","path":"/RetryCount","value":2}]""",
+                etag
+            )
+        )
         using (var response = await client.SendAsync(bad))
         {
             response.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
         }
 
         // Malformed JSON Pointer (must start with '/' or be empty).
-        using (var bad = PatchRequest("http://localhost/api/settings", """[{"op":"remove","path":"RetryCount"}]""", etag))
+        using (
+            var bad = PatchRequest(
+                "http://localhost/api/settings",
+                """[{"op":"remove","path":"RetryCount"}]""",
+                etag
+            )
+        )
         using (var response = await client.SendAsync(bad))
         {
             response.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
         }
 
         // Wrong media type.
-        using (var wrongType = new HttpRequestMessage(new HttpMethod("PATCH"), "http://localhost/api/settings")
-        {
-            Content = new ByteArrayContent("""[{"op":"replace","path":"/RetryCount","value":2}]"""u8.ToArray()),
-        })
+        using (
+            var wrongType = new HttpRequestMessage(
+                new HttpMethod("PATCH"),
+                "http://localhost/api/settings"
+            )
+            {
+                Content = new ByteArrayContent(
+                    """[{"op":"replace","path":"/RetryCount","value":2}]"""u8.ToArray()
+                ),
+            }
+        )
         {
             wrongType.Content.Headers.ContentType = new MediaTypeHeaderValue("application/json");
             wrongType.Headers.IfMatch.Add(EntityTagHeaderValue.Parse(etag));
@@ -278,7 +294,13 @@ public sealed class StateHttpPatchTests
         using var client = app.GetTestClient();
 
         var etag = await GetEtagAsync(client, "http://localhost/api/settings");
-        using (var patch = PatchRequest("http://localhost/api/settings", """[{"op":"replace","path":"/Label","value":null}]""", etag))
+        using (
+            var patch = PatchRequest(
+                "http://localhost/api/settings",
+                """[{"op":"replace","path":"/Label","value":null}]""",
+                etag
+            )
+        )
         using (var response = await client.SendAsync(patch))
         {
             response.StatusCode.ShouldBe(HttpStatusCode.OK);
@@ -288,7 +310,13 @@ public sealed class StateHttpPatchTests
         nulledText.ShouldContain("\"Label\":null");
 
         etag = await GetEtagAsync(client, "http://localhost/api/settings");
-        using (var patch = PatchRequest("http://localhost/api/settings", """[{"op":"remove","path":"/Label"}]""", etag))
+        using (
+            var patch = PatchRequest(
+                "http://localhost/api/settings",
+                """[{"op":"remove","path":"/Label"}]""",
+                etag
+            )
+        )
         using (var response = await client.SendAsync(patch))
         {
             response.StatusCode.ShouldBe(HttpStatusCode.OK);
@@ -318,7 +346,13 @@ public sealed class StateHttpPatchTests
 
         // Nested replace.
         var etag = await GetEtagAsync(client, "http://localhost/api/settings");
-        using (var patch = PatchRequest("http://localhost/api/settings", """[{"op":"replace","path":"/Database/Host","value":"db.example"}]""", etag))
+        using (
+            var patch = PatchRequest(
+                "http://localhost/api/settings",
+                """[{"op":"replace","path":"/Database/Host","value":"db.example"}]""",
+                etag
+            )
+        )
         using (var response = await client.SendAsync(patch))
         {
             response.StatusCode.ShouldBe(HttpStatusCode.OK);
@@ -326,7 +360,13 @@ public sealed class StateHttpPatchTests
 
         // Array append collapses to a whole-collection change server-side.
         etag = await GetEtagAsync(client, "http://localhost/api/settings");
-        using (var patch = PatchRequest("http://localhost/api/settings", """[{"op":"add","path":"/Plugins/-","value":"c"}]""", etag))
+        using (
+            var patch = PatchRequest(
+                "http://localhost/api/settings",
+                """[{"op":"add","path":"/Plugins/-","value":"c"}]""",
+                etag
+            )
+        )
         using (var response = await client.SendAsync(patch))
         {
             response.StatusCode.ShouldBe(HttpStatusCode.OK);
@@ -334,7 +374,13 @@ public sealed class StateHttpPatchTests
 
         // Move inside the array.
         etag = await GetEtagAsync(client, "http://localhost/api/settings");
-        using (var patch = PatchRequest("http://localhost/api/settings", """[{"op":"move","from":"/Plugins/0","path":"/Plugins/1"}]""", etag))
+        using (
+            var patch = PatchRequest(
+                "http://localhost/api/settings",
+                """[{"op":"move","from":"/Plugins/0","path":"/Plugins/1"}]""",
+                etag
+            )
+        )
         using (var response = await client.SendAsync(patch))
         {
             response.StatusCode.ShouldBe(HttpStatusCode.OK);
@@ -342,7 +388,13 @@ public sealed class StateHttpPatchTests
 
         // Copy across members.
         etag = await GetEtagAsync(client, "http://localhost/api/settings");
-        using (var patch = PatchRequest("http://localhost/api/settings", """[{"op":"copy","from":"/Database/Host","path":"/Label"}]""", etag))
+        using (
+            var patch = PatchRequest(
+                "http://localhost/api/settings",
+                """[{"op":"copy","from":"/Database/Host","path":"/Label"}]""",
+                etag
+            )
+        )
         using (var response = await client.SendAsync(patch))
         {
             response.StatusCode.ShouldBe(HttpStatusCode.OK);
@@ -350,7 +402,13 @@ public sealed class StateHttpPatchTests
 
         // Add a scalar member.
         etag = await GetEtagAsync(client, "http://localhost/api/settings");
-        using (var patch = PatchRequest("http://localhost/api/settings", """[{"op":"test","path":"/RetryCount","value":1},{"op":"replace","path":"/Enabled","value":false}]""", etag))
+        using (
+            var patch = PatchRequest(
+                "http://localhost/api/settings",
+                """[{"op":"test","path":"/RetryCount","value":1},{"op":"replace","path":"/Enabled","value":false}]""",
+                etag
+            )
+        )
         using (var response = await client.SendAsync(patch))
         {
             response.StatusCode.ShouldBe(HttpStatusCode.OK);
@@ -573,20 +631,38 @@ public sealed class StateHttpPatchTests
         using var client = app.GetTestClient();
         var etag = await GetEtagAsync(client, "http://localhost/api/settings");
 
-        using (var first = PatchRequest("http://localhost/api/settings", """[{"op":"replace","path":"/RetryCount","value":10}]""", etag))
+        using (
+            var first = PatchRequest(
+                "http://localhost/api/settings",
+                """[{"op":"replace","path":"/RetryCount","value":10}]""",
+                etag
+            )
+        )
         using (var response = await client.SendAsync(first))
         {
             response.StatusCode.ShouldBe(HttpStatusCode.OK);
         }
 
-        using (var stale = PatchRequest("http://localhost/api/settings", """[{"op":"replace","path":"/Label","value":"second"}]""", etag))
+        using (
+            var stale = PatchRequest(
+                "http://localhost/api/settings",
+                """[{"op":"replace","path":"/Label","value":"second"}]""",
+                etag
+            )
+        )
         using (var response = await client.SendAsync(stale))
         {
             response.StatusCode.ShouldBe(HttpStatusCode.PreconditionFailed);
         }
 
         var fresh = await GetEtagAsync(client, "http://localhost/api/settings");
-        using (var retry = PatchRequest("http://localhost/api/settings", """[{"op":"replace","path":"/Label","value":"second"}]""", fresh))
+        using (
+            var retry = PatchRequest(
+                "http://localhost/api/settings",
+                """[{"op":"replace","path":"/Label","value":"second"}]""",
+                fresh
+            )
+        )
         using (var response = await client.SendAsync(retry))
         {
             response.StatusCode.ShouldBe(HttpStatusCode.OK);
@@ -679,7 +755,13 @@ public sealed class StateHttpPatchTests
         await sseReady.Task.WaitAsync(changeObserved.Token);
 
         var etag = await GetEtagAsync(writerClient, "http://localhost/api/settings");
-        using (var patch = PatchRequest("http://localhost/api/settings", """[{"op":"replace","path":"/RetryCount","value":71}]""", etag))
+        using (
+            var patch = PatchRequest(
+                "http://localhost/api/settings",
+                """[{"op":"replace","path":"/RetryCount","value":71}]""",
+                etag
+            )
+        )
         using (var response = await writerClient.SendAsync(patch))
         {
             response.StatusCode.ShouldBe(HttpStatusCode.OK);
@@ -708,7 +790,7 @@ public sealed class StateHttpPatchTests
         var baseline = await reader.ReadAsync(ConfiglueResourceContext.Default);
         baseline.Status.ShouldBe(StateReadStatus.Success);
 
-        var document = SparseJsonPatch.Parse(
+        var document = ConfiglueJsonPatch.Parse(
             """[{"op":"replace","path":"/RetryCount","value":55}]"""
         );
         var result = await reader.PatchAsync(document, baseline.Revision!);
@@ -844,7 +926,9 @@ public sealed class StateHttpPatchTests
         using var client = app.GetTestClient();
 
         string aliceEtag;
-        using (var aliceGet = new HttpRequestMessage(HttpMethod.Get, "http://localhost/api/settings"))
+        using (
+            var aliceGet = new HttpRequestMessage(HttpMethod.Get, "http://localhost/api/settings")
+        )
         {
             aliceGet.Headers.Add("X-User", "alice");
             using var response = await client.SendAsync(aliceGet);
@@ -852,14 +936,22 @@ public sealed class StateHttpPatchTests
             aliceEtag = response.Headers.ETag!.ToString();
         }
 
-        using (var patch = PatchRequest("http://localhost/api/settings", """[{"op":"replace","path":"/Label","value":"alice-patched"}]""", aliceEtag))
+        using (
+            var patch = PatchRequest(
+                "http://localhost/api/settings",
+                """[{"op":"replace","path":"/Label","value":"alice-patched"}]""",
+                aliceEtag
+            )
+        )
         {
             patch.Headers.Add("X-User", "alice");
             using var response = await client.SendAsync(patch);
             response.StatusCode.ShouldBe(HttpStatusCode.OK);
         }
 
-        using (var aliceGet = new HttpRequestMessage(HttpMethod.Get, "http://localhost/api/settings"))
+        using (
+            var aliceGet = new HttpRequestMessage(HttpMethod.Get, "http://localhost/api/settings")
+        )
         {
             aliceGet.Headers.Add("X-User", "alice");
             using var response = await client.SendAsync(aliceGet);

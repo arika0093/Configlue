@@ -47,7 +47,6 @@ declare -A portable_package_assets=(
     [Configlue.Abstraction]="netstandard2.0 netstandard2.1 net10.0"
     [Configlue.Core]="netstandard2.0 netstandard2.1 net10.0"
     [SparseFragments]="netstandard2.0"
-    [SparseFragments.JsonPatch]="netstandard2.0"
     [Configlue.Extensions.ComponentModel]="netstandard2.0 netstandard2.1 net10.0"
     [Configlue.Extensions.DI]="netstandard2.0 netstandard2.1 net10.0"
     [Configlue.Extensions.MSOptions]="netstandard2.0 netstandard2.1 net10.0"

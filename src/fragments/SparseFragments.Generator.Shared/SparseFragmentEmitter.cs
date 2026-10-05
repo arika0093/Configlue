@@ -29,7 +29,6 @@ internal static class SparseFragmentEmitter
         ImmutableArray<SparseStructuralModel> structuralModels,
         bool bclHashSetImplementsReadOnlySet,
         bool bclHashSetSupportsCapacity,
-        bool hasJsonPatch,
         CancellationToken cancellationToken
     )
     {
@@ -40,7 +39,6 @@ internal static class SparseFragmentEmitter
             structuralModels,
             bclHashSetImplementsReadOnlySet,
             bclHashSetSupportsCapacity,
-            hasJsonPatch,
             cancellationToken
         );
     }
@@ -49,7 +47,6 @@ internal static class SparseFragmentEmitter
         SparsePromotedModel promoted,
         bool bclHashSetImplementsReadOnlySet,
         bool bclHashSetSupportsCapacity,
-        bool hasJsonPatch,
         CancellationToken cancellationToken
     )
     {
@@ -60,7 +57,6 @@ internal static class SparseFragmentEmitter
             promoted.StructuralModels,
             bclHashSetImplementsReadOnlySet,
             bclHashSetSupportsCapacity,
-            hasJsonPatch,
             cancellationToken
         );
     }
@@ -84,7 +80,6 @@ internal static class SparseFragmentEmitter
         ImmutableArray<SparseStructuralModel> structuralModels,
         bool bclHashSetImplementsReadOnlySet,
         bool bclHashSetSupportsCapacity,
-        bool hasJsonPatch,
         CancellationToken cancellationToken
     )
     {
@@ -174,10 +169,9 @@ internal static class SparseFragmentEmitter
             members,
             !model.IsStruct,
             !pocoCloneModels.IsEmpty,
-            hasJsonPatch,
             constructor: model.Constructor
         );
-        AppendStructuralModels(code, structuralModels, !pocoCloneModels.IsEmpty, hasJsonPatch);
+        AppendStructuralModels(code, structuralModels, !pocoCloneModels.IsEmpty);
         code.AppendLine("}");
         return code.ToString();
     }
@@ -199,8 +193,7 @@ internal static class SparseFragmentEmitter
     private static void AppendStructuralModels(
         SharedIndentedBuilder code,
         ImmutableArray<SparseStructuralModel> structuralModels,
-        bool usesPocoCloning,
-        bool hasJsonPatch
+        bool usesPocoCloning
     )
     {
         code.CancellationToken.ThrowIfCancellationRequested();
@@ -219,7 +212,6 @@ internal static class SparseFragmentEmitter
                 structuralModel.Members,
                 true,
                 usesPocoCloning,
-                hasJsonPatch,
                 isRootModel: false,
                 emitJsonBridge: false,
                 constructor: structuralModel.Constructor
@@ -235,7 +227,6 @@ internal static class SparseFragmentEmitter
         ImmutableArray<SparseMemberModel> members,
         bool modelIsReferenceType,
         bool usesPocoCloning,
-        bool hasJsonPatch,
         bool isRootModel = true,
         bool emitJsonBridge = true,
         ModelConstructorBinding? constructor = null
@@ -252,23 +243,10 @@ internal static class SparseFragmentEmitter
         Core.AppendFragmentClone(code, members, usesPocoCloning);
         SparseFragmentPatchEmitter.AppendFragmentMethods(code, modelType);
         code.AppendLineAt(2, "public FragmentBuilder ToBuilder() => new(this);");
-        if (hasJsonPatch)
-        {
-            SparseJsonPatchEmitter.AppendStandaloneFragmentJson(code, members, Optional);
-        }
+        SparseJsonPatchEmitter.AppendStandaloneFragmentJson(code, members, Optional);
         code.AppendLineAt(1, "}");
         Core.AppendBuilder(code, members);
-        SparseFragmentPatchEmitter.AppendPatch(
-            code,
-            modelType,
-            members,
-            hasJsonPatch && emitJsonBridge,
-            hasJsonPatch && emitJsonBridge
-                ? SparseNaming.JsonPatchApiPrefix(
-                    members.Select(static member => member.Property.Name)
-                )
-                : string.Empty
-        );
+        SparseFragmentPatchEmitter.AppendPatch(code, modelType, members, emitJsonBridge);
     }
 
     private static void AppendFragmentDescriptor(

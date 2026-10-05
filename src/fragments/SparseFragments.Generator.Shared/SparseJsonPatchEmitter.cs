@@ -431,9 +431,9 @@ internal static class SparseJsonPatchEmitter
             3,
             "if (!reader.Read()) { throw new "
                 + runtime
-                + ".JsonPatch.JsonPatchException("
+                + ".JsonPatchException("
                 + runtime
-                + ".JsonPatch.JsonPatchErrorKind.DeserializationFailed, \"The patched JSON could not be read as a fragment.\"); }"
+                + ".JsonPatchErrorKind.DeserializationFailed, \"The patched JSON could not be read as a fragment.\"); }"
         );
         code.AppendLineAt(3, "try");
         code.AppendLineAt(3, "{");
@@ -448,15 +448,13 @@ internal static class SparseJsonPatchEmitter
             4,
             "var kind = exception.Message.Contains(\"could not be mapped\") ? "
                 + runtime
-                + ".JsonPatch.JsonPatchErrorKind.UnmappedProperty : "
+                + ".JsonPatchErrorKind.UnmappedProperty : "
                 + runtime
-                + ".JsonPatch.JsonPatchErrorKind.DeserializationFailed;"
+                + ".JsonPatchErrorKind.DeserializationFailed;"
         );
         code.AppendLineAt(
             4,
-            "throw new "
-                + runtime
-                + ".JsonPatch.JsonPatchException(kind, exception.Message, exception);"
+            "throw new " + runtime + ".JsonPatchException(kind, exception.Message, exception);"
         );
         code.AppendLineAt(3, "}");
         code.AppendLineAt(2, "}");
@@ -471,6 +469,7 @@ internal static class SparseJsonPatchEmitter
     public static void AppendFromJsonPatch(
         SharedIndentedBuilder code,
         string runtime,
+        string facade,
         string optional,
         string jsonPrefix,
         string betweenCall
@@ -496,15 +495,12 @@ internal static class SparseJsonPatchEmitter
             3,
             "var baselineNode = __SerializeFragmentToNode(baseline, effective, out var baselineIsAbsent);"
         );
-        code.AppendLineAt(
-            3,
-            "var document = " + runtime + ".JsonPatch.SparseJsonPatch.Parse(jsonPatch);"
-        );
+        code.AppendLineAt(3, "var document = " + runtime + "." + facade + ".Parse(jsonPatch);");
         code.AppendLineAt(
             3,
             "var applied = "
                 + runtime
-                + ".JsonPatch.JsonPatchEngine.Apply(baselineNode, baselineIsAbsent, document, __PropertyNameComparison(effective));"
+                + ".JsonPatchEngine.Apply(baselineNode, baselineIsAbsent, document, __PropertyNameComparison(effective));"
         );
         code.AppendLineAt(3, baselineType + " result;");
         code.AppendLineAt(
@@ -554,6 +550,7 @@ internal static class SparseJsonPatchEmitter
     public static void AppendToJsonPatch(
         SharedIndentedBuilder code,
         string runtime,
+        string facade,
         string optional,
         string jsonPrefix,
         string applyExpression
@@ -588,12 +585,9 @@ internal static class SparseJsonPatchEmitter
             3,
             "var document = "
                 + runtime
-                + ".JsonPatch.JsonPatchEngine.Diff(beforeNode, beforeIsAbsent, afterNode, afterIsAbsent);"
+                + ".JsonPatchEngine.Diff(beforeNode, beforeIsAbsent, afterNode, afterIsAbsent);"
         );
-        code.AppendLineAt(
-            3,
-            "return " + runtime + ".JsonPatch.JsonPatchEngine.Serialize(document);"
-        );
+        code.AppendLineAt(3, "return " + runtime + ".JsonPatchEngine.Serialize(document);");
         code.AppendLineAt(2, "}");
         code.AppendLineAt(
             2,

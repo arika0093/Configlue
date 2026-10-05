@@ -37,7 +37,7 @@ namespace Configlue.Source.Http
         public Configlue.Sources.ISourceWatcher? Watcher { get; }
         public Configlue.Sources.ISourceWriter<TFragment>? Writer { get; }
         public Configlue.Resources.ResourceId GetResourceId(Configlue.Resources.ConfiglueResourceContext context) { }
-        public System.Threading.Tasks.ValueTask<Configlue.Source.Http.HttpStatePatchResult<TFragment>> PatchAsync(SparseFragments.JsonPatch.JsonPatchDocument patch, string etag, System.Threading.CancellationToken cancellationToken = default) { }
+        public System.Threading.Tasks.ValueTask<Configlue.Source.Http.HttpStatePatchResult<TFragment>> PatchAsync(Configlue.JsonPatchDocument patch, string etag, System.Threading.CancellationToken cancellationToken = default) { }
         public System.Threading.Tasks.ValueTask<Configlue.State.StateReadResult<TFragment>> ReadAsync(Configlue.Resources.ConfiglueResourceContext context, System.Threading.CancellationToken cancellationToken = default) { }
         public System.Threading.Tasks.ValueTask WaitForChangeAsync(Configlue.Resources.ConfiglueResourceContext context, string? observedRevision, System.Threading.CancellationToken cancellationToken = default) { }
         public System.Threading.Tasks.ValueTask<Configlue.State.StateWriteResult> WriteAsync(Configlue.Resources.ConfiglueResourceContext context, Configlue.State.StateWriteRequest<TFragment> request, System.Threading.CancellationToken cancellationToken = default) { }

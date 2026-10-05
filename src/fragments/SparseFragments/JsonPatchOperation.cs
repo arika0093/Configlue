@@ -1,10 +1,18 @@
+using System.ComponentModel;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 
-namespace SparseFragments.JsonPatch;
+#if CONFIGLUE_FRAGMENT_RUNTIME
+namespace Configlue;
+
+#else
+namespace SparseFragments;
+
+#endif
 
 /// <summary>One RFC 6902 operation.</summary>
+[EditorBrowsable(EditorBrowsableState.Advanced)]
 public sealed class JsonPatchOperation
 {
     /// <summary>Initializes a new instance.</summary>

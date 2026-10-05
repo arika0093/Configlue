@@ -1,6 +1,15 @@
-namespace SparseFragments.JsonPatch;
+using System.ComponentModel;
+
+#if CONFIGLUE_FRAGMENT_RUNTIME
+namespace Configlue;
+
+#else
+namespace SparseFragments;
+
+#endif
 
 /// <summary>Distinguishes JSON Patch interop failures.</summary>
+[EditorBrowsable(EditorBrowsableState.Advanced)]
 public enum JsonPatchErrorKind
 {
     /// <summary>The patch document is not a valid JSON Patch array.</summary>

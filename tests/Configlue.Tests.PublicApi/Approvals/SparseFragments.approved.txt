@@ -73,6 +73,57 @@ namespace SparseFragments
         void SetNull();
         void Unset();
     }
+    public sealed class JsonPatchDocument
+    {
+        public bool IsEmpty { get; }
+        public System.Collections.Generic.IReadOnlyList<SparseFragments.JsonPatchOperation> Operations { get; }
+        public static SparseFragments.JsonPatchDocument Parse(System.ReadOnlyMemory<byte> utf8) { }
+        public static SparseFragments.JsonPatchDocument Parse(string json) { }
+    }
+    public static class JsonPatchEngine
+    {
+        public static SparseFragments.JsonPatchEngine.ApplyResult Apply(System.Text.Json.Nodes.JsonNode? baseline, bool baselineIsAbsent, SparseFragments.JsonPatchDocument document, System.StringComparison propertyNameComparison = 4) { }
+        public static SparseFragments.JsonPatchDocument Diff(System.Text.Json.Nodes.JsonNode? before, bool beforeIsAbsent, System.Text.Json.Nodes.JsonNode? after, bool afterIsAbsent) { }
+        public static byte[] Serialize(SparseFragments.JsonPatchDocument document, System.Text.Json.JsonSerializerOptions? options = null) { }
+        public sealed class ApplyResult
+        {
+            public bool IsAbsent { get; }
+            public System.Text.Json.Nodes.JsonNode? Node { get; }
+        }
+    }
+    public enum JsonPatchErrorKind
+    {
+        MalformedDocument = 0,
+        UnknownOperation = 1,
+        MalformedPointer = 2,
+        UnmappedProperty = 3,
+        MissingTarget = 4,
+        MissingParent = 5,
+        InvalidArrayIndex = 6,
+        TestFailed = 7,
+        DeserializationFailed = 8,
+    }
+    public sealed class JsonPatchException : System.Exception
+    {
+        public JsonPatchException(SparseFragments.JsonPatchErrorKind kind, string message) { }
+        public JsonPatchException(SparseFragments.JsonPatchErrorKind kind, string message, System.Exception? innerException) { }
+        public SparseFragments.JsonPatchErrorKind Kind { get; }
+    }
+    public sealed class JsonPatchOperation
+    {
+        public JsonPatchOperation(string op, string path, string? from, System.Text.Json.Nodes.JsonNode? value, bool hasValue) { }
+        public string? From { get; }
+        public bool HasValue { get; }
+        public string Op { get; }
+        public string Path { get; }
+        public System.Text.Json.Nodes.JsonNode? Value { get; }
+    }
+    public static class JsonPointer
+    {
+        public static string Escape(string token) { }
+        public static string Format(string[] tokens) { }
+        public static string[] Parse(string pointer) { }
+    }
     public enum MergeMode
     {
         Replace = 0,
@@ -170,6 +221,14 @@ namespace SparseFragments
         public SparseFragments.ISparseFragment CreateEmptyFragment() { }
         public SparseFragments.SparseFragmentMemberSchema GetMember(int memberId) { }
         public bool TryGetMember(int memberId, out SparseFragments.SparseFragmentMemberSchema member) { }
+    }
+    public static class SparseJsonPatch
+    {
+        public static SparseFragments.JsonPatchEngine.ApplyResult Apply(System.Text.Json.Nodes.JsonNode? baseline, bool baselineIsAbsent, SparseFragments.JsonPatchDocument document, System.StringComparison propertyNameComparison = 4) { }
+        public static SparseFragments.JsonPatchDocument Diff(System.Text.Json.Nodes.JsonNode? before, bool beforeIsAbsent, System.Text.Json.Nodes.JsonNode? after, bool afterIsAbsent) { }
+        public static SparseFragments.JsonPatchDocument Parse(System.ReadOnlyMemory<byte> utf8) { }
+        public static SparseFragments.JsonPatchDocument Parse(string json) { }
+        public static byte[] Serialize(SparseFragments.JsonPatchDocument document, System.Text.Json.JsonSerializerOptions? options = null) { }
     }
     [System.AttributeUsage(System.AttributeTargets.Property, Inherited=true)]
     public sealed class SparseMergeAttribute : System.Attribute

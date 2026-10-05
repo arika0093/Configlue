@@ -2,7 +2,6 @@ using System.Net;
 using System.Net.Http.Headers;
 using Configlue.Provider.Json;
 using Configlue.Source.Http;
-using SparseFragments.JsonPatch;
 
 namespace Configlue.Tests;
 
@@ -40,10 +39,9 @@ public sealed class HttpStateReaderPutPatchTests
     [Test]
     public async Task PutStale_MapsToStaleException()
     {
-        using var client = StubClient(_ => ErrorResponse(
-            HttpStatusCode.PreconditionFailed,
-            "stale"
-        ));
+        using var client = StubClient(_ =>
+            ErrorResponse(HttpStatusCode.PreconditionFailed, "stale")
+        );
         var reader = WritableReader(client);
 
         await Should.ThrowAsync<HttpStateStaleException>(async () =>
@@ -61,25 +59,26 @@ public sealed class HttpStateReaderPutPatchTests
     {
         using var validationClient = StubClient(_ => ErrorResponse((HttpStatusCode)422, "bad"));
         await Should.ThrowAsync<HttpStateValidationException>(async () =>
-            await WritableReader(validationClient).WriteAsync(
-                ConfiglueResourceContext.Default,
-                new StateWriteRequest<AppSettings.Fragment>(
-                    new AppSettings.Fragment { RetryCount = Optional<int>.Present(2) }
+            await WritableReader(validationClient)
+                .WriteAsync(
+                    ConfiglueResourceContext.Default,
+                    new StateWriteRequest<AppSettings.Fragment>(
+                        new AppSettings.Fragment { RetryCount = Optional<int>.Present(2) }
+                    )
                 )
-            )
         );
 
-        using var conflictClient = StubClient(_ => ErrorResponse(
-            HttpStatusCode.Conflict,
-            "conflict"
-        ));
+        using var conflictClient = StubClient(_ =>
+            ErrorResponse(HttpStatusCode.Conflict, "conflict")
+        );
         await Should.ThrowAsync<HttpStateWriteConflictException>(async () =>
-            await WritableReader(conflictClient).WriteAsync(
-                ConfiglueResourceContext.Default,
-                new StateWriteRequest<AppSettings.Fragment>(
-                    new AppSettings.Fragment { RetryCount = Optional<int>.Present(2) }
+            await WritableReader(conflictClient)
+                .WriteAsync(
+                    ConfiglueResourceContext.Default,
+                    new StateWriteRequest<AppSettings.Fragment>(
+                        new AppSettings.Fragment { RetryCount = Optional<int>.Present(2) }
+                    )
                 )
-            )
         );
     }
 
@@ -93,7 +92,7 @@ public sealed class HttpStateReaderPutPatchTests
                 : ErrorResponse(HttpStatusCode.PreconditionFailed, "stale")
         );
         var reader = WritableReader(client);
-        var document = SparseJsonPatch.Parse(
+        var document = ConfiglueJsonPatch.Parse(
             """[{"op":"replace","path":"/RetryCount","value":9}]"""
         );
 
@@ -110,9 +109,7 @@ public sealed class HttpStateReaderPutPatchTests
     public async Task WriterUsesPatchWhenBaselineCached_OtherwisePut()
     {
         var calls = new List<string>();
-        var current = Serialize(
-            new AppSettings.Fragment { RetryCount = Optional<int>.Present(1) }
-        );
+        var current = Serialize(new AppSettings.Fragment { RetryCount = Optional<int>.Present(1) });
         using var client = new HttpClient(
             new RecordingHandler(
                 calls,
@@ -168,9 +165,7 @@ public sealed class HttpStateReaderPutPatchTests
     public async Task WriterFallsBackToPutWhenPatchUnsupported()
     {
         var calls = new List<string>();
-        var current = Serialize(
-            new AppSettings.Fragment { RetryCount = Optional<int>.Present(1) }
-        );
+        var current = Serialize(new AppSettings.Fragment { RetryCount = Optional<int>.Present(1) });
         using var client = new HttpClient(
             new RecordingHandler(
                 calls,
@@ -219,9 +214,7 @@ public sealed class HttpStateReaderPutPatchTests
             watchEnabled: false
         );
 
-    private static HttpClient StubClient(
-        Func<HttpRequestMessage, HttpResponseMessage> responder
-    ) =>
+    private static HttpClient StubClient(Func<HttpRequestMessage, HttpResponseMessage> responder) =>
         new(new StubHandler(responder)) { BaseAddress = new Uri("http://localhost") };
 
     private static HttpResponseMessage JsonResponse(
@@ -231,10 +224,7 @@ public sealed class HttpStateReaderPutPatchTests
         string mediaType = "application/json"
     )
     {
-        var response = new HttpResponseMessage(status)
-        {
-            Content = new ByteArrayContent(body),
-        };
+        var response = new HttpResponseMessage(status) { Content = new ByteArrayContent(body) };
         response.Content.Headers.ContentType = new MediaTypeHeaderValue(mediaType);
         response.Headers.ETag = EntityTagHeaderValue.Parse($"\"{revision}\"");
         return response;
@@ -257,9 +247,8 @@ public sealed class HttpStateReaderPutPatchTests
             null
         );
 
-    private sealed class StubHandler(
-        Func<HttpRequestMessage, HttpResponseMessage> responder
-    ) : HttpMessageHandler
+    private sealed class StubHandler(Func<HttpRequestMessage, HttpResponseMessage> responder)
+        : HttpMessageHandler
     {
         protected override Task<HttpResponseMessage> SendAsync(
             HttpRequestMessage request,

@@ -151,31 +151,14 @@ public sealed class SparseFragmentsGenerator : IIncrementalGenerator
             )
             .WithComparer(EqualityComparer<(bool ReadOnlySet, bool Capacity)>.Default)
             .WithTrackingName("SparseFragmentsGenerator.BclSetSupport");
-        var hasJsonPatch = context
-            .CompilationProvider.Select(
-                static (compilation, _) =>
-                    compilation.GetTypeByMetadataName("SparseFragments.JsonPatch.SparseJsonPatch")
-                        is not null
-                    || compilation.ReferencedAssemblyNames.Any(static name =>
-                        string.Equals(
-                            name.Name,
-                            "SparseFragments.JsonPatch",
-                            StringComparison.Ordinal
-                        )
-                    )
-            )
-            .WithComparer(EqualityComparer<bool>.Default)
-            .WithTrackingName("SparseFragmentsGenerator.JsonPatch");
         var generated = analyzed
             .Combine(bclSetSupport)
-            .Combine(hasJsonPatch)
             .Select(
                 static (input, cancellationToken) =>
                     Render(
-                        input.Left.Left,
-                        input.Left.Right.ReadOnlySet,
-                        input.Left.Right.Capacity,
-                        input.Right,
+                        input.Left,
+                        input.Right.ReadOnlySet,
+                        input.Right.Capacity,
                         cancellationToken
                     )
             )
@@ -189,14 +172,12 @@ public sealed class SparseFragmentsGenerator : IIncrementalGenerator
         var promoted = analyzed
             .Collect()
             .Combine(bclSetSupport)
-            .Combine(hasJsonPatch)
             .Select(
                 static (input, cancellationToken) =>
                     RenderPromoted(
-                        input.Left.Left,
-                        input.Left.Right.ReadOnlySet,
-                        input.Left.Right.Capacity,
-                        input.Right,
+                        input.Left,
+                        input.Right.ReadOnlySet,
+                        input.Right.Capacity,
                         cancellationToken
                     )
             )
@@ -287,7 +268,6 @@ public sealed class SparseFragmentsGenerator : IIncrementalGenerator
         SparseGenerationAnalysis analysis,
         bool bclHashSetImplementsReadOnlySet,
         bool bclHashSetSupportsCapacity,
-        bool hasJsonPatch,
         CancellationToken cancellationToken
     )
     {
@@ -298,8 +278,7 @@ public sealed class SparseFragmentsGenerator : IIncrementalGenerator
         }
 
         if (
-            hasJsonPatch
-            && analysis.Members.Any(static member =>
+            analysis.Members.Any(static member =>
                 member.Property.Name is "JsonConverter" or "FragmentJsonConverter"
             )
         )
@@ -328,7 +307,6 @@ public sealed class SparseFragmentsGenerator : IIncrementalGenerator
             analysis.StructuralModels,
             bclHashSetImplementsReadOnlySet,
             bclHashSetSupportsCapacity,
-            hasJsonPatch,
             cancellationToken
         );
         return new SparseGenerationResult(model.HintName, source, analysis.Diagnostics);
@@ -354,7 +332,6 @@ public sealed class SparseFragmentsGenerator : IIncrementalGenerator
         ImmutableArray<SparseGenerationAnalysis> analyses,
         bool bclHashSetImplementsReadOnlySet,
         bool bclHashSetSupportsCapacity,
-        bool hasJsonPatch,
         CancellationToken cancellationToken
     )
     {
@@ -423,8 +400,7 @@ public sealed class SparseFragmentsGenerator : IIncrementalGenerator
             }
 
             if (
-                hasJsonPatch
-                && promoted.Members.Any(static member =>
+                promoted.Members.Any(static member =>
                     member.Property.Name is "JsonConverter" or "FragmentJsonConverter"
                 )
             )
@@ -453,7 +429,6 @@ public sealed class SparseFragmentsGenerator : IIncrementalGenerator
                 promoted,
                 bclHashSetImplementsReadOnlySet,
                 bclHashSetSupportsCapacity,
-                hasJsonPatch,
                 cancellationToken
             );
             results.Add(

@@ -26,17 +26,6 @@ public sealed partial class ConfiglueGenerator
                             "Configlue.Provider.MessagePack.ConfiglueMessagePackFragmentRegistry`1"
                         )
                             is not null,
-                        JsonPatch: compilation.GetTypeByMetadataName(
-                            "SparseFragments.JsonPatch.SparseJsonPatch"
-                        )
-                            is not null
-                            || compilation.ReferencedAssemblyNames.Any(static name =>
-                                string.Equals(
-                                    name.Name,
-                                    "SparseFragments.JsonPatch",
-                                    StringComparison.Ordinal
-                                )
-                            ),
                         BclSetSupportsReadOnlySet: SparseFragments.Generator.Shared.SparseCollectionAnalyzer.HashSetImplementsReadOnlySet(
                             compilation
                         ),
@@ -49,7 +38,6 @@ public sealed partial class ConfiglueGenerator
                 EqualityComparer<(
                     bool Json,
                     bool MessagePack,
-                    bool JsonPatch,
                     bool BclSetSupportsReadOnlySet,
                     bool BclSetSupportsCapacity
                 )>.Default
@@ -91,7 +79,6 @@ public sealed partial class ConfiglueGenerator
                         input.Left,
                         input.Right.Json,
                         input.Right.MessagePack,
-                        input.Right.JsonPatch,
                         input.Right.BclSetSupportsReadOnlySet,
                         input.Right.BclSetSupportsCapacity,
                         cancellationToken
@@ -114,7 +101,6 @@ public sealed partial class ConfiglueGenerator
                         input.Left,
                         input.Right.Json,
                         input.Right.MessagePack,
-                        input.Right.JsonPatch,
                         input.Right.BclSetSupportsReadOnlySet,
                         input.Right.BclSetSupportsCapacity,
                         cancellationToken
@@ -269,7 +255,6 @@ public sealed partial class ConfiglueGenerator
         GenerationAnalysis analysis,
         bool hasJsonFragmentRegistry,
         bool hasMessagePackFragmentRegistry,
-        bool hasJsonPatch,
         bool bclSetSupportsReadOnlySet,
         bool bclSetSupportsCapacity,
         CancellationToken cancellationToken
@@ -290,7 +275,6 @@ public sealed partial class ConfiglueGenerator
             analysis.StructuralModels,
             hasJsonFragmentRegistry,
             hasMessagePackFragmentRegistry,
-            hasJsonPatch,
             bclSetSupportsReadOnlySet,
             bclSetSupportsCapacity,
             cancellationToken

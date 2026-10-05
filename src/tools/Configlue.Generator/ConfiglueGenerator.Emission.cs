@@ -19,7 +19,6 @@ public sealed partial class ConfiglueGenerator
         ImmutableArray<StructuralModel> structuralModels,
         bool hasJsonFragmentRegistry,
         bool hasMessagePackFragmentRegistry,
-        bool hasJsonPatch,
         bool bclSetSupportsReadOnlySet,
         bool bclSetSupportsCapacity,
         CancellationToken cancellationToken
@@ -27,8 +26,9 @@ public sealed partial class ConfiglueGenerator
     {
         cancellationToken.ThrowIfCancellationRequested();
         // The JSON Patch bridge reuses the generated fragment JSON converter as its canonical
-        // representation, so the converter is emitted when either JSON provider is referenced.
-        var emitJsonConverter = hasJsonFragmentRegistry || hasJsonPatch;
+        // representation and is now unconditional, so the converter is always emitted.
+        // Registry registration and the provider payload-writer interface remain conditional
+        // on the JSON provider (see AppendFacadeRuntimeBridge and AppendJsonConverter).
         var modelType = model.ModelTypeName;
         var portableSetView =
             SparseFragments.Generator.Shared.SparseFragmentCoreEmitter.RequiresPortableSetView(
@@ -124,9 +124,8 @@ public sealed partial class ConfiglueGenerator
             previousModels,
             !model.IsStruct,
             !pocoCloneModels.IsEmpty,
-            emitJsonConverter,
+            hasJsonFragmentRegistry,
             hasMessagePackFragmentRegistry,
-            hasJsonPatch,
             portableSetView: portableSetView,
             constructor: model.Constructor
         );
@@ -140,9 +139,8 @@ public sealed partial class ConfiglueGenerator
             code,
             structuralModels,
             !pocoCloneModels.IsEmpty,
-            emitJsonConverter,
+            hasJsonFragmentRegistry,
             hasMessagePackFragmentRegistry,
-            hasJsonPatch,
             portableSetView
         );
         AppendFacadeRuntimeBridge(
@@ -171,7 +169,6 @@ public sealed partial class ConfiglueGenerator
         bool usesPocoCloning,
         bool hasJsonFragmentRegistry,
         bool hasMessagePackFragmentRegistry,
-        bool hasJsonPatch,
         bool portableSetView
     )
     {
@@ -215,7 +212,6 @@ public sealed partial class ConfiglueGenerator
                 usesPocoCloning,
                 hasJsonFragmentRegistry,
                 hasMessagePackFragmentRegistry,
-                hasJsonPatch,
                 portableSetView: portableSetView,
                 isRootModel: false,
                 constructor: structuralModel.Constructor

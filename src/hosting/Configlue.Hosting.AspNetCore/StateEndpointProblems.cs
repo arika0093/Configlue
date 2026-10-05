@@ -1,6 +1,5 @@
 using System.Text.Json;
 using Microsoft.AspNetCore.Http;
-using SparseFragments.JsonPatch;
 
 namespace Configlue.Hosting.AspNetCore;
 

@@ -1,8 +1,16 @@
+using System.ComponentModel;
 using System.Text.Json;
 
-namespace SparseFragments.JsonPatch;
+#if CONFIGLUE_FRAGMENT_RUNTIME
+namespace Configlue;
+
+#else
+namespace SparseFragments;
+
+#endif
 
 /// <summary>A parsed RFC 6902 document.</summary>
+[EditorBrowsable(EditorBrowsableState.Advanced)]
 public sealed class JsonPatchDocument
 {
     private readonly IReadOnlyList<JsonPatchOperation> _operations;

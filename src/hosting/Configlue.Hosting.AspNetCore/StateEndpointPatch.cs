@@ -5,7 +5,6 @@ using System.Text.Json.Serialization;
 using Configlue.CompilerServices;
 using Configlue.Provider.Json;
 using Microsoft.AspNetCore.Http;
-using SparseFragments.JsonPatch;
 
 namespace Configlue.Hosting.AspNetCore;
 
@@ -22,7 +21,7 @@ internal static class StateEndpointPatch
     {
         try
         {
-            return SparseJsonPatch.Parse(body);
+            return ConfiglueJsonPatch.Parse(body);
         }
         catch (JsonPatchException exception)
         {
@@ -94,7 +93,7 @@ internal static class StateEndpointPatch
         JsonPatchEngine.ApplyResult applied;
         try
         {
-            applied = SparseJsonPatch.Apply(baselineNode, false, document, comparison);
+            applied = ConfiglueJsonPatch.Apply(baselineNode, false, document, comparison);
         }
         catch (JsonPatchException exception)
         {

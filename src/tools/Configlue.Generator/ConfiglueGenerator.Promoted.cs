@@ -325,13 +325,11 @@ public sealed partial class ConfiglueGenerator
         PromotedModel promoted,
         bool hasJsonFragmentRegistry,
         bool hasMessagePackFragmentRegistry,
-        bool hasJsonPatch,
         bool bclSetSupportsReadOnlySet,
         bool bclSetSupportsCapacity,
         CancellationToken cancellationToken
     )
     {
-        var emitJsonConverter = hasJsonFragmentRegistry || hasJsonPatch;
         var model = promoted.Model;
         var members = promoted.Members;
         var pocoCloneModels = promoted.PocoCloneModels;
@@ -423,9 +421,8 @@ public sealed partial class ConfiglueGenerator
             ImmutableArray<PreviousModelInfo>.Empty,
             !model.IsStruct,
             !pocoCloneModels.IsEmpty,
-            emitJsonConverter,
+            hasJsonFragmentRegistry,
             hasMessagePackFragmentRegistry,
-            hasJsonPatch,
             portableSetView: portableSetView,
             isRootModel: false,
             constructor: model.Constructor
@@ -440,9 +437,8 @@ public sealed partial class ConfiglueGenerator
             code,
             structuralModels,
             !pocoCloneModels.IsEmpty,
-            emitJsonConverter,
+            hasJsonFragmentRegistry,
             hasMessagePackFragmentRegistry,
-            hasJsonPatch,
             portableSetView
         );
         code.AppendLine("}");
@@ -459,7 +455,6 @@ public sealed partial class ConfiglueGenerator
         ImmutableArray<GenerationAnalysis> analyses,
         bool hasJsonFragmentRegistry,
         bool hasMessagePackFragmentRegistry,
-        bool hasJsonPatch,
         bool bclSetSupportsReadOnlySet,
         bool bclSetSupportsCapacity,
         CancellationToken cancellationToken
@@ -526,7 +521,6 @@ public sealed partial class ConfiglueGenerator
                 promoted,
                 hasJsonFragmentRegistry,
                 hasMessagePackFragmentRegistry,
-                hasJsonPatch,
                 bclSetSupportsReadOnlySet,
                 bclSetSupportsCapacity,
                 cancellationToken
