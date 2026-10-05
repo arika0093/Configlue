@@ -133,43 +133,74 @@ internal static partial class TextAssignmentBinder
     }
 
     private static string CreateRevision(
-        IReadOnlyDictionary<string, object?> converted,
+        IReadOnlyList<KeyValuePair<string, object?>> converted,
         IReadOnlyList<TextAssignment> unmatched,
         CancellationToken cancellationToken
     )
     {
-        var keys = new List<string>(converted.Keys);
-        keys.Sort(StringComparer.Ordinal);
-        var unmatchedKeys = new List<string>();
-        foreach (var item in unmatched)
-        {
-            unmatchedKeys.Add(item.Origin);
-        }
-
-        unmatchedKeys.Sort(StringComparer.Ordinal);
-
         using var hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
-        foreach (var path in keys)
+        // Bind already applies unique canonical paths in ordinal order.
+        for (var index = 0; index < converted.Count; index++)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            AppendHashedString(hash, path);
-            AppendHashedString(hash, Render(converted[path]));
+            var entry = converted[index];
+            AppendHashedString(hash, entry.Key);
+            AppendHashedString(hash, Render(entry.Value));
         }
 
-        foreach (var origin in unmatchedKeys)
+        if (unmatched.Count == 1)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            // Include unmatched origins so transports observe underlying changes
-            // even when no member is bound.
-            var raw = unmatched
-                .First(item => string.Equals(item.Origin, origin, StringComparison.Ordinal))
-                .RawValue;
-            AppendHashedString(hash, origin);
-            AppendHashedString(hash, Render(raw));
+            AppendHashedString(hash, unmatched[0].Origin);
+            AppendHashedString(hash, Render(unmatched[0].RawValue));
+        }
+        else if (unmatched.Count > 1)
+        {
+            var indices = new int[unmatched.Count];
+            for (var index = 0; index < indices.Length; index++)
+            {
+                indices[index] = index;
+            }
+
+            Array.Sort(indices, new UnmatchedAssignmentComparer(unmatched));
+
+            string? previousOrigin = null;
+            object? firstRawValue = null;
+            foreach (var index in indices)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                var assignment = unmatched[index];
+                if (!string.Equals(previousOrigin, assignment.Origin, StringComparison.Ordinal))
+                {
+                    previousOrigin = assignment.Origin;
+                    firstRawValue = assignment.RawValue;
+                }
+
+                // Equal origins retain their first input value, once per occurrence.
+                AppendHashedString(hash, assignment.Origin);
+                AppendHashedString(hash, Render(firstRawValue));
+            }
         }
 
         cancellationToken.ThrowIfCancellationRequested();
         return Convert.ToHexString(hash.GetHashAndReset());
+    }
+
+    private sealed class UnmatchedAssignmentComparer : IComparer<int>
+    {
+        private readonly IReadOnlyList<TextAssignment> _assignments;
+
+        public UnmatchedAssignmentComparer(IReadOnlyList<TextAssignment> assignments) =>
+            _assignments = assignments;
+
+        public int Compare(int left, int right)
+        {
+            var compared = StringComparer.Ordinal.Compare(
+                _assignments[left].Origin,
+                _assignments[right].Origin
+            );
+            return compared != 0 ? compared : left.CompareTo(right);
+        }
     }
 
     private static void AppendHashedString(IncrementalHash hash, string value)

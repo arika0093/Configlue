@@ -479,6 +479,57 @@ failures (current main added one test). CSharpier formatting and whitespace
 checks pass. Logs are retained in artifacts/text-binding-traversal*.
 The goal remains active; revision work and unmatched-key coverage are next.
 
+## Round 16: reuse canonical revision ordering and index unmatched origins (2026-10-05)
+
+Added `TextAssignmentRevisionBenchmarks` (`53a199de`) for 0/1/16/256 unmatched
+assignments, with unique and repeated Unicode origins. Setup computes the
+expected revision independently by assembling the length-prefixed logical input
+and hashing it in one SHA256 operation. Both original and reversed inputs are
+checked; duplicate origins preserve the first raw value once per occurrence.
+Matched 1/4/16 fixtures now check the same hash contract and reordered input.
+
+Bind already applies canonical paths in ordinal order. It now retains converted
+values in a count-sized ordered list, removing a second dictionary, key-list
+copy, sorting pass, and repeated hash lookups. Unmatched revisions sort integer
+input positions by origin and original index, retaining each equal-origin group's
+first value. This replaces a First search and capturing predicate for every
+origin (quadratic scanning for many distinct unmatched origins). Zero/one cases
+avoid the index array and comparer. Rendering and length-prefix encoding are
+unchanged, including character-count prefixes before UTF8 encoding.
+
+Reports: [matched before](reports/text-revision/binding-before.md),
+[matched after](reports/text-revision/binding-after.md),
+[unmatched before](reports/text-revision/unmatched-before.md), and
+[unmatched after](reports/text-revision/unmatched-after.md). Both runs use five
+warmups and ten measurements on the same host.
+
+| Unmatched assignments, distinct origins | Before mean | After mean | Before allocation | After allocation |
+| --- | ---: | ---: | ---: | ---: |
+| 0 | 345.7 ns | 308.4 ns | 1.05 KiB | 944 B |
+| 1 | 670.4 ns | 527.7 ns | 1.43 KiB | 1,184 B |
+| 16 | 4.390 us | 3.196 us | 5.03 KiB | 3,424 B |
+| 256 | 106.000 us | 48.819 us | 63.35 KiB | 39,041 B |
+
+Large distinct-origin mean falls 54%, allocation 40%. Repeated 256-origin mean
+falls from 58.599 to 47.596 us, but its intervals overlap; allocation falls by
+the same amount. Final large runs record Gen1 0.061 collections per 1,000
+operations versus zero in the baseline, despite lower Gen0/allocation; no claim
+of improvement in every GC generation is made. Warm matched allocation falls
+1.93/4.06/11.44 KiB to 1.67/3.52/10.48 KiB; cold follows the same byte savings.
+Warm matched means are 0.594/1.510/5.007 us. The baseline 4-member and cold
+16-member timing runs were noisy, so their large point-estimate speedups are
+not treated as reliable. Cold 1-member mean increases 1.108 to 1.154 us with
+overlapping intervals. Results retain these limits alongside the allocation gains.
+
+All 14 benchmark cases complete before and after with their independent hash,
+present-member and input-order fixture guards. Core/Abstraction Release builds
+pass netstandard2.0, netstandard2.1 and net10.0 with zero warnings/errors, and
+CSharpier/whitespace checks pass. Full-suite evidence in round 15 predates this
+revision change; this round's behavioral evidence is the benchmark setup guards.
+Logs are retained in artifacts/text-revision-*.
+The goal remains active: XML buffer and metadata parsing coverage is next, and
+the wider remaining audit below is still open.
+
 ## Remaining audit
 
 

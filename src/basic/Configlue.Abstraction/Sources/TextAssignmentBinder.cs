@@ -185,7 +185,7 @@ internal static partial class TextAssignmentBinder
 
         IConfiglueFragment fragment = schema.CreateEmptyFragment();
         var matchedAny = false;
-        var convertedForRevision = new Dictionary<string, object?>(StringComparer.Ordinal);
+        var convertedForRevision = new List<KeyValuePair<string, object?>>(order.Count);
         foreach (var key in order)
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -205,7 +205,9 @@ internal static partial class TextAssignmentBinder
             if (applied.Matched)
             {
                 matchedAny = true;
-                convertedForRevision[key] = applied.ConvertedValue;
+                convertedForRevision.Add(
+                    new KeyValuePair<string, object?>(key, applied.ConvertedValue)
+                );
             }
             else
             {
