@@ -240,4 +240,29 @@ namespace Configlue.State
         bool IsPipelineDecodePreferred { get; }
         System.Threading.Tasks.ValueTask<Configlue.State.StateReadResult<T>> DeserializeAsync(System.IO.Pipelines.PipeReader content, Configlue.Codecs.StateCodecContext context, Configlue.State.StateSchemaMetadata? resourceSchema, System.Threading.CancellationToken cancellationToken = default);
     }
+    public sealed class KeyedSecretSource<TFragment> : Configlue.Sources.ISourceCapabilities<TFragment>, Configlue.Sources.ISourceReader<TFragment>, Configlue.Sources.ISourceWatcher, Configlue.Sources.ISourceWriter<TFragment>, System.IDisposable
+        where TFragment :  class, Configlue.IConfiglueFragment<TFragment>
+    {
+        public KeyedSecretSource(Configlue.Sources.IKeyedSecretClient client, Configlue.ConfiglueModelSchema schema, System.Collections.Generic.IReadOnlyList<Configlue.Sources.KeyedSecretMapping> explicitMappings, Configlue.Sources.KeyedSecretSourceOptions? options = null) { }
+        public bool IsAllFixedVersion { get; }
+        public System.Collections.Generic.IReadOnlyList<Configlue.State.KeyedSecretSource<TFragment>.ResolvedMapping> ResolvedMappings { get; }
+        public Configlue.Sources.ISourceWatcher? Watcher { get; }
+        public Configlue.Sources.ISourceWriter<TFragment>? Writer { get; }
+        public void Dispose() { }
+        public System.Threading.Tasks.ValueTask<Configlue.State.StateReadResult<TFragment>> ReadAsync(Configlue.Resources.ConfiglueResourceContext context, System.Threading.CancellationToken cancellationToken = default) { }
+        public override string ToString() { }
+        public System.Threading.Tasks.ValueTask WaitForChangeAsync(Configlue.Resources.ConfiglueResourceContext context, string? observedRevision, System.Threading.CancellationToken cancellationToken = default) { }
+        public System.Threading.Tasks.ValueTask<Configlue.State.StateWriteResult> WriteAsync(Configlue.Resources.ConfiglueResourceContext context, Configlue.State.StateWriteRequest<TFragment> request, System.Threading.CancellationToken cancellationToken = default) { }
+        public static System.Collections.Generic.IReadOnlyList<Configlue.State.KeyedSecretSource<TFragment>.ResolvedMapping> ResolveMappings(Configlue.ConfiglueModelSchema schema, System.Collections.Generic.IReadOnlyList<Configlue.Sources.KeyedSecretMapping> explicitMappings, Configlue.Sources.KeyedSecretSourceOptions? options = null) { }
+        public sealed class ResolvedMapping : System.IEquatable<Configlue.State.KeyedSecretSource<TFragment>.ResolvedMapping>
+        {
+            public ResolvedMapping(string PropertyPath, string[] PropertyPathSegments, string Key, string? EffectiveVersion, System.Type LeafType) { }
+            public string? EffectiveVersion { get; init; }
+            public string Key { get; init; }
+            public System.Type LeafType { get; init; }
+            public string PropertyPath { get; init; }
+            public string[] PropertyPathSegments { get; init; }
+            public override string ToString() { }
+        }
+    }
 }

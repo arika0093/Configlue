@@ -36,6 +36,12 @@ namespace Configlue.Codecs
     {
         Configlue.State.StateSchemaMetadata? ReadSchemaMetadata(in System.Buffers.ReadOnlySequence<byte> source);
     }
+    public static class ScalarTextConverter
+    {
+        public static string Format(object? value, System.Type targetType, System.Text.Json.JsonSerializerOptions? jsonOptions = null) { }
+        public static object? Parse(string text, System.Type targetType, System.Func<string, System.Type, object?>? valueParser = null, System.Text.Json.JsonSerializerOptions? jsonOptions = null) { }
+        public static object? ParseDefault(string text, System.Type targetType) { }
+    }
     public sealed class StateCodecBinding
     {
         public Configlue.Codecs.IStateCodec? DynamicCodec { get; }
@@ -1071,6 +1077,11 @@ namespace Configlue.Sources
     {
         System.Threading.Tasks.ValueTask<Configlue.State.StateWriteBatchPlan?> TryCreateBatchWriteAsync(Configlue.Resources.ConfiglueResourceContext context, Configlue.State.StateWriteRequest<T> request, System.Threading.CancellationToken cancellationToken = default);
     }
+    public interface IKeyedSecretClient
+    {
+        System.Threading.Tasks.ValueTask<Configlue.Sources.KeyedSecretValue?> GetAsync(string key, string? version, System.Threading.CancellationToken cancellationToken = default);
+        System.Threading.Tasks.ValueTask<string?> SetAsync(string key, string value, System.Threading.CancellationToken cancellationToken = default);
+    }
     public interface ISourceCapabilities<T> : Configlue.Sources.ISourceReader<T>
     {
         Configlue.Sources.ISourceWatcher? Watcher { get; }
@@ -1087,6 +1098,41 @@ namespace Configlue.Sources
     public interface ISourceWriter<T>
     {
         System.Threading.Tasks.ValueTask<Configlue.State.StateWriteResult> WriteAsync(Configlue.Resources.ConfiglueResourceContext context, Configlue.State.StateWriteRequest<T> request, System.Threading.CancellationToken cancellationToken = default);
+    }
+    public sealed class KeyedSecretMapping : System.IEquatable<Configlue.Sources.KeyedSecretMapping>
+    {
+        public KeyedSecretMapping(string propertyPath, string key, string? version = null) { }
+        public string Key { get; init; }
+        public string PropertyPath { get; init; }
+        public string? Version { get; init; }
+        public override string ToString() { }
+    }
+    public sealed class KeyedSecretSourceOptions
+    {
+        public KeyedSecretSourceOptions() { }
+        public string? ConventionPrefix { get; init; }
+        public string ConventionSeparator { get; init; }
+        public string? DefaultVersion { get; init; }
+        public bool EnableConventionMapping { get; init; }
+        public System.Text.Json.JsonSerializerOptions? JsonSerializerOptions { get; init; }
+        public System.Func<string, string>? KeyValidator { get; init; }
+        public string? PhysicalOrigin { get; init; }
+        public System.TimeSpan? PollInterval { get; init; }
+        public System.Func<string, System.Type, object?>? ValueParser { get; init; }
+        public bool Writable { get; init; }
+    }
+    public sealed class KeyedSecretUnavailableException : System.Exception
+    {
+        public KeyedSecretUnavailableException(string message) { }
+        public KeyedSecretUnavailableException(string message, System.Exception innerException) { }
+    }
+    public sealed class KeyedSecretValue : System.IEquatable<Configlue.Sources.KeyedSecretValue>
+    {
+        public KeyedSecretValue(string value, string? version, bool enabled) { }
+        public bool Enabled { get; init; }
+        public string Value { get; init; }
+        public string? Version { get; init; }
+        public override string ToString() { }
     }
     public enum RuntimeLifetimeRequirement
     {

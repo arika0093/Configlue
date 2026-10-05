@@ -22,5 +22,10 @@
       Version="5.0.0"
       Condition="'$(ConfiglueNetStandard)' == 'true'"
     />
+    <PackageReference
+      Include="System.Text.Json"
+      Version="10.0.0"
+      Condition="'$(ConfiglueNetStandard)' == 'true'"
+    />
   </ItemGroup>
 </Project>

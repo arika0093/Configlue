@@ -1,6 +1,7 @@
 using Azure.Security.KeyVault.Secrets;
 using Configlue.Codecs;
 using Configlue.Sources;
+using Configlue.State;
 
 namespace Configlue.Resource.AzureKeyVault;
 
@@ -172,25 +173,35 @@ public static class KeyVaultSourceRegistration
                 options.VaultUri,
                 context.Services
             );
-            var mappings = KeyVaultSecretsState<TFragment>.ResolveMappings(
+            var physicalOrigin = KeyVaultClients.GetPhysicalOrigin(options.VaultUri);
+            var keyedMappings = options
+                .Mappings.Select(static m => new KeyedSecretMapping(
+                    m.PropertyPath,
+                    m.SecretName,
+                    m.Version
+                ))
+                .ToArray();
+            var keyedOptions = new KeyedSecretSourceOptions
+            {
+                EnableConventionMapping = options.EnableConventionMapping,
+                ConventionPrefix = options.ConventionPrefix,
+                ConventionSeparator = "-",
+                KeyValidator = static key => KeyVaultSecretName.Validate(key),
+                DefaultVersion = options.FixedVersion,
+                Writable = options.Writable,
+                PollInterval = options.PollInterval,
+                ValueParser = options.ValueParser,
+                JsonSerializerOptions = options.JsonSerializerOptions,
+                PhysicalOrigin = physicalOrigin,
+            };
+            var state = new KeyedSecretSource<TFragment>(
+                new KeyVaultKeyedClientAdapter(client),
                 context.ModelSchema,
-                options.Mappings,
-                options.EnableConventionMapping,
-                options.ConventionPrefix,
-                options.FixedVersion
-            );
-            var state = new KeyVaultSecretsState<TFragment>(
-                client,
-                options.VaultUri,
-                context.ModelSchema,
-                mappings,
-                options.Writable,
-                options.PollInterval,
-                options.ValueParser,
-                options.JsonSerializerOptions
+                keyedMappings,
+                keyedOptions
             );
             context.Own(state);
-            var physicalOrigin = state.PhysicalOrigin;
+            var mappings = state.ResolvedMappings;
             StateSource<TFragment> source;
             if (options.Id is { } id)
             {
@@ -221,7 +232,7 @@ public static class KeyVaultSourceRegistration
                         LogicalDescriptor = string.Join(
                             "\n",
                             options.VaultUri.Host,
-                            string.Join(",", mappings.Select(static m => m.SecretName))
+                            string.Join(",", mappings.Select(static m => m.Key))
                         ),
                     }
                 );

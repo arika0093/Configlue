@@ -1,59 +1,78 @@
-using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using Configlue.Codecs;
 using Configlue.CompilerServices;
 using Configlue.Internal;
+using Configlue.Resources;
+using Configlue.Sources;
 
-namespace Configlue.Resource.AzureKeyVault;
+namespace Configlue.State;
 
 /// <summary>
-/// Reads sparse fragments from explicitly mapped Key Vault secrets, with optional convention mapping.
+/// Reads sparse fragments from explicitly mapped keys in a keyed secret store,
+/// with optional convention mapping. Shared by secret store providers
+/// (Azure Key Vault, SSM Parameter Store, and similar) so mapping, scalar/JSON
+/// conversion, revision, and polling behavior stay consistent.
 /// </summary>
 /// <remarks>
 /// <para>Secret values never appear in revisions, provenance, or exception messages.</para>
 /// <para>Writes are opt-in and unconditional; conditional writes are rejected.</para>
 /// </remarks>
-public sealed class KeyVaultSecretsState<TFragment>
+/// <remarks>Advanced composition SPI: the shared keyed-secret source behind secret store providers.</remarks>
+[System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Advanced)]
+public sealed class KeyedSecretSource<TFragment>
     : ISourceWriter<TFragment>,
         ISourceWatcher,
         ISourceCapabilities<TFragment>,
         IDisposable
     where TFragment : class, IConfiglueFragment<TFragment>
 {
-    private readonly IKeyVaultSecretClient _client;
-    private readonly Uri _vaultUri;
+    private readonly IKeyedSecretClient _client;
     private readonly ConfiglueModelSchema _schema;
     private readonly IReadOnlyList<ResolvedMapping> _mappings;
     private readonly bool _writable;
     private readonly TimeSpan? _pollInterval;
     private readonly Func<string, Type, object?>? _valueParser;
     private readonly JsonSerializerOptions? _jsonOptions;
-    private readonly string _physicalOrigin;
-    private readonly Dictionary<ConfiglueModelSchema, KeyVaultSchemaLookup> _lookups;
+    private readonly string? _physicalOrigin;
+    private readonly Dictionary<ConfiglueModelSchema, KeyedSchemaLookup> _lookups;
     private readonly WatchShutdown _watchShutdown = new();
     private int _disposed;
 
-    internal KeyVaultSecretsState(
-        IKeyVaultSecretClient client,
-        Uri vaultUri,
+    /// <summary>Creates a keyed-secret source for the supplied schema.</summary>
+    public KeyedSecretSource(
+        IKeyedSecretClient client,
         ConfiglueModelSchema schema,
-        IReadOnlyList<ResolvedMapping> mappings,
-        bool writable,
-        TimeSpan? pollInterval,
-        Func<string, Type, object?>? valueParser,
-        JsonSerializerOptions? jsonOptions
+        IReadOnlyList<KeyedSecretMapping> explicitMappings,
+        KeyedSecretSourceOptions? options = null
     )
     {
+        ArgumentNullException.ThrowIfNull(client);
+        ArgumentNullException.ThrowIfNull(schema);
+        ArgumentNullException.ThrowIfNull(explicitMappings);
+        options ??= new KeyedSecretSourceOptions();
+        if (options.ConventionSeparator is null or { Length: 0 })
+        {
+            throw new ArgumentException(
+                "A convention separator must be non-empty.",
+                nameof(options)
+            );
+        }
+
+        if (options.PollInterval is { } pollInterval)
+        {
+            PollingWatch.ValidateInterval(pollInterval, nameof(options));
+        }
+
         _client = client;
-        _vaultUri = vaultUri;
         _schema = schema;
-        _mappings = mappings;
-        _writable = writable;
-        _pollInterval = pollInterval;
-        _valueParser = valueParser;
-        _jsonOptions = jsonOptions;
-        _physicalOrigin = KeyVaultClients.GetPhysicalOrigin(vaultUri);
+        _mappings = ResolveMappings(schema, explicitMappings, options);
+        _writable = options.Writable;
+        _pollInterval = options.PollInterval;
+        _valueParser = options.ValueParser;
+        _jsonOptions = options.JsonSerializerOptions;
+        _physicalOrigin = options.PhysicalOrigin;
         _lookups = BuildLookups(schema);
     }
 
@@ -63,12 +82,12 @@ public sealed class KeyVaultSecretsState<TFragment>
     /// <inheritdoc />
     public ISourceWatcher? Watcher => _pollInterval is not null && !IsAllFixedVersion ? this : null;
 
-    internal bool IsAllFixedVersion =>
+    /// <summary>Whether every mapping pins a fixed version. Fixed-version sources are immutable and expose no watcher.</summary>
+    public bool IsAllFixedVersion =>
         _mappings.Count > 0 && _mappings.All(static m => m.EffectiveVersion is not null);
 
-    internal string PhysicalOrigin => _physicalOrigin;
-
-    internal IReadOnlyList<ResolvedMapping> ResolvedMappings => _mappings;
+    /// <summary>The resolved member-to-key mappings.</summary>
+    public IReadOnlyList<ResolvedMapping> ResolvedMappings => _mappings;
 
     /// <inheritdoc />
     public async ValueTask<StateReadResult<TFragment>> ReadAsync(
@@ -85,26 +104,21 @@ public sealed class KeyVaultSecretsState<TFragment>
         foreach (var mapping in _mappings)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            KeyVaultSecretResult secret;
+            KeyedSecretValue? secret;
             try
             {
                 secret = await _client
-                    .GetSecretAsync(mapping.SecretName, mapping.EffectiveVersion, cancellationToken)
+                    .GetAsync(mapping.Key, mapping.EffectiveVersion, cancellationToken)
                     .ConfigureAwait(false);
             }
-            catch (KeyVaultSecretNotFoundException)
-            {
-                fetched.Add(new FetchedSecret(mapping, null));
-                continue;
-            }
-            catch (KeyVaultSecretUnavailableException)
+            catch (KeyedSecretUnavailableException)
             {
                 unavailable = true;
                 fetched.Add(new FetchedSecret(mapping, null, Unavailable: true));
                 continue;
             }
 
-            if (!secret.Metadata.Enabled)
+            if (secret is null || !secret.Enabled)
             {
                 fetched.Add(new FetchedSecret(mapping, null));
                 continue;
@@ -141,7 +155,7 @@ public sealed class KeyVaultSecretsState<TFragment>
                     entry.Secret.Value,
                     entry.Mapping.LeafType,
                     entry.Mapping.PropertyPath,
-                    entry.Mapping.SecretName
+                    entry.Mapping.Key
                 );
             }
             catch (FormatException)
@@ -195,15 +209,15 @@ public sealed class KeyVaultSecretsState<TFragment>
         if (!_writable)
         {
             throw new InvalidOperationException(
-                "This Key Vault secrets source is read-only. Enable opt-in writes explicitly."
+                "This keyed-secret source is read-only. Enable opt-in writes explicitly."
             );
         }
 
         if (request.Condition is { IsNone: false })
         {
             throw new InvalidOperationException(
-                "Key Vault secrets do not support conditional writes. "
-                    + "SetSecret is an unconditional upsert with no compare-and-swap; "
+                "Keyed secrets do not support conditional writes. "
+                    + "The store upsert is unconditional with no compare-and-swap; "
                     + "retry with an unchecked write or use a store with CAS support."
             );
         }
@@ -215,33 +229,33 @@ public sealed class KeyVaultSecretsState<TFragment>
             return new StateWriteResult(null);
         }
 
-        var versions = new List<(string Name, string? Version)>(writes.Count);
+        var versions = new List<(string Key, string? Version)>(writes.Count);
         foreach (var write in writes)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            KeyVaultSecretMetadata metadata;
+            string? version;
             try
             {
-                metadata = await _client
-                    .SetSecretAsync(write.SecretName, write.Value, cancellationToken)
+                version = await _client
+                    .SetAsync(write.Key, write.Value, cancellationToken)
                     .ConfigureAwait(false);
             }
-            catch (KeyVaultSecretUnavailableException exception)
+            catch (KeyedSecretUnavailableException exception)
             {
                 throw new InvalidOperationException(
-                    $"The Key Vault secret '{write.SecretName}' is temporarily unavailable.",
+                    $"The secret '{write.Key}' is temporarily unavailable.",
                     exception
                 );
             }
-            catch (KeyVaultSecretException exception)
+            catch (Exception exception) when (exception is not OperationCanceledException)
             {
                 throw new InvalidOperationException(
-                    $"The Key Vault secret '{write.SecretName}' could not be written.",
+                    $"The secret '{write.Key}' could not be written.",
                     exception
                 );
             }
 
-            versions.Add((write.SecretName, metadata.Version));
+            versions.Add((write.Key, version));
         }
 
         return new StateWriteResult(CreateRevisionFromVersions(versions));
@@ -259,7 +273,7 @@ public sealed class KeyVaultSecretsState<TFragment>
         if (_pollInterval is null || IsAllFixedVersion)
         {
             throw new InvalidOperationException(
-                "This Key Vault secrets source does not support watching."
+                "This keyed-secret source does not support watching."
             );
         }
 
@@ -271,7 +285,7 @@ public sealed class KeyVaultSecretsState<TFragment>
                         observedRevision,
                         _pollInterval.Value,
                         watchCancellationToken,
-                        static exception => exception is KeyVaultSecretUnavailableException
+                        static exception => exception is KeyedSecretUnavailableException
                     ),
                 cancellationToken
             )
@@ -291,7 +305,7 @@ public sealed class KeyVaultSecretsState<TFragment>
 
     /// <inheritdoc />
     public override string ToString() =>
-        $"KeyVaultSecretsState(vault={_vaultUri.Host}, mappings={_mappings.Count}, writable={_writable})";
+        $"KeyedSecretSource(origin={_physicalOrigin ?? "<unknown>"}, keys={_mappings.Count}, writable={_writable})";
 
     internal async ValueTask<string?> GetRevisionAsync(CancellationToken cancellationToken)
     {
@@ -300,21 +314,14 @@ public sealed class KeyVaultSecretsState<TFragment>
         foreach (var mapping in _mappings)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            try
-            {
-                var secret = await _client
-                    .GetSecretAsync(mapping.SecretName, mapping.EffectiveVersion, cancellationToken)
-                    .ConfigureAwait(false);
-                fetched.Add(
-                    secret.Metadata.Enabled
-                        ? new FetchedSecret(mapping, secret)
-                        : new FetchedSecret(mapping, null)
-                );
-            }
-            catch (KeyVaultSecretNotFoundException)
-            {
-                fetched.Add(new FetchedSecret(mapping, null));
-            }
+            var secret = await _client
+                .GetAsync(mapping.Key, mapping.EffectiveVersion, cancellationToken)
+                .ConfigureAwait(false);
+            fetched.Add(
+                secret is not null && secret.Enabled
+                    ? new FetchedSecret(mapping, secret)
+                    : new FetchedSecret(mapping, null)
+            );
         }
 
         return CreateRevision(fetched);
@@ -323,125 +330,123 @@ public sealed class KeyVaultSecretsState<TFragment>
     internal static string CreateRevision(IReadOnlyList<FetchedSecret> fetched)
     {
         var ordered = fetched
-            .Select(static f =>
-                (f.Mapping.SecretName, Version: f.Secret?.Metadata.Version ?? "<missing>")
-            )
-            .OrderBy(static pair => pair.SecretName, StringComparer.Ordinal)
+            .Select(static f => (f.Mapping.Key, Version: f.Secret?.Version ?? "<missing>"))
+            .OrderBy(static pair => pair.Key, StringComparer.Ordinal)
             .ToArray();
-        using var hash = System.Security.Cryptography.SHA256.Create();
-        foreach (var (name, version) in ordered)
+        using var hash = SHA256.Create();
+        foreach (var (key, version) in ordered)
         {
-            var nameBytes = Encoding.UTF8.GetBytes(name.Length + ":" + name);
-            hash.TransformBlock(nameBytes, 0, nameBytes.Length, null, 0);
+            var keyBytes = Encoding.UTF8.GetBytes(key.Length + ":" + key);
+            hash.TransformBlock(keyBytes, 0, keyBytes.Length, null, 0);
             var versionBytes = Encoding.UTF8.GetBytes(version.Length + ":" + version);
             hash.TransformBlock(versionBytes, 0, versionBytes.Length, null, 0);
         }
 
         hash.TransformFinalBlock([], 0, 0);
-        var computed = hash.Hash ?? [];
-        var builder = new StringBuilder(computed.Length * 2);
-        foreach (var b in computed)
-        {
-            builder.Append(b.ToString("x2", CultureInfo.InvariantCulture));
-        }
-
-        return builder.ToString().ToUpperInvariant();
+        return Convert.ToHexString(hash.Hash ?? []).ToUpperInvariant();
     }
 
     internal static string CreateRevisionFromVersions(
-        IReadOnlyList<(string Name, string? Version)> versions
+        IReadOnlyList<(string Key, string? Version)> versions
     )
     {
         var ordered = versions
-            .Select(static v => (v.Name, Version: v.Version ?? "<missing>"))
-            .OrderBy(static pair => pair.Name, StringComparer.Ordinal)
+            .Select(static v => (v.Key, Version: v.Version ?? "<missing>"))
+            .OrderBy(static pair => pair.Key, StringComparer.Ordinal)
             .ToArray();
         using var hash = SHA256.Create();
-        foreach (var (name, version) in ordered)
+        foreach (var (key, version) in ordered)
         {
-            var nameBytes = Encoding.UTF8.GetBytes(name.Length + ":" + name);
-            hash.TransformBlock(nameBytes, 0, nameBytes.Length, null, 0);
+            var keyBytes = Encoding.UTF8.GetBytes(key.Length + ":" + key);
+            hash.TransformBlock(keyBytes, 0, keyBytes.Length, null, 0);
             var versionBytes = Encoding.UTF8.GetBytes(version.Length + ":" + version);
             hash.TransformBlock(versionBytes, 0, versionBytes.Length, null, 0);
         }
 
         hash.TransformFinalBlock([], 0, 0);
-        var computed = hash.Hash ?? [];
-        var builder = new StringBuilder(computed.Length * 2);
-        foreach (var b in computed)
-        {
-            builder.Append(b.ToString("x2", CultureInfo.InvariantCulture));
-        }
-
-        return builder.ToString().ToUpperInvariant();
+        return Convert.ToHexString(hash.Hash ?? []).ToUpperInvariant();
     }
 
-    internal sealed record ResolvedMapping(
+    /// <summary>A resolved member-to-key mapping.</summary>
+    public sealed record ResolvedMapping(
         string PropertyPath,
         string[] PropertyPathSegments,
-        string SecretName,
+        string Key,
         string? EffectiveVersion,
         Type LeafType
     )
     {
+        /// <inheritdoc />
         public override string ToString() =>
-            $"KeyVaultSecretMapping(path={PropertyPath}, secret={SecretName}, version={EffectiveVersion ?? "<current>"})";
+            $"KeyedSecretMapping(path={PropertyPath}, key={Key}, version={EffectiveVersion ?? "<current>"})";
     }
 
     internal sealed record FetchedSecret(
         ResolvedMapping Mapping,
-        KeyVaultSecretResult? Secret,
+        KeyedSecretValue? Secret,
         bool Unavailable = false
     );
 
-    internal static IReadOnlyList<ResolvedMapping> ResolveMappings(
+    internal sealed record SecretWrite(string Key, string Value);
+
+    /// <summary>Resolves explicit mappings and optional convention keys against the model schema.</summary>
+    public static IReadOnlyList<ResolvedMapping> ResolveMappings(
         ConfiglueModelSchema schema,
-        IReadOnlyList<KeyVaultSecretMapping> explicitMappings,
-        bool enableConvention,
-        string? conventionPrefix,
-        string? defaultVersion
+        IReadOnlyList<KeyedSecretMapping> explicitMappings,
+        KeyedSecretSourceOptions? options = null
     )
     {
         ArgumentNullException.ThrowIfNull(schema);
         ArgumentNullException.ThrowIfNull(explicitMappings);
+        options ??= new KeyedSecretSourceOptions();
+        if (options.ConventionSeparator is null or { Length: 0 })
+        {
+            throw new ArgumentException(
+                "A convention separator must be non-empty.",
+                nameof(options)
+            );
+        }
+
         var lookups = BuildLookups(schema);
         var resolved = new Dictionary<string, ResolvedMapping>(StringComparer.OrdinalIgnoreCase);
-        var secretNames = new Dictionary<string, string>(StringComparer.Ordinal);
+        var keys = new Dictionary<string, string>(StringComparer.Ordinal);
 
         foreach (var mapping in explicitMappings)
         {
+            ArgumentNullException.ThrowIfNull(mapping);
+            var key = options.KeyValidator?.Invoke(mapping.Key) ?? mapping.Key;
             var segments = SplitPath(mapping.PropertyPath);
             var leafType = ResolveLeafType(schema, lookups, segments, mapping.PropertyPath);
-            var effectiveVersion = mapping.Version ?? defaultVersion;
+            var effectiveVersion = mapping.Version ?? options.DefaultVersion;
             var entry = new ResolvedMapping(
                 string.Join(".", segments),
                 segments,
-                mapping.SecretName,
+                key,
                 effectiveVersion,
                 leafType
             );
             if (!resolved.TryAdd(entry.PropertyPath, entry))
             {
                 throw new ArgumentException(
-                    $"More than one Key Vault mapping targets member '{entry.PropertyPath}'.",
+                    $"More than one mapping targets member '{entry.PropertyPath}'.",
                     nameof(explicitMappings)
                 );
             }
 
-            if (!secretNames.TryAdd(entry.SecretName, entry.PropertyPath))
+            if (!keys.TryAdd(entry.Key, entry.PropertyPath))
             {
                 throw new ArgumentException(
-                    $"More than one Key Vault mapping targets secret '{entry.SecretName}'.",
+                    $"More than one mapping targets key '{entry.Key}'.",
                     nameof(explicitMappings)
                 );
             }
         }
 
-        if (enableConvention)
+        if (options.EnableConventionMapping)
         {
-            if (conventionPrefix is not null)
+            if (options.ConventionPrefix is not null)
             {
-                KeyVaultSecretName.Validate(conventionPrefix, nameof(conventionPrefix));
+                _ = options.KeyValidator?.Invoke(options.ConventionPrefix);
             }
 
             foreach (var leaf in EnumerateLeafPaths(schema, lookups, []))
@@ -451,15 +456,17 @@ public sealed class KeyVaultSecretsState<TFragment>
                     continue;
                 }
 
-                var conventionName = KeyVaultSecretName.ToConventionSecretName(
-                    leaf.PropertyPath,
-                    conventionPrefix
-                );
-                if (!secretNames.TryAdd(conventionName, leaf.PropertyPath))
+                var conventionKey = options.ConventionPrefix is null
+                    ? string.Join(options.ConventionSeparator, leaf.Segments)
+                    : options.ConventionPrefix
+                        + options.ConventionSeparator
+                        + string.Join(options.ConventionSeparator, leaf.Segments);
+                var validated = options.KeyValidator?.Invoke(conventionKey) ?? conventionKey;
+                if (!keys.TryAdd(validated, leaf.PropertyPath))
                 {
                     throw new ArgumentException(
-                        $"The convention secret name '{conventionName}' is ambiguous.",
-                        nameof(conventionPrefix)
+                        $"The convention key '{validated}' is ambiguous.",
+                        nameof(options)
                     );
                 }
 
@@ -468,8 +475,8 @@ public sealed class KeyVaultSecretsState<TFragment>
                     new ResolvedMapping(
                         leaf.PropertyPath,
                         leaf.Segments,
-                        conventionName,
-                        defaultVersion,
+                        validated,
+                        options.DefaultVersion,
                         leaf.LeafType
                     )
                 );
@@ -479,7 +486,7 @@ public sealed class KeyVaultSecretsState<TFragment>
         if (resolved.Count == 0)
         {
             throw new ArgumentException(
-                "Configure at least one explicit Key Vault secret mapping or enable convention mapping.",
+                "Configure at least one explicit mapping or enable convention mapping.",
                 nameof(explicitMappings)
             );
         }
@@ -489,11 +496,11 @@ public sealed class KeyVaultSecretsState<TFragment>
             .ToArray();
     }
 
-    private static Dictionary<ConfiglueModelSchema, KeyVaultSchemaLookup> BuildLookups(
+    private static Dictionary<ConfiglueModelSchema, KeyedSchemaLookup> BuildLookups(
         ConfiglueModelSchema schema
     )
     {
-        var lookups = new Dictionary<ConfiglueModelSchema, KeyVaultSchemaLookup>();
+        var lookups = new Dictionary<ConfiglueModelSchema, KeyedSchemaLookup>();
         CollectLookups(schema, new HashSet<Type>(), lookups);
         return lookups;
     }
@@ -501,7 +508,7 @@ public sealed class KeyVaultSecretsState<TFragment>
     private static void CollectLookups(
         ConfiglueModelSchema schema,
         HashSet<Type> ancestors,
-        Dictionary<ConfiglueModelSchema, KeyVaultSchemaLookup> lookups
+        Dictionary<ConfiglueModelSchema, KeyedSchemaLookup> lookups
     )
     {
         if (!ancestors.Add(schema.ModelType))
@@ -509,7 +516,7 @@ public sealed class KeyVaultSecretsState<TFragment>
             return;
         }
 
-        lookups[schema] = KeyVaultSchemaLookup.Create(schema);
+        lookups[schema] = KeyedSchemaLookup.Create(schema);
         for (var index = 0; index < schema.Members.Count; index++)
         {
             var nestedFactory = schema.Members[index].NestedSchemaFactory;
@@ -530,7 +537,7 @@ public sealed class KeyVaultSecretsState<TFragment>
         if (segments.Length == 0 || segments.Any(string.IsNullOrWhiteSpace))
         {
             throw new ArgumentException(
-                $"Key Vault mapping '{propertyPath}' must contain non-empty '.'-separated segments.",
+                $"Mapping '{propertyPath}' must contain non-empty '.'-separated segments.",
                 nameof(propertyPath)
             );
         }
@@ -540,7 +547,7 @@ public sealed class KeyVaultSecretsState<TFragment>
 
     private static Type ResolveLeafType(
         ConfiglueModelSchema schema,
-        Dictionary<ConfiglueModelSchema, KeyVaultSchemaLookup> lookups,
+        Dictionary<ConfiglueModelSchema, KeyedSchemaLookup> lookups,
         string[] segments,
         string propertyPath
     )
@@ -553,13 +560,13 @@ public sealed class KeyVaultSecretsState<TFragment>
                 if (isAmbiguous)
                 {
                     throw new ArgumentException(
-                        $"Key Vault mapping '{propertyPath}' segment '{segments[index]}' is ambiguous in schema '{current.Id}'.",
+                        $"Mapping '{propertyPath}' segment '{segments[index]}' is ambiguous in schema '{current.Id}'.",
                         nameof(propertyPath)
                     );
                 }
 
                 throw new ArgumentException(
-                    $"Key Vault mapping '{propertyPath}' does not match schema '{current.Id}'.",
+                    $"Mapping '{propertyPath}' does not match schema '{current.Id}'.",
                     nameof(propertyPath)
                 );
             }
@@ -570,7 +577,7 @@ public sealed class KeyVaultSecretsState<TFragment>
                 if (member.NestedSchemaFactory is not null)
                 {
                     throw new ArgumentException(
-                        $"Key Vault mapping '{propertyPath}' names a nested model. Map its leaf members instead.",
+                        $"Mapping '{propertyPath}' names a nested model. Map its leaf members instead.",
                         nameof(propertyPath)
                     );
                 }
@@ -581,7 +588,7 @@ public sealed class KeyVaultSecretsState<TFragment>
             if (member.NestedSchemaFactory is null)
             {
                 throw new ArgumentException(
-                    $"Key Vault mapping '{propertyPath}' continues past non-nested member '{member.Name}'.",
+                    $"Mapping '{propertyPath}' continues past non-nested member '{member.Name}'.",
                     nameof(propertyPath)
                 );
             }
@@ -589,10 +596,7 @@ public sealed class KeyVaultSecretsState<TFragment>
             current = member.NestedSchemaFactory();
         }
 
-        throw new ArgumentException(
-            $"Key Vault mapping '{propertyPath}' is empty.",
-            nameof(propertyPath)
-        );
+        throw new ArgumentException($"Mapping '{propertyPath}' is empty.", nameof(propertyPath));
     }
 
     private static IEnumerable<(
@@ -601,7 +605,7 @@ public sealed class KeyVaultSecretsState<TFragment>
         Type LeafType
     )> EnumerateLeafPaths(
         ConfiglueModelSchema schema,
-        Dictionary<ConfiglueModelSchema, KeyVaultSchemaLookup> lookups,
+        Dictionary<ConfiglueModelSchema, KeyedSchemaLookup> lookups,
         string[] parentPath
     )
     {
@@ -637,7 +641,7 @@ public sealed class KeyVaultSecretsState<TFragment>
             if (isAmbiguous)
             {
                 throw new FormatException(
-                    $"Key Vault path segment '{path[pathIndex]}' is ambiguous in schema '{schema.Id}'."
+                    $"Path segment '{path[pathIndex]}' is ambiguous in schema '{schema.Id}'."
                 );
             }
 
@@ -648,7 +652,7 @@ public sealed class KeyVaultSecretsState<TFragment>
         {
             if (member.NestedSchemaFactory is not null)
             {
-                throw new FormatException($"Key Vault mapping names nested model '{member.Name}'.");
+                throw new FormatException($"Mapping names nested model '{member.Name}'.");
             }
 
             return new AppliedFragment(fragment.WithMember(member.Id, value), true);
@@ -656,9 +660,7 @@ public sealed class KeyVaultSecretsState<TFragment>
 
         if (member.NestedSchemaFactory is null)
         {
-            throw new FormatException(
-                $"Key Vault mapping continues past non-nested member '{member.Name}'."
-            );
+            throw new FormatException($"Mapping continues past non-nested member '{member.Name}'.");
         }
 
         var nestedSchema = member.NestedSchemaFactory();
@@ -733,216 +735,107 @@ public sealed class KeyVaultSecretsState<TFragment>
             {
                 writes.Add(
                     new SecretWrite(
-                        mapping.SecretName,
-                        FormatValue(member.Value, memberSchema.ValueType)
+                        mapping.Key,
+                        ScalarTextConverter.Format(
+                            member.Value,
+                            memberSchema.ValueType,
+                            _jsonOptions
+                        )
                     )
                 );
             }
         }
     }
 
-    private object? ParseValue(
-        string value,
-        Type targetType,
-        string propertyPath,
-        string secretName
-    )
+    private object? ParseValue(string value, Type targetType, string propertyPath, string key)
     {
         object? parsed;
         try
         {
             parsed = _valueParser is not null
-                ? _valueParser(value, targetType)
-                : ParseScalar(value, targetType);
+                ? ScalarTextConverter.Parse(value, targetType, _valueParser, _jsonOptions)
+                : ScalarTextConverter.Parse(value, targetType, null, _jsonOptions);
         }
-        catch (NotSupportedException exception)
+        catch (FormatException exception)
         {
-            parsed = ParseJson(value, targetType, exception, propertyPath, secretName);
+            throw new FormatException(
+                $"The secret '{key}' is not a valid value for member '{propertyPath}'.",
+                exception
+            );
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
         {
             throw new FormatException(
-                $"The Key Vault secret '{secretName}' is not a valid value for member '{propertyPath}'.",
+                $"The secret '{key}' is not a valid value for member '{propertyPath}'.",
                 exception
-            );
-        }
-
-        var valueType = Nullable.GetUnderlyingType(targetType) ?? targetType;
-        if (parsed is null)
-        {
-            if (targetType.IsValueType && Nullable.GetUnderlyingType(targetType) is null)
-            {
-                throw new FormatException(
-                    $"The parser returned null for non-nullable member '{propertyPath}'."
-                );
-            }
-
-            return null;
-        }
-
-        if (!valueType.IsInstanceOfType(parsed))
-        {
-            throw new FormatException(
-                $"The parser returned an incompatible value for member '{propertyPath}'."
             );
         }
 
         return parsed;
     }
 
-    private object? ParseScalar(string value, Type targetType)
-    {
-        var nullableType = Nullable.GetUnderlyingType(targetType);
-        var valueType = nullableType ?? targetType;
-        if (nullableType is not null && value.Length == 0)
-        {
-            return null;
-        }
-
-        if (valueType == typeof(string))
-        {
-            return value;
-        }
-        if (valueType == typeof(bool))
-        {
-            return bool.Parse(value);
-        }
-        if (valueType == typeof(char))
-        {
-            return value.Length == 1
-                ? value[0]
-                : throw new FormatException(
-                    "A character secret value must contain exactly one character."
-                );
-        }
-        if (valueType.IsEnum)
-        {
-            return Enum.Parse(valueType, value, ignoreCase: true);
-        }
-        if (valueType == typeof(Guid))
-        {
-            return Guid.Parse(value);
-        }
-        if (valueType == typeof(DateTime))
-        {
-            return DateTime.Parse(
-                value,
-                CultureInfo.InvariantCulture,
-                DateTimeStyles.RoundtripKind
-            );
-        }
-        if (valueType == typeof(DateTimeOffset))
-        {
-            return DateTimeOffset.Parse(
-                value,
-                CultureInfo.InvariantCulture,
-                DateTimeStyles.RoundtripKind
-            );
-        }
-#if !NETSTANDARD
-        if (valueType == typeof(DateOnly))
-        {
-            return DateOnly.Parse(value, CultureInfo.InvariantCulture);
-        }
-        if (valueType == typeof(TimeOnly))
-        {
-            return TimeOnly.Parse(value, CultureInfo.InvariantCulture);
-        }
-#endif
-        if (valueType == typeof(TimeSpan))
-        {
-            return TimeSpan.Parse(value, CultureInfo.InvariantCulture);
-        }
-        if (valueType == typeof(Uri))
-        {
-            return new Uri(value, UriKind.RelativeOrAbsolute);
-        }
-        if (valueType == typeof(Version))
-        {
-            return Version.Parse(value);
-        }
-        if (valueType == typeof(byte[]))
-        {
-            return Convert.FromBase64String(value);
-        }
-        if (typeof(IConvertible).IsAssignableFrom(valueType))
-        {
-            return Convert.ChangeType(value, valueType, CultureInfo.InvariantCulture);
-        }
-
-        return ParseJson(value, valueType, null, string.Empty, string.Empty);
-    }
-
-    private object? ParseJson(
-        string value,
-        Type valueType,
-        Exception? declinedBy,
-        string propertyPath,
-        string secretName
-    )
-    {
-        if (valueType == typeof(object))
-        {
-            return value;
-        }
-
-        try
-        {
-            return JsonSerializer.Deserialize(value, valueType, _jsonOptions);
-        }
-        catch (Exception exception) when (exception is not OperationCanceledException)
-        {
-            throw new FormatException(
-                string.IsNullOrEmpty(propertyPath)
-                    ? "The value is not valid JSON for the member type."
-                    : $"The Key Vault secret '{secretName}' is not a valid value for member '{propertyPath}'.",
-                declinedBy is null ? exception : new AggregateException(declinedBy, exception)
-            );
-        }
-    }
-
-    private string FormatValue(object? value, Type targetType)
-    {
-        if (value is null)
-        {
-            return string.Empty;
-        }
-
-        var valueType = Nullable.GetUnderlyingType(targetType) ?? targetType;
-        if (valueType == typeof(string) && value is string text)
-        {
-            return text;
-        }
-        if (valueType == typeof(bool) && value is bool flag)
-        {
-            return flag ? "true" : "false";
-        }
-        if (valueType == typeof(byte[]) && value is byte[] bytes)
-        {
-            return Convert.ToBase64String(bytes);
-        }
-        if (value is IConvertible)
-        {
-            if (value is DateTime dateTime)
-            {
-                return dateTime.ToString("O", CultureInfo.InvariantCulture);
-            }
-            if (value is DateTimeOffset dateOffset)
-            {
-                return dateOffset.ToString("O", CultureInfo.InvariantCulture);
-            }
-            if (value is IFormattable formattable)
-            {
-                return formattable.ToString(null, CultureInfo.InvariantCulture);
-            }
-
-            return Convert.ToString(value, CultureInfo.InvariantCulture) ?? string.Empty;
-        }
-
-        return JsonSerializer.Serialize(value, valueType, _jsonOptions);
-    }
-
     private readonly record struct AppliedFragment(IConfiglueFragment Fragment, bool Matched);
 
-    private sealed record SecretWrite(string SecretName, string Value);
+    private sealed class KeyedSchemaLookup
+    {
+        private readonly Dictionary<string, ConfiglueMemberSchema> _membersByName;
+        private readonly HashSet<string> _ambiguousNames;
+
+        private KeyedSchemaLookup(
+            Dictionary<string, ConfiglueMemberSchema> membersByName,
+            HashSet<string> ambiguousNames
+        )
+        {
+            _membersByName = membersByName;
+            _ambiguousNames = ambiguousNames;
+        }
+
+        public static KeyedSchemaLookup Create(ConfiglueModelSchema schema)
+        {
+            ArgumentNullException.ThrowIfNull(schema);
+            var membersByName = new Dictionary<string, ConfiglueMemberSchema>(
+                StringComparer.OrdinalIgnoreCase
+            );
+            var ambiguousNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var member in schema.Members)
+            {
+                if (ambiguousNames.Contains(member.Name))
+                {
+                    continue;
+                }
+
+                if (!membersByName.TryAdd(member.Name, member))
+                {
+                    ambiguousNames.Add(member.Name);
+                    membersByName.Remove(member.Name);
+                }
+            }
+
+            return new KeyedSchemaLookup(membersByName, ambiguousNames);
+        }
+
+        public bool TryResolve(
+            string segment,
+            out ConfiglueMemberSchema member,
+            out bool isAmbiguous
+        )
+        {
+            if (_ambiguousNames.Contains(segment))
+            {
+                member = default;
+                isAmbiguous = true;
+                return false;
+            }
+
+            if (_membersByName.TryGetValue(segment, out member))
+            {
+                isAmbiguous = false;
+                return true;
+            }
+
+            member = default;
+            isAmbiguous = false;
+            return false;
+        }
+    }
 }

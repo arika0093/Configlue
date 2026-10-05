@@ -5,6 +5,7 @@ using Azure.Core.Pipeline;
 using Azure.Security.KeyVault.Secrets;
 using Configlue.Provider.Json;
 using Configlue.Resource.AzureKeyVault;
+using Configlue.Sources;
 
 namespace Configlue.Tests;
 
@@ -19,33 +20,30 @@ public sealed class KeyVaultSecretsTests
             new SecretClientOptions { Transport = new FakeKeyVaultTransport(secrets) }
         );
 
-    private static KeyVaultSecretsState<AppSettings.Fragment> CreateState(
+    private static KeyedSecretSource<AppSettings.Fragment> CreateSource(
         FakeSecretsClient client,
         IReadOnlyList<KeyVaultSecretMapping>? mappings = null,
         bool writable = false,
         TimeSpan? pollInterval = null,
-        bool convention = false,
-        string? conventionPrefix = null,
-        string? fixedVersion = null,
-        Func<string, Type, object?>? parser = null
+        string? fixedVersion = null
     )
     {
-        var resolved = KeyVaultSecretsState<AppSettings.Fragment>.ResolveMappings(
+        var keyed = (mappings ?? [new KeyVaultSecretMapping("Label", "app-label")])
+            .Select(static m => new KeyedSecretMapping(m.PropertyPath, m.SecretName, m.Version))
+            .ToArray();
+        return new KeyedSecretSource<AppSettings.Fragment>(
+            new KeyVaultKeyedClientAdapter(client),
             AppSettings.ConfiglueSchema,
-            mappings ?? [new KeyVaultSecretMapping("Label", "app-label")],
-            convention,
-            conventionPrefix,
-            fixedVersion
-        );
-        return new KeyVaultSecretsState<AppSettings.Fragment>(
-            client,
-            VaultUri,
-            AppSettings.ConfiglueSchema,
-            resolved,
-            writable,
-            pollInterval,
-            parser,
-            null
+            keyed,
+            new KeyedSecretSourceOptions
+            {
+                ConventionSeparator = "-",
+                KeyValidator = static key => KeyVaultSecretName.Validate(key),
+                DefaultVersion = fixedVersion,
+                Writable = writable,
+                PollInterval = pollInterval,
+                PhysicalOrigin = KeyVaultClients.GetPhysicalOrigin(VaultUri),
+            }
         );
     }
 
@@ -56,7 +54,7 @@ public sealed class KeyVaultSecretsTests
         client.Set("app-label", "hello-vault");
         client.Set("retry-count", "7");
         client.Set("db-host", "vault-db.example");
-        var state = CreateState(
+        var source = CreateSource(
             client,
             [
                 new KeyVaultSecretMapping("Label", "app-label"),
@@ -65,7 +63,7 @@ public sealed class KeyVaultSecretsTests
             ]
         );
 
-        var read = await state.ReadAsync();
+        var read = await source.ReadAsync();
 
         read.Status.ShouldBe(StateReadStatus.Success);
         read.Value!.Label.Value.ShouldBe("hello-vault");
@@ -76,68 +74,22 @@ public sealed class KeyVaultSecretsTests
     }
 
     [Test]
-    public async Task ConventionMapping_DerivesDeterministicNames()
-    {
-        var client = new FakeSecretsClient();
-        client.Set("Label", "convention-label");
-        client.Set("Database-Host", "convention-db");
-        var state = CreateState(client, [], convention: true);
-
-        var resolved = state.ResolvedMappings.Select(static m => m.SecretName).ToArray();
-        resolved.ShouldContain("Label");
-        resolved.ShouldContain("Database-Host");
-
-        var read = await state.ReadAsync();
-
-        read.Status.ShouldBe(StateReadStatus.Success);
-        read.Value!.Label.Value.ShouldBe("convention-label");
-    }
-
-    [Test]
-    public void ExplicitMapping_RejectsIllegalSecretNames()
-    {
-        Should.Throw<ArgumentException>(() => new KeyVaultSecretMapping("Label", "bad.name"));
-        Should.Throw<ArgumentException>(() => new KeyVaultSecretMapping("Label", "has space"));
-        Should.Throw<ArgumentException>(() =>
-            KeyVaultSecretsState<AppSettings.Fragment>.ResolveMappings(
-                AppSettings.ConfiglueSchema,
-                [new KeyVaultSecretMapping("Missing.Member", "ok-name")],
-                false,
-                null,
-                null
-            )
-        );
-        Should.Throw<ArgumentException>(() =>
-            KeyVaultSecretsState<AppSettings.Fragment>.ResolveMappings(
-                AppSettings.ConfiglueSchema,
-                [
-                    new KeyVaultSecretMapping("Label", "dup-secret"),
-                    new KeyVaultSecretMapping("RetryCount", "dup-secret"),
-                ],
-                false,
-                null,
-                null
-            )
-        );
-    }
-
-    [Test]
     public async Task FixedVersion_IsPinnedAndHasNoWatcher()
     {
         var client = new FakeSecretsClient();
         client.Set("app-label", "v1-label", version: "aaa");
-        var state = CreateState(
+        var source = CreateSource(
             client,
             [new KeyVaultSecretMapping("Label", "app-label", "aaa")],
             pollInterval: TimeSpan.FromMilliseconds(20)
         );
 
-        state.IsAllFixedVersion.ShouldBeTrue();
-        state.Watcher.ShouldBeNull();
+        source.IsAllFixedVersion.ShouldBeTrue();
+        source.Watcher.ShouldBeNull();
 
-        var first = await state.ReadAsync();
+        var first = await source.ReadAsync();
         client.Set("app-label", "v2-label", version: "bbb");
-        var second = await state.ReadAsync();
+        var second = await source.ReadAsync();
 
         first.Value!.Label.Value.ShouldBe("v1-label");
         second.Value!.Label.Value.ShouldBe("v1-label");
@@ -149,22 +101,22 @@ public sealed class KeyVaultSecretsTests
     {
         var client = new FakeSecretsClient();
         client.Set("app-label", "before");
-        var state = CreateState(
+        var source = CreateSource(
             client,
             [new KeyVaultSecretMapping("Label", "app-label")],
             pollInterval: TimeSpan.FromMilliseconds(20)
         );
 
-        state.Watcher.ShouldNotBeNull();
-        var first = await state.ReadAsync();
+        source.Watcher.ShouldNotBeNull();
+        var first = await source.ReadAsync();
         first.Value!.Label.Value.ShouldBe("before");
 
-        var wait = state.WaitForChangeAsync(ConfiglueResourceContext.Default, first.Revision);
+        var wait = source.WaitForChangeAsync(ConfiglueResourceContext.Default, first.Revision);
         await Task.Delay(50);
         client.Set("app-label", "after");
         await wait.AsTask().WaitAsync(TimeSpan.FromSeconds(30));
 
-        var second = await state.ReadAsync();
+        var second = await source.ReadAsync();
         second.Value!.Label.Value.ShouldBe("after");
         second.Revision.ShouldNotBe(first.Revision);
     }
@@ -173,13 +125,13 @@ public sealed class KeyVaultSecretsTests
     public async Task MissingSecrets_ProduceSparseNotFound()
     {
         var client = new FakeSecretsClient();
-        var state = CreateState(client);
+        var source = CreateSource(client);
 
-        var empty = await state.ReadAsync();
+        var empty = await source.ReadAsync();
         empty.Status.ShouldBe(StateReadStatus.NotFound);
 
         client.Set("app-label", "present");
-        var partial = await state.ReadAsync();
+        var partial = await source.ReadAsync();
         partial.Status.ShouldBe(StateReadStatus.Success);
         partial.Value!.Label.Value.ShouldBe("present");
     }
@@ -189,9 +141,9 @@ public sealed class KeyVaultSecretsTests
     {
         var client = new FakeSecretsClient();
         client.Set("app-label", "super-secret-VALUE-777", enabled: false);
-        var state = CreateState(client);
+        var source = CreateSource(client);
 
-        var read = await state.ReadAsync();
+        var read = await source.ReadAsync();
 
         read.Status.ShouldBe(StateReadStatus.NotFound);
     }
@@ -200,9 +152,9 @@ public sealed class KeyVaultSecretsTests
     public async Task Throttling_MapsToUnavailable()
     {
         var client = new FakeSecretsClient { ThrowUnavailable = true };
-        var state = CreateState(client);
+        var source = CreateSource(client);
 
-        var read = await state.ReadAsync();
+        var read = await source.ReadAsync();
 
         read.Status.ShouldBe(StateReadStatus.Unavailable);
     }
@@ -213,9 +165,9 @@ public sealed class KeyVaultSecretsTests
         const string secretValue = "not-an-int-super-secret-VALUE-888";
         var client = new FakeSecretsClient();
         client.Set("retry-count", secretValue);
-        var state = CreateState(client, [new KeyVaultSecretMapping("RetryCount", "retry-count")]);
+        var source = CreateSource(client, [new KeyVaultSecretMapping("RetryCount", "retry-count")]);
 
-        var read = await state.ReadAsync();
+        var read = await source.ReadAsync();
 
         read.Status.ShouldBe(StateReadStatus.InvalidPayload);
         read.Revision!.ShouldNotContain(secretValue);
@@ -225,7 +177,7 @@ public sealed class KeyVaultSecretsTests
     public async Task ReadOnlySource_HasNoWriter()
     {
         var client = new FakeSecretsClient();
-        var readOnly = CreateState(client);
+        var readOnly = CreateSource(client);
         readOnly.Writer.ShouldBeNull();
 
         await Should.ThrowAsync<InvalidOperationException>(async () =>
@@ -239,7 +191,7 @@ public sealed class KeyVaultSecretsTests
     public async Task WritableSource_PersistsPresentMembers()
     {
         var client = new FakeSecretsClient();
-        var state = CreateState(
+        var source = CreateSource(
             client,
             [
                 new KeyVaultSecretMapping("Label", "app-label"),
@@ -253,10 +205,10 @@ public sealed class KeyVaultSecretsTests
             Label = Optional<string?>.Present("written-label"),
             RetryCount = Optional<int>.Present(42),
         };
-        var receipt = await state.WriteAsync(new StateWriteRequest<AppSettings.Fragment>(fragment));
+        var receipt = await source.WriteAsync(new StateWriteRequest<AppSettings.Fragment>(fragment));
 
         receipt.Revision.ShouldNotBeNullOrWhiteSpace();
-        var read = await state.ReadAsync();
+        var read = await source.ReadAsync();
         read.Value!.Label.Value.ShouldBe("written-label");
         read.Value.RetryCount.Value.ShouldBe(42);
     }
@@ -266,7 +218,7 @@ public sealed class KeyVaultSecretsTests
     {
         var client = new FakeSecretsClient();
         client.Set("app-label", "original");
-        var state = CreateState(
+        var source = CreateSource(
             client,
             [new KeyVaultSecretMapping("Label", "app-label")],
             writable: true
@@ -278,7 +230,7 @@ public sealed class KeyVaultSecretsTests
             Label = Optional<string?>.Present("stale-write-attempt"),
         };
         var exception = await Should.ThrowAsync<InvalidOperationException>(async () =>
-            await state.WriteAsync(
+            await source.WriteAsync(
                 new StateWriteRequest<AppSettings.Fragment>(
                     fragment,
                     Condition: RevisionCondition.Match("anything")
@@ -373,7 +325,7 @@ public sealed class KeyVaultSecretsTests
     {
         var client = new FakeSecretsClient();
         client.Set("app-label", "value");
-        var state = CreateState(
+        var source = CreateSource(
             client,
             [new KeyVaultSecretMapping("Label", "app-label")],
             pollInterval: TimeSpan.FromMilliseconds(20)
@@ -382,13 +334,13 @@ public sealed class KeyVaultSecretsTests
         using var cancelled = new CancellationTokenSource();
         await cancelled.CancelAsync();
         await Should.ThrowAsync<OperationCanceledException>(async () =>
-            await state.ReadAsync(ConfiglueResourceContext.Default, cancelled.Token)
+            await source.ReadAsync(ConfiglueResourceContext.Default, cancelled.Token)
         );
 
-        state.Dispose();
-        await Should.ThrowAsync<ObjectDisposedException>(async () => await state.ReadAsync());
+        source.Dispose();
+        await Should.ThrowAsync<ObjectDisposedException>(async () => await source.ReadAsync());
         await Should.ThrowAsync<ObjectDisposedException>(async () =>
-            await state.WaitForChangeAsync(ConfiglueResourceContext.Default, "rev").AsTask()
+            await source.WaitForChangeAsync(ConfiglueResourceContext.Default, "rev").AsTask()
         );
     }
 
@@ -399,7 +351,7 @@ public sealed class KeyVaultSecretsTests
         var client = new FakeSecretsClient();
         client.Set("app-label", secretValue);
         client.Set("retry-count", "3");
-        var state = CreateState(
+        var source = CreateSource(
             client,
             [
                 new KeyVaultSecretMapping("Label", "app-label"),
@@ -407,19 +359,19 @@ public sealed class KeyVaultSecretsTests
             ]
         );
 
-        var read = await state.ReadAsync();
+        var read = await source.ReadAsync();
         read.Revision!.ShouldNotContain(secretValue);
         read.PhysicalOrigin!.ShouldNotContain(secretValue);
         read.PhysicalOrigin.ShouldBe("keyvault:test-vault.vault.azure.net");
-        state.ToString()!.ShouldNotContain(secretValue);
+        source.ToString()!.ShouldNotContain(secretValue);
 
         var malformed = new FakeSecretsClient();
         malformed.Set("retry-count", secretValue);
-        var malformedState = CreateState(
+        var malformedSource = CreateSource(
             malformed,
             [new KeyVaultSecretMapping("RetryCount", "retry-count")]
         );
-        var invalid = await malformedState.ReadAsync();
+        var invalid = await malformedSource.ReadAsync();
         invalid.Revision!.ShouldNotContain(secretValue);
 
         var resource = new KeyVaultSecretResource(client, VaultUri, "app-label");
@@ -448,9 +400,9 @@ public sealed class KeyVaultSecretsTests
         });
         var inspection = context.GetRuntimeState<AppSettings>();
         var check = inspection.Check();
-        await foreach (var source in check)
+        await foreach (var component in check)
         {
-            source.ToString()!.ShouldNotContain(secretValue);
+            component.ToString()!.ShouldNotContain(secretValue);
         }
 
         var checkResult = await check.Result;

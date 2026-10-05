@@ -112,17 +112,6 @@ namespace Configlue.Resource.AzureKeyVault
         public required System.Uri VaultUri { get; init; }
         public bool Writable { get; init; }
     }
-    public sealed class KeyVaultSecretsState<TFragment> : Configlue.Sources.ISourceCapabilities<TFragment>, Configlue.Sources.ISourceReader<TFragment>, Configlue.Sources.ISourceWatcher, Configlue.Sources.ISourceWriter<TFragment>, System.IDisposable
-        where TFragment :  class, Configlue.IConfiglueFragment<TFragment>
-    {
-        public Configlue.Sources.ISourceWatcher? Watcher { get; }
-        public Configlue.Sources.ISourceWriter<TFragment>? Writer { get; }
-        public void Dispose() { }
-        public System.Threading.Tasks.ValueTask<Configlue.State.StateReadResult<TFragment>> ReadAsync(Configlue.Resources.ConfiglueResourceContext context, System.Threading.CancellationToken cancellationToken = default) { }
-        public override string ToString() { }
-        public System.Threading.Tasks.ValueTask WaitForChangeAsync(Configlue.Resources.ConfiglueResourceContext context, string? observedRevision, System.Threading.CancellationToken cancellationToken = default) { }
-        public System.Threading.Tasks.ValueTask<Configlue.State.StateWriteResult> WriteAsync(Configlue.Resources.ConfiglueResourceContext context, Configlue.State.StateWriteRequest<TFragment> request, System.Threading.CancellationToken cancellationToken = default) { }
-    }
     public static class KeyVaultSourceRegistration
     {
         public static Configlue.Extensibility.ConfiglueSourceRegistration FromKeyVaultSecret(this Configlue.ConfiglueSourceSetBuilder sources, Configlue.Resource.AzureKeyVault.KeyVaultSecretSourceOptions options) { }
