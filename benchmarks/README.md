@@ -120,6 +120,18 @@ top of the baseline. Restore the generated-ID path afterwards.
 dotnet run -c Release --project benchmarks/Configlue.Benchmarks -- --filter '*MemberLookup*' --job dry
 ```
 
+`SparseFragmentBenchmarks318.cs` (issue #318) is the focused standalone
+SparseFragments group. It covers sparse fragment construction,
+`Fragment.From`, shallow merge, nested merge (nested model plus appended
+collection), diff, patch apply (`ApplyChanges` plus typed `Patch.Apply`),
+and deep clone (model plus fragment), with straightforward hand-written
+merge/clone baselines and a minimal reflection-based clone baseline. All
+benchmarks use `MemoryDiagnoser` (throughput plus allocations). Run it with
+`--filter '*SparseFragmentBenchmarks318*'` (`--job dry` for a fast smoke
+check whose numbers are not publishable). Results are local measurements,
+not a CI performance gate; compare runs from the same machine, runtime,
+power mode, and configuration.
+
 Before an allocation optimization, capture its relevant group at the parent revision and again at the candidate revision on the same machine and runtime. Keep the BenchmarkDotNet reports with the review notes; do not treat numbers from different machines or runtime versions as a regression threshold. For a focused comparison:
 
 Issue #165's same-machine before/after allocation results are recorded in [serialized-writer-allocation-results.md](serialized-writer-allocation-results.md). Issue #168's source-count scratch-pooling allocation comparison is recorded in [runtime-scratch-pooling-results.md](runtime-scratch-pooling-results.md).

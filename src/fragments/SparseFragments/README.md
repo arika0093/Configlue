@@ -19,7 +19,7 @@ Hand-writing this per model is boilerplate-heavy and error-prone, and reflection
 ## What You Get
 
 * **Nearly zero adoption effort.** One attribute on a partial class; everything else is generated.
-* **Hand-written-grade performance.** Plain generated C# — no reflection, no runtime codegen, no warmup.
+* **Predictable, source-generated operations.** Plain generated C# — reflection-free core operations, no runtime code generation, no generator warmup at runtime. Measure the representative paths locally with `SparseFragmentBenchmarks318` (see `benchmarks/README.md`).
 * **Exact presence semantics.** `Optional<T>` distinguishes *missing*, *present null*, and *present default*.
 * **Typed, source-generated API.** `Fragment`, `Patch`, and a builder per model, all compiler-checked.
 * **Per-member merge algebra.** `Replace` / `Deep` / `Append` / `SetUnion`, or custom strategies via `[SparseMerge]`.
