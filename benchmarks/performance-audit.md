@@ -205,6 +205,48 @@ warnings/errors, CSharpier clean, plus the affected suites
 `RuntimeResolutionScratchTests`, `ResolverRetainedWatchTests`, `AllocationBudgetTests`)
 and the full Release net10.0 suite (see commit).
 
+## Round 10: reserve generated list and dictionary clone capacity (2026-10-05)
+
+Resumed against clean main `3bd7ac6c`. `CollectionCloneBenchmarks` adds twelve
+cases (0/16/4,096 elements, list/set/dictionary/all collections), with fixture
+equality checked outside measurement. Benchmark coverage was committed and pushed
+as `23e10b10` before the optimization. Reports with environment, errors and GC
+columns are tracked in [before](reports/collection-clone/before.md) and
+[after](reports/collection-clone/after.md). Both runs use Release .NET 10.0.12,
+three warmups and five measurement iterations on the same Windows machine.
+
+| Path | Before mean | After mean | Before allocation | After allocation |
+| --- | ---: | ---: | ---: | ---: |
+| List, 16 | 81.00 ns | 51.78 ns | 512 B | 416 B |
+| Dictionary, 16 | 450.26 ns | 307.60 ns | 1,344 B | 960 B |
+| List, 4,096 | 4.86 us | 3.97 us | 33,344 B | 16,736 B |
+| Dictionary, 4,096 | 200.61 us | 101.50 us | 451,807 B | 136,604 B |
+| All collections, 4,096 | 597.02 us | 201.35 us | 824,181 B | 492,370 B |
+
+Generated List and Dictionary clones now reserve a known ICollection or
+IReadOnlyCollection count; unknown enumerable counts use zero without an extra
+enumeration. Context publication still occurs before cloning elements, and
+runtime dictionary comparers remain preserved. No reflection, pooling, retained
+cache or new public API is introduced. The shared emitter applies to Configlue
+and standalone SparseFragments. Empty allocation budgets are unchanged. At
+4,096 elements, allocation falls 50% for lists, 70% for dictionaries and 40% for
+the combined model. Dictionary Gen2 collections per 1,000 operations fall from
+90.82 to 36.87; the final dictionary array itself still crosses the LOH threshold.
+
+Timing is noisy: even unchanged set code has different means (96.90 to 87.68 us
+at 4,096), and several small-case confidence intervals overlap. The recorded
+means are observations, not universal speedup promises. The large allocation
+reductions are the reliable evidence. HashSet capacity remains an open candidate:
+its capacity constructor is absent from the netstandard2.0 reference assembly,
+so it needs a generation-time capability check rather than unconditional use.
+
+Validation: SparseFragments Release suite 108 passed; Configlue clone contracts
+13 passed; full Configlue Release net10.0 suite 1,703 passed, zero failures,
+17 external-service skips; generator compatibility suite 7 passed. The set-clones
+consumer builds netstandard2.0, net48 and net10.0 with zero warnings/errors.
+CSharpier formatting and git whitespace checks pass. Full logs are retained in
+the main worktree's ignored `artifacts/clone-*` files.
+
 ## Remaining audit
 
 
