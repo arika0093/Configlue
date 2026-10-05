@@ -20,6 +20,11 @@ include invalid bytes outside the array slice; setup checks typed/untyped decodi
 Unicode values, and schema metadata. `XmlCodecWriteBenchmarks` isolates writes to
 a reused buffer. Both use 0, 4,096, and 65,536 Unicode characters without storage I/O.
 
+`XmlMetadataValidationBenchmarks` measures marked/unmarked documents, invalid
+versions, empty input, malformed children, trailing data, DTDs, and undeclared
+entities. Setup compares both metadata and XML failures against a strict DOM reader,
+including malformed tails after unmarked or invalid-version roots.
+
 `CollectionCloneBenchmarks` isolates generated fragment deep cloning for lists, sets,
 dictionaries, and a combined collection model at 0, 16, and 4,096 elements. It checks
 structural equality in setup and measures allocations without storage or resolver costs.
