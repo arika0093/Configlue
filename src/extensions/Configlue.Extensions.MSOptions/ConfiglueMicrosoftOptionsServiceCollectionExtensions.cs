@@ -7,6 +7,16 @@ namespace Configlue.Extensions.MSOptions;
 public static class ConfiglueMicrosoftOptionsServiceCollectionExtensions
 {
     /// <summary>Registers <see cref="IOptions{TOptions}"/>, snapshots, and monitors for a Configlue model.</summary>
+    /// <remarks>
+    /// Only statically registered states are exposed: the default state maps to the default
+    /// Microsoft Options lookup, and <c>builder.Add{TModel}</c> states with <c>StateName</c>
+    /// (exposed as keyed <c>IReadOnlyState{TModel}</c> services) map to named lookups.
+    /// Dynamic <c>IConfiglueStateRegistry{TModel}</c> lifecycle (states added or removed at
+    /// runtime, including catalog-managed profiles) is intentionally not mirrored:
+    /// <c>IOptionsMonitor{TModel}.Get</c> for such a late-added name throws
+    /// <see cref="KeyNotFoundException"/>, and <c>OnChange</c> never fires for it.
+    /// This intentionally revokes the dynamic mirror guarantee restored in #285 (breaking).
+    /// </remarks>
     public static IServiceCollection AddConfiglueMicrosoftOptions<TModel>(
         this IServiceCollection services
     )

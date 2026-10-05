@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using Configlue.Extensions.MSOptions;
 using Configlue.Testing;
 using Microsoft.Extensions.DependencyInjection;
@@ -285,5 +286,133 @@ public sealed partial class StateRuntimeTests
         custom.Set(new AppSettings.Fragment { RetryCount = Optional<int>.Present(12) });
         (await directChanged.Task.WaitAsync(TimeSpan.FromSeconds(5))).ShouldBe(12);
         (await changed.Task.WaitAsync(TimeSpan.FromSeconds(5))).ShouldBe(12);
+    }
+
+    [Test]
+    public async Task OptionsMonitor_GetForLateRegistryStateThrowsKeyNotFound()
+    {
+        // Guards the intentional #294 revoke of the dynamic mirror restored in #285:
+        // a state materialized via IConfiglueStateRegistry.TryAddAsync must NOT become
+        // visible through IOptionsMonitor.Get. A future re-mirror will fail here by design.
+        var stores = new ConcurrentDictionary<string, InMemoryStateSource<AppSettings.Fragment>>(
+            StringComparer.Ordinal
+        );
+        var services = new ServiceCollection();
+        services.AddConfiglueMicrosoftOptions<AppSettings>();
+        services.AddConfiglue(builder =>
+        {
+            builder.Add<AppSettings>(model =>
+            {
+                model.EnableDynamicStates = true;
+                model.ConfigureSources(registration =>
+                {
+                    var key =
+                        registration.StateName.Length == 0 ? "default" : registration.StateName;
+                    var store = stores.GetOrAdd(
+                        key,
+                        _ => new InMemoryStateSource<AppSettings.Fragment>(
+                            new AppSettings.Fragment
+                            {
+                                RetryCount = Optional<int>.Present(3),
+                            }
+                        )
+                    );
+                    registration.Sources.Add(
+                        new StateSource<AppSettings.Fragment>(
+                            key,
+                            store,
+                            new StateSourceOptions<AppSettings.Fragment>
+                            {
+                                Writer = store,
+                                Watcher = store,
+                            }
+                        )
+                    );
+                });
+            });
+        });
+        await using var serviceProvider = services.BuildServiceProvider();
+        var registry = serviceProvider.GetRequiredService<IConfiglueStateRegistry<AppSettings>>();
+        var monitor = serviceProvider.GetRequiredService<IOptionsMonitor<AppSettings>>();
+
+        (await registry.TryAddAsync("late")).ShouldBeTrue();
+        var lateDirect = await registry.Get("late").GetValueAsync();
+        (lateDirect.RetryCount).ShouldBe(3);
+
+        Should.Throw<KeyNotFoundException>(() => monitor.Get("late"));
+    }
+
+    [Test]
+    public async Task OptionsMonitor_OnChangeIgnoresLateRegistryState()
+    {
+        // Guards the intentional #294 revoke of the dynamic mirror restored in #285:
+        // OnChange subscribed even after TryAddAsync must NOT fire for the late state.
+        // A future re-mirror will fail here by design.
+        var stores = new ConcurrentDictionary<string, InMemoryStateSource<AppSettings.Fragment>>(
+            StringComparer.Ordinal
+        );
+        var services = new ServiceCollection();
+        services.AddConfiglueMicrosoftOptions<AppSettings>();
+        services.AddConfiglue(builder =>
+        {
+            builder.Add<AppSettings>(model =>
+            {
+                model.EnableDynamicStates = true;
+                model.OnChangeDebounce = TimeSpan.Zero;
+                model.ConfigureSources(registration =>
+                {
+                    var key =
+                        registration.StateName.Length == 0 ? "default" : registration.StateName;
+                    var store = stores.GetOrAdd(
+                        key,
+                        _ => new InMemoryStateSource<AppSettings.Fragment>(
+                            new AppSettings.Fragment
+                            {
+                                RetryCount = Optional<int>.Present(3),
+                            }
+                        )
+                    );
+                    registration.Sources.Add(
+                        new StateSource<AppSettings.Fragment>(
+                            key,
+                            store,
+                            new StateSourceOptions<AppSettings.Fragment>
+                            {
+                                Writer = store,
+                                Watcher = store,
+                            }
+                        )
+                    );
+                });
+            });
+        });
+        await using var serviceProvider = services.BuildServiceProvider();
+        var registry = serviceProvider.GetRequiredService<IConfiglueStateRegistry<AppSettings>>();
+
+        (await registry.TryAddAsync("late")).ShouldBeTrue();
+        var monitor = serviceProvider.GetRequiredService<IOptionsMonitor<AppSettings>>();
+
+        var monitorNotifications = 0;
+        using var monitorSubscription = monitor.OnChange(
+            (_, name) =>
+            {
+                if (string.Equals(name, "late", StringComparison.Ordinal))
+                {
+                    Interlocked.Increment(ref monitorNotifications);
+                }
+            }
+        );
+        var directChanged = new TaskCompletionSource<int>(
+            TaskCreationOptions.RunContinuationsAsynchronously
+        );
+        using var directSubscription = registry
+            .Get("late")
+            .OnChange(value => directChanged.TrySetResult(value.RetryCount));
+
+        stores["late"].Set(new AppSettings.Fragment { RetryCount = Optional<int>.Present(12) });
+        (await directChanged.Task.WaitAsync(TimeSpan.FromSeconds(5))).ShouldBe(12);
+
+        await Task.Delay(TimeSpan.FromMilliseconds(300));
+        Volatile.Read(ref monitorNotifications).ShouldBe(0);
     }
 }
