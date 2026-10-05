@@ -4,11 +4,15 @@
     <AssemblyName>SparseFragments.JsonPatch</AssemblyName>
     <RootNamespace>SparseFragments.JsonPatch</RootNamespace>
     <IsPackable>true</IsPackable>
-    <PackageDescription>RFC 6902 JSON Patch interoperability for SparseFragments generated models.</PackageDescription>
+    <PackageDescription>RFC 6902 JSON Patch documents for presence-aware partial models. Parse, atomically apply, and diff standard JSON Patch without ASP.NET dependencies.</PackageDescription>
+    <PackageTags>json-patch;rfc6902;patch;diff;partial-update;poco;source-generator;aot</PackageTags>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <LangVersion>preview</LangVersion>
   </PropertyGroup>
+  <ItemGroup>
+    <None Include="README.md" Pack="true" PackagePath="/" />
+  </ItemGroup>
   <ItemGroup>
     <PackageReference Include="System.Text.Json" Version="10.0.0" />
   </ItemGroup>

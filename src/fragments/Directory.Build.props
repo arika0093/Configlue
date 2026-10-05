@@ -14,4 +14,13 @@
     <PackageReference Include="Polyfill" Version="11.4.1" PrivateAssets="all" />
   </ItemGroup>
   <Import Project="../Directory.Build.props" />
+  <!--
+    Fragments ship as independently discoverable NuGet packages with their own
+    READMEs. Remove the repository-root Configlue README packed by the shared
+    props so SparseFragments packages never present Configlue-oriented docs.
+    Each packable fragment project packs its local README.md instead.
+  -->
+  <ItemGroup>
+    <None Remove="$(MSBuildThisFileDirectory)../../README.md" />
+  </ItemGroup>
 </Project>
