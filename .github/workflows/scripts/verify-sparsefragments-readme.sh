@@ -3,7 +3,7 @@
 #
 # The canonical compile-checked source is
 # tests/fixtures/consumers/package-sparse-readme/Program.cs, which mirrors the
-# Usage sections of src/fragments/SparseFragments/README.md (model shape,
+# Usage sections of src/fragments/src/SparseFragments/README.md (model shape,
 # sparse construction, nested fragments, merge, typed patch, deep clone, and
 # one JSON Patch round-trip). This script guards against drift
 # between the README and that canonical source, then builds and runs the
@@ -14,7 +14,7 @@
 set -euo pipefail
 
 package_directory="${1:-}"
-readme_path="${2:-src/fragments/SparseFragments/README.md}"
+readme_path="${2:-src/fragments/src/SparseFragments/README.md}"
 fixture_dir="tests/fixtures/consumers/package-sparse-readme"
 fixture_csproj="${fixture_dir}/PackageSparse.Readme.Consumer.csproj"
 fixture_program="${fixture_dir}/Program.cs"

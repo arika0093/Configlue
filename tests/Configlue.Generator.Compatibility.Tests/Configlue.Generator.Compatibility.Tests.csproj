@@ -8,7 +8,7 @@
     <ProjectReference Include="../../src/providers/Configlue.Provider.Json/Configlue.Provider.Json.csproj" />
     <ProjectReference Include="../../src/providers/Configlue.Provider.MessagePack/Configlue.Provider.MessagePack.csproj" />
     <ProjectReference Include="../../src/tools/Configlue.Generator/Configlue.Generator.csproj" />
-    <ProjectReference Include="../../src/fragments/SparseFragments/SparseFragments.csproj" />
-    <ProjectReference Include="../../src/fragments/SparseFragments.Generator/SparseFragments.Generator.csproj" />
+    <ProjectReference Include="../../src/fragments/src/SparseFragments/SparseFragments.csproj" />
+    <ProjectReference Include="../../src/fragments/src/SparseFragments.Generator/SparseFragments.Generator.csproj" />
   </ItemGroup>
 </Project>

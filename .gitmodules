@@ -1,0 +1,4 @@
+[submodule "src/fragments"]
+	path = src/fragments
+	url = https://github.com/arika0093/SparseFragments.git
+	branch = main

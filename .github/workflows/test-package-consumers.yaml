@@ -24,7 +24,7 @@ on:
       - '**/*.props'
       - '**/*.targets'
       - 'tests/fixtures/consumers/**'
-      - 'src/fragments/SparseFragments/README.md'
+      - 'src/fragments/src/SparseFragments/README.md'
       - '.github/workflows/test-package-consumers.yaml'
       - '.github/workflows/scripts/verify-*.sh'
       - '.github/workflows/scripts/assert-supported-aot-diagnostics.sh'
@@ -50,6 +50,7 @@ jobs:
         uses: actions/checkout@v7
         with:
           fetch-depth: 0
+          submodules: recursive
 
       - name: Set up .NET
         uses: actions/setup-dotnet@v6
@@ -98,7 +99,7 @@ jobs:
         run: bash ./.github/workflows/scripts/verify-readme-quickstart.sh artifacts/packages
 
       - name: Verify SparseFragments README samples
-        run: bash ./.github/workflows/scripts/verify-sparsefragments-readme.sh artifacts/packages src/fragments/SparseFragments/README.md
+        run: bash ./.github/workflows/scripts/verify-sparsefragments-readme.sh artifacts/packages src/fragments/src/SparseFragments/README.md
 
       - name: Build and run basic consumer (net10.0)
         run: |
@@ -213,6 +214,7 @@ jobs:
         uses: actions/checkout@v7
         with:
           fetch-depth: 0
+          submodules: recursive
 
       - name: Set up .NET
         uses: actions/setup-dotnet@v6
@@ -362,6 +364,7 @@ jobs:
         uses: actions/checkout@v7
         with:
           fetch-depth: 0
+          submodules: recursive
 
       - name: Set up .NET
         uses: actions/setup-dotnet@v6

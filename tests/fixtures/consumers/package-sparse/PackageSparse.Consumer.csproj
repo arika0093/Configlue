@@ -11,7 +11,7 @@
     <Using Remove="Shouldly;Configlue.Codecs;Configlue.Migrations;Configlue.Resources;Configlue.Sources;Configlue.Extensibility;Configlue.State;Configlue.Transformers" />
   </ItemGroup>
   <ItemGroup Condition="'$(ConfigluePackageVersion)' == ''">
-    <ProjectReference Include="../../../../src/fragments/SparseFragments/SparseFragments.csproj" />
+    <ProjectReference Include="../../../../src/fragments/src/SparseFragments/SparseFragments.csproj" />
   </ItemGroup>
   <ItemGroup Condition="'$(ConfigluePackageVersion)' != ''">
     <PackageReference Include="SparseFragments" Version="$(ConfigluePackageVersion)" />

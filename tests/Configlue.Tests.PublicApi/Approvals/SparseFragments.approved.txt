@@ -1,4 +1,4 @@
-[assembly: System.Reflection.AssemblyMetadata("RepositoryUrl", "https://github.com/arika0093/Configlue")]
+[assembly: System.Reflection.AssemblyMetadata("RepositoryUrl", "https://github.com/arika0093/SparseFragments")]
 namespace SparseFragments
 {
     public abstract class FragmentMergeStrategy<T> : SparseFragments.ISparseMergeContributionPlanner, SparseFragments.ISparseMergeElementProvenanceProvider, SparseFragments.ISparseMergeRebaseStrategy, SparseFragments.ISparseMergeStrategy

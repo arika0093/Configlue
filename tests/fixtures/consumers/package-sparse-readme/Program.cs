@@ -1,7 +1,7 @@
 using System.Text;
 using SparseFragments;
 
-// Canonical compile-checked mirror of src/fragments/SparseFragments/README.md.
+// Canonical compile-checked mirror of src/fragments/src/SparseFragments/README.md.
 // Each block below corresponds to a README Usage section. Keep the model shapes
 // (Settings/Child with [SparseFragmentModel]) in sync with the README so CI fails
 // when the public generated API drifts from the documented samples.

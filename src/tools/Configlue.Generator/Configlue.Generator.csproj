@@ -42,6 +42,20 @@
     <InternalsVisibleTo Include="Configlue.Generator.Compatibility.Tests" />
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="..\..\fragments\SparseFragments.Generator.Shared\**\*.cs" LinkBase="Shared" />
+    <!-- Local submodule sources win while src/fragments is checked out. Once
+      Configlue consumes the published source-only package instead, the
+      PackageReference below takes over with the same sources from NuGet. -->
+    <Compile
+      Include="..\..\fragments\src\SparseFragments.Generator.Shared\**\*.cs"
+      Exclude="..\..\fragments\src\SparseFragments.Generator.Shared\obj\**;..\..\fragments\src\SparseFragments.Generator.Shared\bin\**"
+      LinkBase="Shared"
+      Condition="Exists('..\..\fragments\src\SparseFragments.Generator.Shared\SparseModelDiscovery.cs')"
+    />
+    <PackageReference
+      Include="SparseFragments.Generator.Shared"
+      Version="0.1.*"
+      PrivateAssets="all"
+      Condition="!Exists('..\..\fragments\src\SparseFragments.Generator.Shared\SparseModelDiscovery.cs')"
+    />
   </ItemGroup>
 </Project>
