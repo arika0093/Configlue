@@ -25,6 +25,11 @@ versions, empty input, malformed children, trailing data, DTDs, and undeclared
 entities. Setup compares both metadata and XML failures against a strict DOM reader,
 including malformed tails after unmarked or invalid-version roots.
 
+`YamlFragmentReadBenchmarks` measures generated-fragment decoding with 4, 16, 64,
+and 128 schema members, using either one present member or a full fragment. It
+separates a reused codec from codec construction on each read, and setup checks
+values, sparse presence, and schema metadata.
+
 `CollectionCloneBenchmarks` isolates generated fragment deep cloning for lists, sets,
 dictionaries, and a combined collection model at 0, 16, and 4,096 elements. It checks
 structural equality in setup and measures allocations without storage or resolver costs.
