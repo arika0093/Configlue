@@ -35,7 +35,7 @@ internal static class SparseFragmentCollectionCloneEmitter
         );
         code.AppendLineAt(
             1,
-            "private static TSet __CloneSet<T, TSet>(global::System.Collections.Generic.IEnumerable<T> source, global::System.Collections.Generic.Dictionary<object, object> context, global::System.Func<T, T> cloneElement)"
+            "private static TSet __CloneSet<T, TSet>(global::System.Collections.Generic.IEnumerable<T> source, global::System.Collections.Generic.Dictionary<object, object> context, global::System.Func<T, T>? cloneElement)"
         );
         code.AppendLineAt(1, "{");
         code.AppendLineAt(2, "if (context.TryGetValue(source, out var existing))");
@@ -56,14 +56,20 @@ internal static class SparseFragmentCollectionCloneEmitter
                 + "(source as global::System.Collections.Generic.HashSet<T>)?.Comparer);"
         );
         code.AppendLineAt(2, "context.Add(source, clone);");
-        code.AppendLineAt(2, "foreach (var item in source) clone.Add(cloneElement(item));");
+        // A HashSet copy constructor can retain a source's oversized capacity and
+        // cross the LOH threshold. Union into the count-sized set instead.
+        code.AppendLineAt(2, "if (cloneElement is null) clone.UnionWith(source);");
+        code.AppendLineAt(2, "else");
+        code.AppendLineAt(2, "{");
+        code.AppendLineAt(3, "foreach (var item in source) clone.Add(cloneElement(item));");
+        code.AppendLineAt(2, "}");
         code.AppendLineAt(2, "return (TSet)(object)clone;");
         code.AppendLineAt(1, "}");
         if (includePortableSetView)
         {
             code.AppendLineAt(
                 1,
-                "private static TSet __CloneSetView<T, TSet>(global::System.Collections.Generic.IEnumerable<T> source, global::System.Collections.Generic.Dictionary<object, object> context, global::System.Func<T, T> cloneElement)"
+                "private static TSet __CloneSetView<T, TSet>(global::System.Collections.Generic.IEnumerable<T> source, global::System.Collections.Generic.Dictionary<object, object> context, global::System.Func<T, T>? cloneElement)"
             );
             code.AppendLineAt(1, "{");
             code.AppendLineAt(2, "if (context.TryGetValue(source, out var existing))");
@@ -93,13 +99,17 @@ internal static class SparseFragmentCollectionCloneEmitter
             );
             code.AppendLineAt(2, "var view = new __SparseReadOnlySet<T>(clone);");
             code.AppendLineAt(2, "context.Add(source, view);");
-            code.AppendLineAt(2, "foreach (var item in source) view.Add(cloneElement(item));");
+            code.AppendLineAt(2, "if (cloneElement is null) clone.UnionWith(source);");
+            code.AppendLineAt(2, "else");
+            code.AppendLineAt(2, "{");
+            code.AppendLineAt(3, "foreach (var item in source) view.Add(cloneElement(item));");
+            code.AppendLineAt(2, "}");
             code.AppendLineAt(2, "return (TSet)(object)view;");
             code.AppendLineAt(1, "}");
         }
         code.AppendLineAt(
             1,
-            "private static TDictionary __CloneDictionary<TKey, TValue, TDictionary>(global::System.Collections.Generic.IEnumerable<global::System.Collections.Generic.KeyValuePair<TKey, TValue>> source, global::System.Collections.Generic.Dictionary<object, object> context, global::System.Func<TKey, TKey> cloneKey, global::System.Func<TValue, TValue> cloneValue) where TKey : notnull"
+            "private static TDictionary __CloneDictionary<TKey, TValue, TDictionary>(global::System.Collections.Generic.IEnumerable<global::System.Collections.Generic.KeyValuePair<TKey, TValue>> source, global::System.Collections.Generic.Dictionary<object, object> context, global::System.Func<TKey, TKey>? cloneKey, global::System.Func<TValue, TValue>? cloneValue) where TKey : notnull"
         );
         code.AppendLineAt(1, "{");
         code.AppendLineAt(
@@ -107,6 +117,18 @@ internal static class SparseFragmentCollectionCloneEmitter
             "if (context.TryGetValue(source, out var existing)) return (TDictionary)existing;"
         );
         code.AppendLineAt(2, "global::System.Collections.Generic.IDictionary<TKey, TValue> clone;");
+        code.AppendLineAt(
+            2,
+            "if (cloneKey is null && cloneValue is null && source is global::System.Collections.Generic.Dictionary<TKey, TValue> dictionary)"
+        );
+        code.AppendLineAt(2, "{");
+        code.AppendLineAt(
+            3,
+            "clone = new global::System.Collections.Generic.Dictionary<TKey, TValue>(dictionary, dictionary.Comparer);"
+        );
+        code.AppendLineAt(3, "context.Add(source, clone);");
+        code.AppendLineAt(3, "return (TDictionary)(object)clone;");
+        code.AppendLineAt(2, "}");
         code.AppendLineAt(
             2,
             "if (source is global::System.Collections.Generic.SortedDictionary<TKey, TValue> sorted) clone = new global::System.Collections.Generic.SortedDictionary<TKey, TValue>(sorted.Comparer);"
@@ -122,13 +144,13 @@ internal static class SparseFragmentCollectionCloneEmitter
         code.AppendLineAt(2, "context.Add(source, clone);");
         code.AppendLineAt(
             2,
-            "foreach (var pair in source) clone.Add(cloneKey(pair.Key), cloneValue(pair.Value));"
+            "foreach (var pair in source) clone.Add(cloneKey is null ? pair.Key : cloneKey(pair.Key), cloneValue is null ? pair.Value : cloneValue(pair.Value));"
         );
         code.AppendLineAt(2, "return (TDictionary)(object)clone;");
         code.AppendLineAt(1, "}");
         code.AppendLineAt(
             1,
-            "private static TCollection __CloneArray<T, TCollection>(global::System.Collections.Generic.IEnumerable<T> source, global::System.Collections.Generic.Dictionary<object, object> context, global::System.Func<T, T> cloneElement)"
+            "private static TCollection __CloneArray<T, TCollection>(global::System.Collections.Generic.IEnumerable<T> source, global::System.Collections.Generic.Dictionary<object, object> context, global::System.Func<T, T>? cloneElement)"
         );
         code.AppendLineAt(1, "{");
         code.AppendLineAt(
@@ -151,13 +173,20 @@ internal static class SparseFragmentCollectionCloneEmitter
         code.AppendLineAt(2, "context.Add(source, clone);");
         code.AppendLineAt(
             2,
+            "if (cloneElement is null) global::System.Array.Copy(values, clone, values.Length);"
+        );
+        code.AppendLineAt(2, "else");
+        code.AppendLineAt(2, "{");
+        code.AppendLineAt(
+            3,
             "for (var index = 0; index < values.Length; index++) clone[index] = cloneElement(values[index]);"
         );
+        code.AppendLineAt(2, "}");
         code.AppendLineAt(2, "return (TCollection)(object)clone;");
         code.AppendLineAt(1, "}");
         code.AppendLineAt(
             1,
-            "private static TCollection __CloneList<T, TCollection>(global::System.Collections.Generic.IEnumerable<T> source, global::System.Collections.Generic.Dictionary<object, object> context, global::System.Func<T, T> cloneElement)"
+            "private static TCollection __CloneList<T, TCollection>(global::System.Collections.Generic.IEnumerable<T> source, global::System.Collections.Generic.Dictionary<object, object> context, global::System.Func<T, T>? cloneElement)"
         );
         code.AppendLineAt(1, "{");
         code.AppendLineAt(
@@ -173,7 +202,11 @@ internal static class SparseFragmentCollectionCloneEmitter
             "var clone = new global::System.Collections.Generic.List<T>(__CloneCollectionCount(source));"
         );
         code.AppendLineAt(2, "context.Add(source, clone);");
-        code.AppendLineAt(2, "foreach (var item in source) clone.Add(cloneElement(item));");
+        code.AppendLineAt(2, "if (cloneElement is null) clone.AddRange(source);");
+        code.AppendLineAt(2, "else");
+        code.AppendLineAt(2, "{");
+        code.AppendLineAt(3, "foreach (var item in source) clone.Add(cloneElement(item));");
+        code.AppendLineAt(2, "}");
         code.AppendLineAt(2, "return (TCollection)(object)clone;");
         code.AppendLineAt(1, "}");
         if (includePortableSetView)

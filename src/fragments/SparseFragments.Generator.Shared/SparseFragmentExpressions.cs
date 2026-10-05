@@ -98,27 +98,35 @@ internal sealed class SparseFragmentExpressions(
         {
             if (collection.CloneKind == SparseCloneCollectionKind.Dictionary)
             {
-                var keySelector = $"key => {CloneValueExpression(collection.ElementType, "key")}";
-                var valueSelector =
-                    $"value => {CloneValueExpression(collection.ValueType.Value, "value")}";
+                var keySelector = CloneSelector(collection.ElementType, "key");
+                var valueSelector = CloneSelector(collection.ValueType.Value, "value");
                 return $"__CloneDictionary<{collection.ElementType.Name}, {collection.ValueType.Value.Name}, {member.Property.Type.Name}>({access}, {CloneContext}, {keySelector}, {valueSelector})";
             }
 
             return access;
         }
 
+        var selector = CloneSelector(collection.ElementType, "item");
         return collection.CloneKind switch
         {
             SparseCloneCollectionKind.Array =>
-                $"__CloneArray<{elementType}, {member.Property.Type.Name}>({access}, {CloneContext}, item => {CloneValueExpression(collection.ElementType, "item")})",
+                $"__CloneArray<{elementType}, {member.Property.Type.Name}>({access}, {CloneContext}, {selector})",
             SparseCloneCollectionKind.List =>
-                $"__CloneList<{elementType}, {member.Property.Type.Name}>({access}, {CloneContext}, item => {CloneValueExpression(collection.ElementType, "item")})",
+                $"__CloneList<{elementType}, {member.Property.Type.Name}>({access}, {CloneContext}, {selector})",
             SparseCloneCollectionKind.Set => member.PortableSetView
             && IsInterfaceSet(collection.NamedTypeDefinition)
-                ? $"__CloneSetView<{elementType}, {member.Property.Type.Name}>({access}, {CloneContext}, item => {CloneValueExpression(collection.ElementType, "item")})"
-                : $"__CloneSet<{elementType}, {member.Property.Type.Name}>({access}, {CloneContext}, item => {CloneValueExpression(collection.ElementType, "item")})",
+                ? $"__CloneSetView<{elementType}, {member.Property.Type.Name}>({access}, {CloneContext}, {selector})"
+                : $"__CloneSet<{elementType}, {member.Property.Type.Name}>({access}, {CloneContext}, {selector})",
             _ => access,
         };
+    }
+
+    // A null selector means the existing clone policy keeps each element unchanged.
+    // Recursive elements continue to receive their context-aware clone delegate.
+    private string CloneSelector(SparseTypeModel type, string parameter)
+    {
+        var expression = CloneValueExpression(type, parameter);
+        return expression == parameter ? "null" : $"{parameter} => {expression}";
     }
 
     private static bool IsInterfaceSet(string? namedTypeDefinition) =>

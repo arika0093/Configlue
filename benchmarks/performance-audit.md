@@ -296,6 +296,71 @@ Collection model public-read benchmarks are being added to measure the next
 candidate (scalar element copying) through runtime resolution and returned-model
 cloning, not only fragment clone helpers. The goal remains active.
 
+## Round 12: bulk copy elements that the clone policy retains (2026-10-05)
+
+Added and pushed `CollectionModelReadBenchmarks` (`8a133b1d`) and
+`MutableCollectionCloneBenchmarks` (`880df5a4`). The former checks isolation of
+returned collections and measures public stable reads against direct model
+cloning; the latter checks deep element isolation and aliases across lists,
+arrays, dictionaries and sets. Baselines and final reports are tracked in
+[scalar-copy](reports/scalar-copy/read-before.md):
+[read final](reports/scalar-copy/read-final.md),
+[clone final](reports/scalar-copy/clone-final.md),
+[mutable before](reports/scalar-copy/mutable-before.md),
+[mutable final](reports/scalar-copy/mutable-final.md), and
+[mutable confirmation](reports/scalar-copy/mutable-confirm.md).
+Scalar fragment baselines are round 11's `after-set` report. Baseline and final
+runs use three warmups and five measurements; mutable confirmation uses five
+warmups and ten measurements.
+
+| Path | Before mean | Final mean | Before allocation | Final allocation |
+| --- | ---: | ---: | ---: | ---: |
+| Scalar list fragment, 4,096 | 3.46 us | 0.54 us | 16,736 B | 16,736 B |
+| Scalar dictionary fragment, 4,096 | 103.28 us | 43.48 us | 136,604 B | 136,548 B |
+| All collection fragment, 4,096 | 150.18 us | 82.50 us | 267,076 B | 267,020 B |
+| Public read, 16 | 903.12 ns | 686.25 ns | 2,312 B | 2,256 B |
+| Public read, 4,096 | 149.78 us | 95.94 us | 267,476 B | 267,420 B |
+
+The generator emits a null selector when its existing clone expression is the
+element itself. Those helpers use Array.Copy, List.AddRange, or the native
+Dictionary copy constructor (retaining its comparer); scalar sets use UnionWith
+into a count-sized destination. Recursive values keep their clone delegates,
+and recursive destinations are still entered into the graph context before
+traversal. Dictionary keys and values are classified independently, with the
+general path retained when either needs cloning. Sorted/interface dictionary
+fallbacks and the portable set view keep their comparer and alias handling.
+The optimization does not change which elements the clone policy retains.
+
+The first candidate used the HashSet copy constructor. Public read coverage
+[caught a regression](reports/scalar-copy/rejected-read.md): a source set built
+without a known count had spare capacity, which the copy constructor retained,
+increasing large-read allocation to 338,554 B and Gen2 collections to 76.90 per
+1,000 operations. That candidate was rejected. UnionWith preserves the round 11
+count-sized allocation (97,672 B for the standalone set); final public read
+allocation is 267,420 B and Gen2 is 36.99 per 1,000 operations. Retaining an
+oversized set to win the isolated fragment microbenchmark was not accepted.
+
+Public read mean falls 24% at 16 elements and 36% at 4,096. Mutable confirmation
+means are 1.266/1.281 us (model/fragment, 16) and 17.777/17.212 us (256), versus
+1.239/1.195 and 17.236/17.104 before. Intervals overlap in all four comparisons;
+the point estimates increase slightly, so zero latency regression is not claimed.
+Mutable allocation is unchanged except a 40 B decrease in the 256-element
+fragment case; empty scalar allocation is unchanged. These tradeoffs are
+documented alongside the application-level gains rather than hidden by a scalar
+microbenchmark alone. Independent mutable objects, owned collection storage and
+the final large Dictionary entry array remain necessary allocation costs.
+
+After the set correction, full Configlue Release net10.0 passes 1,703 tests,
+zero failures and 17 external-service skips; SparseFragments passes 108;
+generator host compatibility passes 7. Portable consumer builds and execution
+are repeated for the final candidate (all three explicit framework builds and
+all four execution combinations pass). Latest main through `3e55816b` is
+integrated; its SparseFragments 108 and Configlue 1,703 tests pass again. The
+standalone NativeAOT consumer publishes for win-x64 with no trim/AOT warnings
+and its native executable passes. Formatting and whitespace checks pass.
+Logs are in `artifacts/scalar-copy-*`; the goal remains active while source,
+codec, I/O, write and notification coverage still needs review.
+
 ## Remaining audit
 
 
