@@ -71,7 +71,6 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
         TimeSpan? onChangeDebounce = null,
         string? stateName = null,
         ILogger? logger = null,
-        ReadValidationMode readValidationMode = ReadValidationMode.EffectiveThrow,
         WriteConflictResolution writeConflictResolution = WriteConflictResolution.FailOnConflict,
         ConfiglueRuntimeDiagnosticOptions? diagnostics = null,
         TimeProvider? timeProvider = null,
@@ -87,7 +86,6 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
             stateName,
             logger,
             cloneStrategy: null,
-            readValidationMode: readValidationMode,
             writeConflictResolution: writeConflictResolution,
             diagnostics: diagnostics,
             timeProvider: timeProvider,
@@ -105,7 +103,6 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
         string? stateName,
         ILogger? logger,
         Func<TModel, TModel>? cloneStrategy,
-        ReadValidationMode readValidationMode = ReadValidationMode.EffectiveThrow,
         WriteConflictResolution writeConflictResolution = WriteConflictResolution.FailOnConflict,
         ConfiglueRuntimeDiagnosticOptions? diagnostics = null,
         TimeProvider? timeProvider = null,
@@ -114,11 +111,6 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
     {
         ArgumentNullException.ThrowIfNull(sourceSet);
         _stateName = stateName ?? string.Empty;
-        if (!Enum.IsDefined(readValidationMode))
-        {
-            throw new ArgumentOutOfRangeException(nameof(readValidationMode));
-        }
-
         if (!Enum.IsDefined(writeConflictResolution))
         {
             throw new ArgumentOutOfRangeException(nameof(writeConflictResolution));
@@ -184,8 +176,7 @@ internal sealed partial class ConfiglueRuntime<TModel, TFragment>
             _lifetime,
             _validation,
             _cloner,
-            migrations,
-            readValidationMode
+            migrations
         );
         _writes = new RuntimeWriteCoordinator<TModel, TFragment>(
             _topology,

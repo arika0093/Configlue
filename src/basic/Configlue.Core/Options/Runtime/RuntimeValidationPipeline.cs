@@ -5,17 +5,21 @@ using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 using System.Runtime.CompilerServices;
 using Configlue.CompilerServices;
-using Microsoft.Extensions.Logging;
 
 namespace Configlue;
 
 /// <summary>
-/// Owns read-side and write-side model validation for one runtime.
+/// Owns effective-model and write-side model validation for one runtime.
 ///
 /// Holds the configured validators, the data-annotations opt-in, and the state
 /// name used in failure messages. All member/data-annotation metadata caches live
 /// here; resolution and write code calls in with explicit fragments so no shared
 /// mutable resolution state is needed.
+///
+/// Read validation always targets the final resolved (effective) model.
+/// Malformed source payloads are reported separately as
+/// <see cref="Configlue.State.StateReadStatus.InvalidPayload"/> and never
+/// flow through semantic validation.
 /// </summary>
 internal sealed class RuntimeValidationPipeline<TModel, TFragment>
     where TModel : IConfiglueModel<TModel, TFragment>
@@ -116,178 +120,6 @@ internal sealed class RuntimeValidationPipeline<TModel, TFragment>
                     .Any(static property => property.Attributes.OfType<ValidationAttribute>().Any())
         );
 
-    internal void ValidateContribution(
-        StateSource<TFragment> source,
-        TFragment fragment,
-        TFragment defaultsFragment
-    )
-    {
-        if (_validators.Length == 0 && !_validateDataAnnotations)
-        {
-            return;
-        }
-
-        var failures = new List<string>();
-        var contributionModel = RuntimeModel<TModel, TFragment>.FromFragment(
-            defaultsFragment.Merge(fragment)
-        );
-        if (_validateDataAnnotations)
-        {
-            CollectMemberFailures(
-                fragment.Schema,
-                fragment,
-                contributionModel,
-                string.Empty,
-                failures
-            );
-        }
-
-        CollectValidationFailures(contributionModel, failures);
-        if (failures.Count > 1)
-        {
-            failures = failures.Distinct(StringComparer.Ordinal).ToList();
-        }
-
-        if (failures.Count == 0)
-        {
-            return;
-        }
-
-        SanitizeFailures(failures, contributionModel);
-        throw CreateContributionValidationException(source, failures);
-    }
-
-    // Isolate the capturing failure formatter so successful validation never allocates its closure.
-    private ConfiglueValidationException CreateContributionValidationException(
-        StateSource<TFragment> source,
-        List<string> failures
-    ) =>
-        new(
-            _stateName,
-            typeof(TModel),
-            failures.Select(failure => $"Source '{source.Id}': {failure}")
-        );
-
-    internal IConfiglueFragment PruneInvalidMembers(
-        StateSource<TFragment> source,
-        IConfiglueFragment fragment,
-        TFragment defaultsFragment
-    )
-    {
-        if (
-            !_validateDataAnnotations
-            || !ConfiglueRuntimeCapabilities.IsDynamicCodeSupported
-            || !HasMemberValidationMetadata(fragment.Schema)
-        )
-        {
-            return fragment;
-        }
-
-        var failures = new List<string>();
-        object? container = null;
-        if (
-            _validateDataAnnotations
-            && ConfiglueRuntimeCapabilities.IsDynamicCodeSupported
-            && fragment is TFragment typedFragment
-        )
-        {
-            // Snapshot the container once so members pruned earlier in this pass do not
-            // change the meaning of context-dependent attributes evaluated later.
-            container = RuntimeModel<TModel, TFragment>.FromFragment(
-                defaultsFragment.Merge(typedFragment)
-            );
-        }
-
-        fragment = PruneInvalidMembers(
-            fragment.Schema,
-            fragment,
-            container,
-            string.Empty,
-            failures
-        );
-        if (failures.Count == 0)
-        {
-            return fragment;
-        }
-
-        _diagnostics.Record(
-            ConfiglueDiagnosticEventKind.ValidationFailed,
-            sourceId: source.Id,
-            errorCategory: typeof(ConfiglueValidationException).FullName
-        );
-        return fragment;
-    }
-
-    private IConfiglueFragment PruneInvalidMembers(
-        ConfiglueModelSchema schema,
-        IConfiglueFragment fragment,
-        object? container,
-        string prefix,
-        List<string> failures
-    )
-    {
-        if (!_validateDataAnnotations || !ConfiglueRuntimeCapabilities.IsDynamicCodeSupported)
-        {
-            return fragment;
-        }
-
-        foreach (var present in fragment.EnumeratePresentMembersFast())
-        {
-            if (!RuntimeState.TryGetMember(schema, present.Id, out var found))
-            {
-                continue;
-            }
-
-            var path = prefix + found.Name;
-            if (found.NestedSchemaFactory is not null && present.Value is IConfiglueFragment nested)
-            {
-                var priorFailureCount = failures.Count;
-                var nestedContainer = container is not null
-                    ? TryGetNestedContainer(container, found)
-                    : null;
-                if (nestedContainer is null)
-                {
-                    continue;
-                }
-
-                var prunedNested = PruneInvalidMembers(
-                    found.NestedSchemaFactory(),
-                    nested,
-                    nestedContainer,
-                    path + ".",
-                    failures
-                );
-                if (failures.Count != priorFailureCount)
-                {
-                    fragment = fragment.WithMember(found.Id, prunedNested);
-                }
-
-                continue;
-            }
-
-            if (container is null)
-            {
-                continue;
-            }
-
-            if (
-                CollectMemberAttributeFailures(
-                    GetMemberValidationAttributes(schema, found.Id),
-                    container,
-                    found.Name,
-                    present.Value,
-                    out var message
-                )
-            )
-            {
-                failures.Add($"{path}: {message}");
-                fragment = fragment.WithoutMember(found.Id);
-            }
-        }
-
-        return fragment;
-    }
-
     internal void ValidateResolvedModel(TModel model, IConfiglueFragment merged)
     {
         var validateDataAnnotations =
@@ -376,8 +208,7 @@ internal sealed class RuntimeValidationPipeline<TModel, TFragment>
         IConfiglueFragment fragment,
         object container,
         string prefix,
-        List<string> failures,
-        List<int>? invalidMemberIds = null
+        List<string> failures
     )
     {
         if (!ConfiglueRuntimeCapabilities.IsDynamicCodeSupported)
@@ -401,19 +232,13 @@ internal sealed class RuntimeValidationPipeline<TModel, TFragment>
                     continue;
                 }
 
-                var nestedCount = failures.Count;
                 CollectMemberFailures(
                     found.NestedSchemaFactory(),
                     nested,
                     nestedContainer,
                     path + ".",
-                    failures,
-                    invalidMemberIds: null
+                    failures
                 );
-                if (failures.Count != nestedCount)
-                {
-                    invalidMemberIds?.Add(found.Id);
-                }
 
                 continue;
             }
@@ -431,7 +256,6 @@ internal sealed class RuntimeValidationPipeline<TModel, TFragment>
                 failures.Add(
                     $"{path}: {ConfiglueSecrets.RedactMessage(message, present.Value, found.IsSecret)}"
                 );
-                invalidMemberIds?.Add(found.Id);
             }
         }
     }

@@ -86,7 +86,7 @@ public sealed class CapturesValidationContextAttribute : ValidationAttribute
 public sealed class ReadValidationTests
 {
     [Test]
-    public async Task EffectiveThrow_ThrowsForInvalidResolvedValue()
+    public async Task EffectiveModel_ThrowsForInvalidResolvedValue()
     {
         var variables = new Dictionary<string, string?>(StringComparer.Ordinal)
         {
@@ -109,64 +109,30 @@ public sealed class ReadValidationTests
     }
 
     [Test]
-    public async Task StrictThrow_ThrowsAtOffendingSourceWhileEffectiveUsesResolvedValue()
+    public async Task EffectiveModel_ShadowedInvalidContributionIsIgnored()
     {
-        StateSourceSet<AppSettings.Fragment> sources() =>
-            new([
+        // Only the final resolved model is validated: an invalid low-priority
+        // contribution that is fully shadowed by a valid higher-priority value
+        // must not fail the read.
+        var options = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
+            new StateSourceSet<AppSettings.Fragment>([
                 new StateSource<AppSettings.Fragment>("low", new InMemoryStateSource<AppSettings.Fragment>(
                         new AppSettings.Fragment { RetryCount = Optional<int>.Present(150) }
                     ), new StateSourceOptions<AppSettings.Fragment> { Priority = 100 }),
                 new StateSource<AppSettings.Fragment>("high", new InMemoryStateSource<AppSettings.Fragment>(
                         new AppSettings.Fragment { RetryCount = Optional<int>.Present(5) }
                     ), new StateSourceOptions<AppSettings.Fragment> { Priority = 200 }),
-            ]);
+            ])
+        );
 
-        var strict = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
-            sources(),
-            readValidationMode: ReadValidationMode.StrictThrow
-        );
-        var strictFailure = await Should.ThrowAsync<ConfiglueValidationException>(async () =>
-            await strict.ReadAsync()
-        );
-        (
-            string.Join("; ", strictFailure.Failures).Contains("low", StringComparison.Ordinal)
-        ).ShouldBeTrue();
-
-        var effective = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
-            sources(),
-            readValidationMode: ReadValidationMode.EffectiveThrow
-        );
-        var resolved = await effective.ReadAsync();
+        var resolved = await options.ReadAsync();
 
         (resolved.Status).ShouldBe(StateReadStatus.Success);
         (resolved.Value!.RetryCount).ShouldBe(5);
     }
 
     [Test]
-    public async Task IgnoreValue_DropsInvalidMembersAndKeepsTheRest()
-    {
-        var options = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
-            new StateSourceSet<AppSettings.Fragment>([
-                new StateSource<AppSettings.Fragment>("layer", new InMemoryStateSource<AppSettings.Fragment>(
-                        new AppSettings.Fragment
-                        {
-                            RetryCount = Optional<int>.Present(150),
-                            Label = Optional<string?>.Present("kept"),
-                        }
-                    ), new StateSourceOptions<AppSettings.Fragment>()),
-            ]),
-            readValidationMode: ReadValidationMode.IgnoreValue
-        );
-
-        var resolved = await options.ReadAsync();
-
-        (resolved.Status).ShouldBe(StateReadStatus.Success);
-        (resolved.Value!.RetryCount).ShouldBe(3);
-        (resolved.Value.Label).ShouldBe("kept");
-    }
-
-    [Test]
-    public async Task IgnoreValue_DropsOnlyInvalidNestedMember()
+    public async Task EffectiveModel_NestedInvalidMemberThrows()
     {
         var options = new ConfiglueRuntime<ReadValidationRoot, ReadValidationRoot.Fragment>(
             new StateSourceSet<ReadValidationRoot.Fragment>([
@@ -182,40 +148,36 @@ public sealed class ReadValidationTests
                             ),
                         }
                     ), new StateSourceOptions<ReadValidationRoot.Fragment>()),
+            ])
+        );
+
+        var failure = await Should.ThrowAsync<ConfiglueValidationException>(async () =>
+            await options.ReadAsync()
+        );
+
+        (failure.Failures.Count > 0).ShouldBeTrue();
+    }
+
+    [Test]
+    public async Task DisablingDataAnnotationsKeepsAnnotatedValues()
+    {
+        var options = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
+            new StateSourceSet<AppSettings.Fragment>([
+                new StateSource<AppSettings.Fragment>("layer", new InMemoryStateSource<AppSettings.Fragment>(
+                        new AppSettings.Fragment { RetryCount = Optional<int>.Present(150) }
+                    ), new StateSourceOptions<AppSettings.Fragment>()),
             ]),
-            readValidationMode: ReadValidationMode.IgnoreValue
+            validateDataAnnotations: false
         );
 
         var resolved = await options.ReadAsync();
 
-        (resolved.Value!.Nested!.Name).ShouldBe("kept");
-        (resolved.Value.Nested.Port).ShouldBe(5432);
+        (resolved.Status).ShouldBe(StateReadStatus.Success);
+        (resolved.Value!.RetryCount).ShouldBe(150);
     }
 
     [Test]
-    public async Task DisablingDataAnnotationsKeepsAnnotatedValuesInEachReadMode()
-    {
-        foreach (var mode in Enum.GetValues<ReadValidationMode>())
-        {
-            var options = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
-                new StateSourceSet<AppSettings.Fragment>([
-                    new StateSource<AppSettings.Fragment>("layer", new InMemoryStateSource<AppSettings.Fragment>(
-                            new AppSettings.Fragment { RetryCount = Optional<int>.Present(150) }
-                        ), new StateSourceOptions<AppSettings.Fragment>()),
-                ]),
-                validateDataAnnotations: false,
-                readValidationMode: mode
-            );
-
-            var resolved = await options.ReadAsync();
-
-            (resolved.Status).ShouldBe(StateReadStatus.Success);
-            (resolved.Value!.RetryCount).ShouldBe(150);
-        }
-    }
-
-    [Test]
-    public async Task StrictThrowRunsCustomValidatorsWhenDataAnnotationsAreDisabled()
+    public async Task CustomValidatorRunsWhenDataAnnotationsAreDisabled()
     {
         var options = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
             new StateSourceSet<AppSettings.Fragment>([
@@ -227,8 +189,29 @@ public sealed class ReadValidationTests
                     ), new StateSourceOptions<AppSettings.Fragment>()),
             ]),
             validators: [new InvalidLabelValidator()],
-            validateDataAnnotations: false,
-            readValidationMode: ReadValidationMode.StrictThrow
+            validateDataAnnotations: false
+        );
+
+        var failure = await Should.ThrowAsync<ConfiglueValidationException>(async () =>
+            await options.ReadAsync()
+        );
+
+        (string.Join("; ", failure.Failures)).ShouldContain("custom validator");
+    }
+
+    [Test]
+    public async Task CustomValidatorRunsForEffectiveModel()
+    {
+        var options = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
+            new StateSourceSet<AppSettings.Fragment>([
+                new StateSource<AppSettings.Fragment>("layer", new InMemoryStateSource<AppSettings.Fragment>(
+                        new AppSettings.Fragment
+                        {
+                            Label = Optional<string?>.Present("custom-invalid"),
+                        }
+                    ), new StateSourceOptions<AppSettings.Fragment>()),
+            ]),
+            validators: [new InvalidLabelValidator()]
         );
 
         var failure = await Should.ThrowAsync<ConfiglueValidationException>(async () =>
@@ -264,9 +247,9 @@ public sealed class ReadValidationTests
     public async Task EffectiveValidationFailure_DoesNotTriggerSourceFallback()
     {
         // The high-priority source returns a successful read with a value that fails DataAnnotations.
-        // Even though it advertises every source-local fallback condition, a validation failure must be
-        // handled by ReadValidationMode and must never be mistaken for a source-local read outcome that
-        // allows the lower-priority source to take over.
+        // Even though it advertises every source-local fallback condition, a validation failure must
+        // never be mistaken for a source-local read outcome that allows the lower-priority source
+        // to take over.
         var options = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
             new StateSourceSet<AppSettings.Fragment>([
                 new StateSource<AppSettings.Fragment>("invalid-value", new InMemoryStateSource<AppSettings.Fragment>(
@@ -284,28 +267,6 @@ public sealed class ReadValidationTests
         );
 
         (failure.Failures.Count > 0).ShouldBeTrue();
-    }
-
-    [Test]
-    public async Task ReadValidationMode_IsConfigurableThroughTheModelBuilder()
-    {
-        await using var context = ConfiglueApp.CreateContext(builder =>
-        {
-            builder.Add<AppSettings>(model =>
-            {
-                model.ReadValidationMode = ReadValidationMode.IgnoreValue;
-                model.Sources(sources =>
-                    sources.Add(
-                        new StateSource<AppSettings.Fragment>("layer", new InMemoryStateSource<AppSettings.Fragment>(
-                                new AppSettings.Fragment { RetryCount = Optional<int>.Present(150) }
-                            ), new StateSourceOptions<AppSettings.Fragment>())
-                    )
-                );
-            });
-        });
-        var options = (IConfiglueRuntimeState<AppSettings>)context.GetState<AppSettings>();
-
-        ((await options.GetValueAsync()).RetryCount).ShouldBe(3);
     }
 
     [Test]
@@ -369,7 +330,7 @@ public sealed class ReadValidationTests
     }
 
     [Test]
-    public async Task EffectiveThrow_CompareValid_ReadsSuccessfully()
+    public async Task EffectiveModel_CompareValid_ReadsSuccessfully()
     {
         var options = new ConfiglueRuntime<CompareSettings, CompareSettings.Fragment>(
             new StateSourceSet<CompareSettings.Fragment>([
@@ -391,7 +352,7 @@ public sealed class ReadValidationTests
     }
 
     [Test]
-    public async Task EffectiveThrow_CompareMismatch_ThrowsValidationWithoutArgumentNull()
+    public async Task EffectiveModel_CompareMismatch_ThrowsValidationWithoutArgumentNull()
     {
         var options = new ConfiglueRuntime<CompareSettings, CompareSettings.Fragment>(
             new StateSourceSet<CompareSettings.Fragment>([
@@ -420,75 +381,7 @@ public sealed class ReadValidationTests
     }
 
     [Test]
-    public async Task StrictThrow_CompareMismatch_ThrowsAtOffendingSource()
-    {
-        var options = new ConfiglueRuntime<CompareSettings, CompareSettings.Fragment>(
-            new StateSourceSet<CompareSettings.Fragment>([
-                new StateSource<CompareSettings.Fragment>("layer", new InMemoryStateSource<CompareSettings.Fragment>(
-                        new CompareSettings.Fragment
-                        {
-                            Expected = Optional<string>.Present("same"),
-                            Actual = Optional<string>.Present("different"),
-                        }
-                    ), new StateSourceOptions<CompareSettings.Fragment>()),
-            ]),
-            readValidationMode: ReadValidationMode.StrictThrow
-        );
-
-        var failure = await Should.ThrowAsync<ConfiglueValidationException>(async () =>
-            await options.ReadAsync()
-        );
-
-        (string.Join("; ", failure.Failures)).ShouldContain("layer");
-    }
-
-    [Test]
-    public async Task StrictThrow_CompareValid_ReadsSuccessfully()
-    {
-        var options = new ConfiglueRuntime<CompareSettings, CompareSettings.Fragment>(
-            new StateSourceSet<CompareSettings.Fragment>([
-                new StateSource<CompareSettings.Fragment>("layer", new InMemoryStateSource<CompareSettings.Fragment>(
-                        new CompareSettings.Fragment
-                        {
-                            Expected = Optional<string>.Present("same"),
-                            Actual = Optional<string>.Present("same"),
-                        }
-                    ), new StateSourceOptions<CompareSettings.Fragment>()),
-            ]),
-            readValidationMode: ReadValidationMode.StrictThrow
-        );
-
-        var resolved = await options.ReadAsync();
-
-        (resolved.Status).ShouldBe(StateReadStatus.Success);
-        (resolved.Value!.Actual).ShouldBe("same");
-    }
-
-    [Test]
-    public async Task IgnoreValue_CompareMismatch_PrunesInvalidMember()
-    {
-        var options = new ConfiglueRuntime<CompareSettings, CompareSettings.Fragment>(
-            new StateSourceSet<CompareSettings.Fragment>([
-                new StateSource<CompareSettings.Fragment>("layer", new InMemoryStateSource<CompareSettings.Fragment>(
-                        new CompareSettings.Fragment
-                        {
-                            Expected = Optional<string>.Present("same"),
-                            Actual = Optional<string>.Present("different"),
-                        }
-                    ), new StateSourceOptions<CompareSettings.Fragment>()),
-            ]),
-            readValidationMode: ReadValidationMode.IgnoreValue
-        );
-
-        var resolved = await options.ReadAsync();
-
-        (resolved.Status).ShouldBe(StateReadStatus.Success);
-        (resolved.Value!.Expected).ShouldBe("same");
-        (resolved.Value.Actual).ShouldBe("same");
-    }
-
-    [Test]
-    public async Task EffectiveThrow_NestedCompareValid_ReadsSuccessfully()
+    public async Task EffectiveModel_NestedCompareValid_ReadsSuccessfully()
     {
         var options = new ConfiglueRuntime<CompareRootSettings, CompareRootSettings.Fragment>(
             new StateSourceSet<CompareRootSettings.Fragment>([
@@ -514,7 +407,7 @@ public sealed class ReadValidationTests
     }
 
     [Test]
-    public async Task EffectiveThrow_NestedCompareMismatch_ThrowsValidation()
+    public async Task EffectiveModel_NestedCompareMismatch_ThrowsValidation()
     {
         var options = new ConfiglueRuntime<CompareRootSettings, CompareRootSettings.Fragment>(
             new StateSourceSet<CompareRootSettings.Fragment>([
@@ -538,62 +431,6 @@ public sealed class ReadValidationTests
         );
 
         (failure.Failures.Count > 0).ShouldBeTrue();
-    }
-
-    [Test]
-    public async Task StrictThrow_NestedCompareMismatch_ThrowsAtOffendingSource()
-    {
-        var options = new ConfiglueRuntime<CompareRootSettings, CompareRootSettings.Fragment>(
-            new StateSourceSet<CompareRootSettings.Fragment>([
-                new StateSource<CompareRootSettings.Fragment>("layer", new InMemoryStateSource<CompareRootSettings.Fragment>(
-                        new CompareRootSettings.Fragment
-                        {
-                            Nested = Optional<CompareNestedSettings.Fragment?>.Present(
-                                new CompareNestedSettings.Fragment
-                                {
-                                    Expected = Optional<string>.Present("same"),
-                                    Actual = Optional<string>.Present("different"),
-                                }
-                            ),
-                        }
-                    ), new StateSourceOptions<CompareRootSettings.Fragment>()),
-            ]),
-            readValidationMode: ReadValidationMode.StrictThrow
-        );
-
-        var failure = await Should.ThrowAsync<ConfiglueValidationException>(async () =>
-            await options.ReadAsync()
-        );
-
-        (string.Join("; ", failure.Failures)).ShouldContain("layer");
-    }
-
-    [Test]
-    public async Task IgnoreValue_NestedCompareMismatch_DropsOnlyInvalidNestedMember()
-    {
-        var options = new ConfiglueRuntime<CompareRootSettings, CompareRootSettings.Fragment>(
-            new StateSourceSet<CompareRootSettings.Fragment>([
-                new StateSource<CompareRootSettings.Fragment>("layer", new InMemoryStateSource<CompareRootSettings.Fragment>(
-                        new CompareRootSettings.Fragment
-                        {
-                            Nested = Optional<CompareNestedSettings.Fragment?>.Present(
-                                new CompareNestedSettings.Fragment
-                                {
-                                    Expected = Optional<string>.Present("same"),
-                                    Actual = Optional<string>.Present("different"),
-                                }
-                            ),
-                        }
-                    ), new StateSourceOptions<CompareRootSettings.Fragment>()),
-            ]),
-            readValidationMode: ReadValidationMode.IgnoreValue
-        );
-
-        var resolved = await options.ReadAsync();
-
-        (resolved.Status).ShouldBe(StateReadStatus.Success);
-        (resolved.Value!.Nested!.Expected).ShouldBe("same");
-        (resolved.Value.Nested.Actual).ShouldBe("same");
     }
 
     [Test]
@@ -631,27 +468,23 @@ public sealed class ReadValidationTests
     [Test]
     public async Task DisablingDataAnnotations_SkipsCompareValidation()
     {
-        foreach (var mode in Enum.GetValues<ReadValidationMode>())
-        {
-            var options = new ConfiglueRuntime<CompareSettings, CompareSettings.Fragment>(
-                new StateSourceSet<CompareSettings.Fragment>([
-                    new StateSource<CompareSettings.Fragment>("layer", new InMemoryStateSource<CompareSettings.Fragment>(
-                            new CompareSettings.Fragment
-                            {
-                                Expected = Optional<string>.Present("same"),
-                                Actual = Optional<string>.Present("different"),
-                            }
-                        ), new StateSourceOptions<CompareSettings.Fragment>()),
-                ]),
-                validateDataAnnotations: false,
-                readValidationMode: mode
-            );
+        var options = new ConfiglueRuntime<CompareSettings, CompareSettings.Fragment>(
+            new StateSourceSet<CompareSettings.Fragment>([
+                new StateSource<CompareSettings.Fragment>("layer", new InMemoryStateSource<CompareSettings.Fragment>(
+                        new CompareSettings.Fragment
+                        {
+                            Expected = Optional<string>.Present("same"),
+                            Actual = Optional<string>.Present("different"),
+                        }
+                    ), new StateSourceOptions<CompareSettings.Fragment>()),
+            ]),
+            validateDataAnnotations: false
+        );
 
-            var resolved = await options.ReadAsync();
+        var resolved = await options.ReadAsync();
 
-            (resolved.Status).ShouldBe(StateReadStatus.Success);
-            (resolved.Value!.Actual).ShouldBe("different");
-        }
+        (resolved.Status).ShouldBe(StateReadStatus.Success);
+        (resolved.Value!.Actual).ShouldBe("different");
     }
 
     private static async Task WriteAllTextWithRetryAsync(string path, string content)

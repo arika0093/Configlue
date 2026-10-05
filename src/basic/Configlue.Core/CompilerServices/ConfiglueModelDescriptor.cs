@@ -145,7 +145,6 @@ public static class ConfiglueRuntime
                     configuration.StateName,
                     configuration.GetLogger(services),
                     configuration.CloneStrategy,
-                    configuration.ReadValidationMode,
                     configuration.WriteConflictResolution,
                     configuration.Diagnostics,
                     migrationSources: configuration.BuildMigrationSources<TFragment>(

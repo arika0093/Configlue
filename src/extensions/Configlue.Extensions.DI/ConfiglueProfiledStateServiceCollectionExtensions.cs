@@ -64,7 +64,6 @@ public static class ConfiglueProfiledStateServiceCollectionExtensions
             writePlan,
             validateDataAnnotations,
             onChangeDebounce,
-            readValidationMode: ReadValidationMode.EffectiveThrow,
             writeConflictResolution: writeConflictResolution
         );
         services.AddSingleton<IConfiglueProfiledState<TModel>>(provider =>

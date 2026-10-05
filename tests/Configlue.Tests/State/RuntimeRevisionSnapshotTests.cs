@@ -222,8 +222,7 @@ public sealed class RuntimeRevisionSnapshotTests
                     RuntimeRevisionSnapshotSettings,
                     RuntimeRevisionSnapshotSettings.Fragment
                 >(null),
-                null,
-                ReadValidationMode.EffectiveThrow
+                null
             ),
             topology,
             readers,

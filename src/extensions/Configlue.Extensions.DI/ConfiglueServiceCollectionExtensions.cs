@@ -52,7 +52,6 @@ public static class ConfiglueServiceCollectionExtensions
         StateWritePlan? writePlan = null,
         bool validateDataAnnotations = true,
         TimeSpan? onChangeDebounce = null,
-        ReadValidationMode readValidationMode = ReadValidationMode.EffectiveThrow,
         WriteConflictResolution writeConflictResolution = WriteConflictResolution.FailOnConflict
     )
         where TModel : IConfiglueModel<TModel, TFragment>
@@ -70,7 +69,6 @@ public static class ConfiglueServiceCollectionExtensions
             writePlan,
             validateDataAnnotations,
             onChangeDebounce,
-            readValidationMode,
             writeConflictResolution
         );
     }
@@ -82,7 +80,6 @@ public static class ConfiglueServiceCollectionExtensions
         StateWritePlan? writePlan = null,
         bool validateDataAnnotations = true,
         TimeSpan? onChangeDebounce = null,
-        ReadValidationMode readValidationMode = ReadValidationMode.EffectiveThrow,
         WriteConflictResolution writeConflictResolution = WriteConflictResolution.FailOnConflict
     )
         where TModel : IConfiglueModel<TModel, TFragment>
@@ -98,7 +95,6 @@ public static class ConfiglueServiceCollectionExtensions
             provider.GetServices<IConfiglueValidator<TModel>>(),
             validateDataAnnotations,
             onChangeDebounce,
-            readValidationMode: readValidationMode,
             writeConflictResolution: writeConflictResolution
         ));
         services.AddSingleton<IReadOnlyState<TModel>>(provider =>
@@ -129,7 +125,6 @@ public static class ConfiglueServiceCollectionExtensions
         StateWritePlan? writePlan = null,
         bool validateDataAnnotations = true,
         TimeSpan? onChangeDebounce = null,
-        ReadValidationMode readValidationMode = ReadValidationMode.EffectiveThrow,
         WriteConflictResolution writeConflictResolution = WriteConflictResolution.FailOnConflict
     )
         where TModel : IConfiglueModel<TModel, TFragment>
@@ -141,7 +136,6 @@ public static class ConfiglueServiceCollectionExtensions
             writePlan,
             validateDataAnnotations,
             onChangeDebounce,
-            readValidationMode,
             writeConflictResolution
         );
     }
@@ -155,7 +149,6 @@ public static class ConfiglueServiceCollectionExtensions
         StateWritePlan? writePlan = null,
         bool validateDataAnnotations = true,
         TimeSpan? onChangeDebounce = null,
-        ReadValidationMode readValidationMode = ReadValidationMode.EffectiveThrow,
         WriteConflictResolution writeConflictResolution = WriteConflictResolution.FailOnConflict
     )
         where TModel : IConfiglueModel<TModel, TFragment>
@@ -174,7 +167,6 @@ public static class ConfiglueServiceCollectionExtensions
             writePlan,
             validateDataAnnotations,
             onChangeDebounce,
-            readValidationMode,
             writeConflictResolution
         );
     }
@@ -188,7 +180,6 @@ public static class ConfiglueServiceCollectionExtensions
         StateWritePlan? writePlan = null,
         bool validateDataAnnotations = true,
         TimeSpan? onChangeDebounce = null,
-        ReadValidationMode readValidationMode = ReadValidationMode.EffectiveThrow,
         WriteConflictResolution writeConflictResolution = WriteConflictResolution.FailOnConflict
     )
         where TModel : IConfiglueModel<TModel, TFragment>
@@ -209,7 +200,6 @@ public static class ConfiglueServiceCollectionExtensions
                     validateDataAnnotations,
                     onChangeDebounce,
                     stateName: key as string ?? ConfiglueDefaultNames.DefaultState,
-                    readValidationMode: readValidationMode,
                     writeConflictResolution: writeConflictResolution
                 )
         );
@@ -260,7 +250,6 @@ public static class ConfiglueServiceCollectionExtensions
         StateWritePlan? writePlan = null,
         bool validateDataAnnotations = true,
         TimeSpan? onChangeDebounce = null,
-        ReadValidationMode readValidationMode = ReadValidationMode.EffectiveThrow,
         WriteConflictResolution writeConflictResolution = WriteConflictResolution.FailOnConflict
     )
         where TModel : IConfiglueModel<TModel, TFragment>
@@ -273,7 +262,6 @@ public static class ConfiglueServiceCollectionExtensions
             writePlan,
             validateDataAnnotations,
             onChangeDebounce,
-            readValidationMode,
             writeConflictResolution
         );
     }
@@ -285,7 +273,6 @@ public static class ConfiglueServiceCollectionExtensions
         StateWritePlan? writePlan = null,
         bool validateDataAnnotations = true,
         TimeSpan? onChangeDebounce = null,
-        ReadValidationMode readValidationMode = ReadValidationMode.EffectiveThrow,
         WriteConflictResolution writeConflictResolution = WriteConflictResolution.FailOnConflict
     )
         where TModel : IConfiglueModel<TModel, TFragment>
@@ -304,7 +291,6 @@ public static class ConfiglueServiceCollectionExtensions
                     validateDataAnnotations,
                     onChangeDebounce,
                     stateName: stateName,
-                    readValidationMode: readValidationMode,
                     writeConflictResolution: writeConflictResolution
                 )
             )

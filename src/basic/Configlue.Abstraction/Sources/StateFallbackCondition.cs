@@ -3,8 +3,8 @@ namespace Configlue.Sources;
 /// <summary>Source-local read outcomes that allow resolution to continue to a lower-priority source.</summary>
 /// <remarks>
 /// These conditions describe how a state source itself failed to supply a usable value. They never describe
-/// effective-model validation: failures raised by DataAnnotations or <see cref="Configlue.IConfiglueValidator{T}"/>
-/// are handled solely by <see cref="Configlue.ReadValidationMode"/> and never cause fallback.
+/// effective-model validation: failures raised by DataAnnotations or validators
+/// throw a validation exception and never cause fallback.
 /// </remarks>
 [System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Advanced)]
 [Flags]

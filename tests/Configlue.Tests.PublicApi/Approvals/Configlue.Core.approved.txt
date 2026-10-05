@@ -48,7 +48,6 @@ namespace Configlue
         public bool EnableDynamicStates { get; set; }
         public Microsoft.Extensions.Logging.ILogger? Logger { get; set; }
         public System.TimeSpan? OnChangeDebounce { get; set; }
-        public Configlue.ReadValidationMode ReadValidationMode { get; set; }
         public Configlue.Sources.RuntimeLifetimeRequirement RuntimeLifetime { get; set; }
         public string StateName { get; set; }
         public bool ValidateDataAnnotations { get; set; }

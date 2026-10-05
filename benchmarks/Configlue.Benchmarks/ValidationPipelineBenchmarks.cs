@@ -1,7 +1,5 @@
 using BenchmarkDotNet.Attributes;
 using Configlue;
-using Configlue.Sources;
-using Configlue.State;
 using Configlue.Testing;
 
 [ConfiglueModel("bench-unvalidated-settings")]
@@ -20,8 +18,6 @@ public class ValidationPipelineBenchmarks
     > _pipeline = null!;
     private UnvalidatedBenchmarkSettings _model = null!;
     private UnvalidatedBenchmarkSettings.Fragment _fragment = null!;
-    private UnvalidatedBenchmarkSettings.Fragment _defaults = null!;
-    private StateSource<UnvalidatedBenchmarkSettings.Fragment> _source = null!;
 
     [Params(false, true)]
     public bool DataAnnotations { get; set; }
@@ -42,26 +38,9 @@ public class ValidationPipelineBenchmarks
             UnvalidatedBenchmarkSettings,
             UnvalidatedBenchmarkSettings.Fragment
         >.ToFragment(_model);
-        _defaults = RuntimeModel<
-            UnvalidatedBenchmarkSettings,
-            UnvalidatedBenchmarkSettings.Fragment
-        >.ToFragment(new());
-        _source = new(
-            "benchmark",
-            new InMemoryStateSource<UnvalidatedBenchmarkSettings.Fragment>(_fragment),
-            new StateSourceOptions<UnvalidatedBenchmarkSettings.Fragment>()
-        );
         _pipeline.ValidateResolvedModel(_model, _fragment);
-        _pipeline.ValidateContribution(_source, _fragment, _defaults);
     }
 
     [Benchmark]
-    public void ResolvedModel() => _pipeline.ValidateResolvedModel(_model, _fragment);
-
-    [Benchmark]
-    public void Contribution() => _pipeline.ValidateContribution(_source, _fragment, _defaults);
-
-    [Benchmark]
-    public IConfiglueFragment Prune() =>
-        _pipeline.PruneInvalidMembers(_source, _fragment, _defaults);
+    public void EffectiveModel() => _pipeline.ValidateResolvedModel(_model, _fragment);
 }

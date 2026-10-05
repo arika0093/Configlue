@@ -64,8 +64,7 @@ public sealed partial class RuntimeCoordinatorTests
             new RuntimeModelCloner<RuntimeCoordinatorSettings, RuntimeCoordinatorSettings.Fragment>(
                 cloneStrategy: null
             ),
-            migrations: null,
-            readValidationMode: ReadValidationMode.EffectiveThrow
+            migrations: null
         );
     }
 

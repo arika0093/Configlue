@@ -4,10 +4,10 @@ namespace Configlue;
 
 /// <summary>
 /// Owns state resolution for one runtime: source reads, layered merge, schema
-/// migration of source fragments, and resolved-model validation.
+/// migration of source fragments, and effective-model validation.
 ///
-/// Holds the model-defaults contribution, the schema-migration chain, and the
-/// read-validation mode. Source topology, subject scoping, diagnostics, lifetime,
+/// Holds the model-defaults contribution and the schema-migration chain.
+/// Source topology, subject scoping, diagnostics, lifetime,
 /// and validation are referenced collaborators owned elsewhere; the active-source
 /// snapshot is always re-read from the topology so retirement is observed.
 /// </summary>
@@ -25,7 +25,6 @@ internal sealed partial class RuntimeResolutionEngine<TModel, TFragment>
     private readonly int _migrationCount;
     private readonly TFragment _modelDefaultsFragment;
     private readonly StateSource<TFragment> _modelDefaultsSource;
-    private readonly ReadValidationMode _readValidationMode;
 
     internal RuntimeResolutionEngine(
         RuntimeSourceTopology<TFragment> topology,
@@ -34,8 +33,7 @@ internal sealed partial class RuntimeResolutionEngine<TModel, TFragment>
         RuntimeLifetime lifetime,
         RuntimeValidationPipeline<TModel, TFragment> validation,
         RuntimeModelCloner<TModel, TFragment> cloner,
-        IEnumerable<IStateSchemaMigration<TFragment>>? migrations,
-        ReadValidationMode readValidationMode
+        IEnumerable<IStateSchemaMigration<TFragment>>? migrations
     )
     {
         _topology = topology;
@@ -60,7 +58,6 @@ internal sealed partial class RuntimeResolutionEngine<TModel, TFragment>
             new RuntimeModelDefaultsReader<TFragment>(_modelDefaultsFragment),
             new StateSourceOptions<TFragment>()
         );
-        _readValidationMode = readValidationMode;
     }
 
     internal int MigrationCount => _migrationCount;
@@ -68,8 +65,6 @@ internal sealed partial class RuntimeResolutionEngine<TModel, TFragment>
     internal TFragment ModelDefaultsFragment => _modelDefaultsFragment;
 
     internal SourceId ModelDefaultsSourceId => _modelDefaultsSource.Id;
-
-    internal ReadValidationMode ReadValidationMode => _readValidationMode;
 
     internal ValueTask<StateReadResult<TFragment>> ReadSourceAsync(
         StateSource<TFragment> source,
@@ -383,28 +378,6 @@ internal sealed partial class RuntimeResolutionEngine<TModel, TFragment>
                             source.Id
                         )
                         .ConfigureAwait(false);
-                }
-
-                // Read validation governs source state; proposal resolutions (replacements)
-                // are validated by their write paths instead.
-                if (replacements is null && _readValidationMode == ReadValidationMode.StrictThrow)
-                {
-                    _validation.ValidateContribution(source, fragment, _modelDefaultsFragment);
-                }
-                else if (
-                    replacements is null
-                    && _readValidationMode == ReadValidationMode.IgnoreValue
-                )
-                {
-                    var pruned = _validation.PruneInvalidMembers(
-                        source,
-                        fragment,
-                        _modelDefaultsFragment
-                    );
-                    if (pruned is TFragment prunedFragment)
-                    {
-                        fragment = prunedFragment;
-                    }
                 }
 
                 if (captureContributions)

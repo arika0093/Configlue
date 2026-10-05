@@ -703,12 +703,6 @@ namespace Configlue
         public static Configlue.Optional<T> Present(T? value) { }
         public static Configlue.Optional<T> op_Implicit(T? value) { }
     }
-    public enum ReadValidationMode
-    {
-        EffectiveThrow = 0,
-        StrictThrow = 1,
-        IgnoreValue = 2,
-    }
     public readonly struct ResourceKey : System.IEquatable<Configlue.ResourceKey>
     {
         public bool IsDefault { get; }

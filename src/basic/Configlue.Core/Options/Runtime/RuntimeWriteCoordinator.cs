@@ -990,11 +990,6 @@ internal sealed class RuntimeWriteCoordinator<TModel, TFragment>
                 continue;
             }
 
-            if (_engine.ReadValidationMode == ReadValidationMode.IgnoreValue)
-            {
-                return null;
-            }
-
             // Contributions have already been migrated while resolving the baseline.
             return contribution.Result with
             {

@@ -148,7 +148,7 @@ public readonly record struct StateReadResult<T>
 
     /// <summary>
     /// Creates a result for a source-local malformed or undecodable payload. This is not an effective-model
-    /// validation failure; those are handled by <see cref="Configlue.ReadValidationMode"/>.
+    /// validation failure; those throw a validation exception.
     /// </summary>
     public static StateReadResult<T> InvalidPayload(T? value, string? revision = null) =>
         new(StateReadStatus.InvalidPayload, value, revision);
