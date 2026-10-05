@@ -118,8 +118,7 @@ public sealed class ViewerSessionTests
                         new StateSourceOptions<DevToolsViewerSettings.Fragment>
                         {
                             FallbackCondition =
-                                StateFallbackCondition.NotFoundOrUnavailable
-                                | StateFallbackCondition.InvalidPayload,
+                                StateFallbackCondition.NotFoundOrUnavailable,
                             Watcher = shadowed,
                         }
                     )

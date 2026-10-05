@@ -14,7 +14,7 @@ public sealed class StateSourceOptionsTests
             new StateSourceOptions<string>
             {
                 Priority = 17,
-                FallbackCondition = StateFallbackCondition.InvalidPayload,
+                FallbackCondition = StateFallbackCondition.NotFoundOrUnavailable,
                 PhysicalOrigin = "test:memory",
                 FixedResourceId = new ResourceId("fixed:one"),
                 ExplicitOnly = true,
@@ -26,7 +26,7 @@ public sealed class StateSourceOptionsTests
         );
 
         source.Priority.ShouldBe(17);
-        source.FallbackCondition.ShouldBe(StateFallbackCondition.InvalidPayload);
+        source.FallbackCondition.ShouldBe(StateFallbackCondition.NotFoundOrUnavailable);
         source.Writer.ShouldBeSameAs(reader.Writer);
         source.Watcher.ShouldBeSameAs(reader.Watcher);
         source.PhysicalOrigin.ShouldBe("test:memory");

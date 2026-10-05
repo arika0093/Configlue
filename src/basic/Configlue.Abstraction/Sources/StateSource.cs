@@ -38,15 +38,7 @@ public sealed class StateSource<T>
         }
         ArgumentNullException.ThrowIfNull(reader);
         ArgumentNullException.ThrowIfNull(options);
-        if (
-            (
-                options.FallbackCondition
-                & ~(
-                    StateFallbackCondition.NotFoundOrUnavailable
-                    | StateFallbackCondition.InvalidPayload
-                )
-            ) != 0
-        )
+        if ((options.FallbackCondition & ~StateFallbackCondition.NotFoundOrUnavailable) != 0)
         {
             throw new ArgumentOutOfRangeException(nameof(options));
         }

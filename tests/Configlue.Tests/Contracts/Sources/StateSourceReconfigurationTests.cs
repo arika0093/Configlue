@@ -33,9 +33,9 @@ public sealed class StateSourceReconfigurationTests
             baseline,
             baseline.Reader,
             baseline.Writer,
-            fallbackCondition: StateFallbackCondition.InvalidPayload
+            fallbackCondition: StateFallbackCondition.Unavailable
         );
-        fallback.FallbackCondition.ShouldBe(StateFallbackCondition.InvalidPayload);
+        fallback.FallbackCondition.ShouldBe(StateFallbackCondition.Unavailable);
         AssertIdentity(baseline, fallback, expectId: baseline.Id, skipFallback: true);
 
         var readOnly = StateSourceReconfiguration.Reconfigure<string, string>(

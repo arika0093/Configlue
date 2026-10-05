@@ -306,6 +306,8 @@ public sealed class ViewerProjectionTests
     [Test]
     public async Task RuntimeMarkers_SurfaceInvalidPayloadsWithoutSecrets()
     {
+        // Issue #312: a malformed high-priority payload fails visibly instead of
+        // silently falling back to the lower-priority source.
         const string password = "marker-pw-42";
         var builder = new ConfiglueBuilder();
         builder.Add<DevToolsViewerSettings>(model =>
@@ -317,9 +319,9 @@ public sealed class ViewerProjectionTests
                         new InvalidPayloadReader<DevToolsViewerSettings.Fragment>(),
                         new StateSourceOptions<DevToolsViewerSettings.Fragment>
                         {
+                            Priority = 100,
                             FallbackCondition =
-                                StateFallbackCondition.NotFoundOrUnavailable
-                                | StateFallbackCondition.InvalidPayload,
+                                StateFallbackCondition.NotFoundOrUnavailable,
                         }
                     )
                 );
@@ -341,26 +343,26 @@ public sealed class ViewerProjectionTests
         );
         await using var context = builder.CreateContext();
         var state = context.GetState<DevToolsViewerSettings>();
-        var snapshot = await state.GetSnapshotAsync();
-        var document = ConfiglueDevToolsViewerProjection.BuildDocument(
-            snapshot.Value,
-            snapshot.Details,
-            DevToolsViewerSettings.ConfiglueSchema,
-            null,
-            1
+
+        var failure = await Should.ThrowAsync<InvalidOperationException>(async () =>
+            await state.GetSnapshotAsync()
         );
+        failure.Message.ShouldContain("InvalidPayload");
+        failure.Message.ShouldNotContain(password);
 
-        document.Markers.ShouldNotBeEmpty();
-        foreach (var marker in document.Markers)
+        var check = ((IConfiglueDiagnostics<DevToolsViewerSettings>)state).Check();
+        var streamed = new List<ConfiglueSourceCheckResult>();
+        await foreach (var source in check)
         {
-            marker.Message.ShouldNotContain(password);
+            streamed.Add(source);
         }
 
-        document.Json.ShouldNotContain(password);
-        foreach (var hover in document.Hovers)
-        {
-            hover.Markdown.ShouldNotContain(password);
-        }
+        // Resolution stops at the malformed source; the lower-priority source is never consulted.
+        streamed.Count.ShouldBe(1);
+        streamed[0].Status.ShouldBe(ConfiglueCheckStatus.Invalid);
+        streamed[0].FallbackContinued.ShouldBeFalse();
+        streamed[0].Contributed.ShouldBeFalse();
+        (await check.Result).Status.ShouldBe(ConfiglueCheckStatus.Invalid);
     }
 
     [Test]

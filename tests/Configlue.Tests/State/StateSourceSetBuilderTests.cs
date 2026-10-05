@@ -36,8 +36,7 @@ public sealed class StateSourceSetBuilderTests
                 "custom",
                 reader,
                 priority: 10,
-                fallbackCondition: StateFallbackCondition.NotFoundOrUnavailable
-                    | StateFallbackCondition.InvalidPayload,
+                fallbackCondition: StateFallbackCondition.NotFoundOrUnavailable,
                 physicalOrigin: "settings.json",
                 fixedResourceId: new ResourceId("file:settings.json")
             )
@@ -60,7 +59,7 @@ public sealed class StateSourceSetBuilderTests
         (ReferenceEquals(custom.Writer, writerOverride)).ShouldBeTrue();
         (ReferenceEquals(custom.Watcher, watcherOverride)).ShouldBeTrue();
         (custom.FallbackCondition).ShouldBe(
-            StateFallbackCondition.NotFoundOrUnavailable | StateFallbackCondition.InvalidPayload
+            StateFallbackCondition.NotFoundOrUnavailable
         );
         (custom.PhysicalOrigin).ShouldBe("settings.json");
         (custom.FixedResourceId).ShouldBe(new ResourceId("file:settings.json"));

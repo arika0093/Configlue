@@ -78,8 +78,8 @@ internal static class RuntimeState
         {
             StateReadStatus.NotFound => (condition & StateFallbackCondition.NotFound) != 0,
             StateReadStatus.Unavailable => (condition & StateFallbackCondition.Unavailable) != 0,
-            StateReadStatus.InvalidPayload => (condition & StateFallbackCondition.InvalidPayload)
-                != 0,
+            // Malformed payloads fail visibly and never fall back (issue #312).
+            StateReadStatus.InvalidPayload => false,
             _ => false,
         };
 

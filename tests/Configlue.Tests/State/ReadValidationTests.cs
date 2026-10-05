@@ -222,25 +222,27 @@ public sealed class ReadValidationTests
     }
 
     [Test]
-    public async Task InvalidPayloadFallbackConditionContinuesToLowerPrioritySource()
+    public async Task InvalidPayloadDoesNotFallBackToLowerPrioritySource()
     {
+        // Issue #312: a malformed high-priority payload must fail visibly instead of
+        // silently falling back to a lower-priority source.
         var options = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
             new StateSourceSet<AppSettings.Fragment>([
                 new StateSource<AppSettings.Fragment>("invalid", new StubReader(
                         StateReadResult<AppSettings.Fragment>.InvalidPayload(
                             new AppSettings.Fragment()
                         )
-                    ), new StateSourceOptions<AppSettings.Fragment> { Priority = 100, FallbackCondition = StateFallbackCondition.InvalidPayload }),
+                    ), new StateSourceOptions<AppSettings.Fragment> { Priority = 100, FallbackCondition = StateFallbackCondition.NotFoundOrUnavailable }),
                 new StateSource<AppSettings.Fragment>("valid", new InMemoryStateSource<AppSettings.Fragment>(
                         new AppSettings.Fragment { RetryCount = Optional<int>.Present(8) }
                     ), new StateSourceOptions<AppSettings.Fragment>()),
             ])
         );
 
-        var resolved = await options.ReadAsync();
+        var result = await options.ReadAsync();
 
-        (resolved.Status).ShouldBe(StateReadStatus.Success);
-        (resolved.Value!.RetryCount).ShouldBe(8);
+        (result.Status).ShouldBe(StateReadStatus.InvalidPayload);
+        (result.SourceId).ShouldBe(SourceId.From("invalid"));
     }
 
     [Test]
@@ -254,8 +256,7 @@ public sealed class ReadValidationTests
             new StateSourceSet<AppSettings.Fragment>([
                 new StateSource<AppSettings.Fragment>("invalid-value", new InMemoryStateSource<AppSettings.Fragment>(
                         new AppSettings.Fragment { RetryCount = Optional<int>.Present(150) }
-                    ), new StateSourceOptions<AppSettings.Fragment> { Priority = 100, FallbackCondition = StateFallbackCondition.NotFoundOrUnavailable
-                        | StateFallbackCondition.InvalidPayload }),
+                    ), new StateSourceOptions<AppSettings.Fragment> { Priority = 100, FallbackCondition = StateFallbackCondition.NotFoundOrUnavailable }),
                 new StateSource<AppSettings.Fragment>("valid", new InMemoryStateSource<AppSettings.Fragment>(
                         new AppSettings.Fragment { RetryCount = Optional<int>.Present(8) }
                     ), new StateSourceOptions<AppSettings.Fragment>()),

@@ -33,18 +33,12 @@ public sealed class ConfiglueSourceRegistration
     }
 
     /// <summary>Sets the statuses that allow resolution to fall back to lower-priority sources.</summary>
+    /// <remarks>Malformed payloads never fall back: <see cref="Configlue.State.StateReadStatus.InvalidPayload"/>
+    /// fails resolution visibly (see issue #312).</remarks>
     public ConfiglueSourceRegistration FallbackWhen(StateFallbackCondition condition)
     {
         _ensureMutable();
-        if (
-            (
-                condition
-                & ~(
-                    StateFallbackCondition.NotFoundOrUnavailable
-                    | StateFallbackCondition.InvalidPayload
-                )
-            ) != 0
-        )
+        if ((condition & ~StateFallbackCondition.NotFoundOrUnavailable) != 0)
         {
             throw new ArgumentOutOfRangeException(nameof(condition));
         }
