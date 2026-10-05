@@ -1,4 +1,3 @@
-using System.Reflection;
 using System.Text.Json.Nodes;
 using Bunit;
 using Configlue.DevTools.Web;
@@ -9,8 +8,11 @@ namespace Configlue.DevTools.Tests;
 
 /// <summary>
 /// Behavior tests for the #263 Monaco integration: explicit document URIs,
-/// real provider registration in the served bridge script, strict JS call
-/// shapes, gated/ungated asset delivery, and secret hygiene.
+/// C# projection/bridge call contracts, gated/ungated asset delivery, and
+/// secret hygiene.
+/// Monaco model/schema/hover/inlay/marker behavior is owned by the real
+/// browser suite (<c>tests/Configlue.DevTools.Browser.Tests</c>); these C#
+/// tests intentionally avoid parsing JS/CSS source for implementation tokens.
 /// </summary>
 public sealed class MonacoIntegrationTests : IDisposable
 {
@@ -41,39 +43,6 @@ public sealed class MonacoIntegrationTests : IDisposable
         named.ShouldNotBe(
             ConfiglueDevToolsViewerProjection.BuildDocumentUri("devtools-viewer", string.Empty)
         );
-    }
-
-    [Test]
-    public void ServedBridge_RegistersRealProvidersAgainstTheDocumentUri()
-    {
-        var script = ReadEmbeddedBridgeScript();
-
-        // Provider registration must exist; storing payloads alone fails this.
-        script.ShouldContain("registerHoverProvider");
-        script.ShouldContain("registerInlayHintsProvider");
-        // Schema association targets the explicit document URI.
-        script.ShouldContain("fileMatch");
-        script.ShouldContain("documentUri");
-        // The anonymous BlazorMonaco model is rebound to the document URI.
-        script.ShouldContain("ensureDocumentModel");
-        script.ShouldContain("Uri.parse");
-        script.ShouldContain("setModel");
-        // Runtime markers target the matching model and clear cleanly.
-        script.ShouldContain("setModelMarkers");
-        script.ShouldContain("clearDocument");
-    }
-
-    [Test]
-    public void ServedStyles_DefineEveryDecorationClass()
-    {
-        var css = ReadEmbeddedStyleSheet();
-        css.ShouldContain(".configlue-effective");
-        css.ShouldContain(".configlue-secret");
-        css.ShouldContain(".configlue-muted");
-        css.ShouldContain(".configlue-invalid");
-        css.ShouldContain(".configlue-glyph-secret");
-        css.ShouldContain(".configlue-glyph-readonly");
-        css.ShouldContain(".configlue-glyph-invalid");
     }
 
     [Test]
@@ -350,45 +319,6 @@ public sealed class MonacoIntegrationTests : IDisposable
             )
         );
         return builder.CreateContext();
-    }
-
-    private static string ReadEmbeddedBridgeScript()
-    {
-        var assembly = typeof(ConfiglueMonacoBridge).Assembly;
-        var name =
-            assembly
-                .GetManifestResourceNames()
-                .FirstOrDefault(candidate =>
-                    candidate.EndsWith(
-                        "configlue-devtools-monaco.js",
-                        StringComparison.OrdinalIgnoreCase
-                    )
-                )
-            ?? throw new InvalidOperationException("The embedded bridge script was not found.");
-        using var stream =
-            assembly.GetManifestResourceStream(name)
-            ?? throw new InvalidOperationException(
-                "The embedded bridge script could not be opened."
-            );
-        using var reader = new StreamReader(stream);
-        return reader.ReadToEnd();
-    }
-
-    private static string ReadEmbeddedStyleSheet()
-    {
-        var assembly = typeof(ConfiglueMonacoBridge).Assembly;
-        var name =
-            assembly
-                .GetManifestResourceNames()
-                .FirstOrDefault(candidate =>
-                    candidate.EndsWith("configlue-devtools.css", StringComparison.OrdinalIgnoreCase)
-                )
-            ?? throw new InvalidOperationException("The embedded stylesheet was not found.");
-        using var stream =
-            assembly.GetManifestResourceStream(name)
-            ?? throw new InvalidOperationException("The embedded stylesheet could not be opened.");
-        using var reader = new StreamReader(stream);
-        return reader.ReadToEnd();
     }
 
     private static ConfiglueContext RegisterViewerState(BunitContext context)

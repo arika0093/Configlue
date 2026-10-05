@@ -3,9 +3,11 @@ using System.Net;
 namespace Configlue.DevTools.Tests;
 
 /// <summary>
-/// Proves the real loopback app (not bUnit JSInterop) delivers every asset
-/// the Monaco integration needs: Blazor/BlazorMonaco scripts, the Configlue
-/// bridge, and the DevTools stylesheet, with correct token gating.
+/// Minimal host smoke for Monaco delivery: routing, authentication/token
+/// gating, content type, and asset reachability.
+/// Monaco model/schema/hover/inlay/marker behavior is owned by the real
+/// browser suite (<c>tests/Configlue.DevTools.Browser.Tests</c>); these
+/// tests intentionally avoid asserting JS/CSS implementation tokens.
 /// </summary>
 public sealed class DevToolsBrowserAssetTests
 {
@@ -34,7 +36,7 @@ public sealed class DevToolsBrowserAssetTests
     }
 
     [Test]
-    public async Task BridgeScript_ServesRealProvidersBehindTheGate()
+    public async Task BridgeScript_IsGatedAndServedAsJavaScript()
     {
         await using var context = DevToolsFixtures.CreateDemoContext();
         var registry = new ConfiglueDevToolsRegistry();
@@ -55,14 +57,12 @@ public sealed class DevToolsBrowserAssetTests
                 + Uri.EscapeDataString(host.SessionToken)
         );
         script.StatusCode.ShouldBe(HttpStatusCode.OK);
-        var text = await script.Content.ReadAsStringAsync();
-        text.ShouldContain("registerHoverProvider");
-        text.ShouldContain("registerInlayHintsProvider");
-        text.ShouldContain("ensureDocumentModel");
+        script.Content.Headers.ContentType?.MediaType.ShouldBe("text/javascript");
+        (await script.Content.ReadAsStringAsync()).ShouldNotBeNullOrWhiteSpace();
     }
 
     [Test]
-    public async Task StyleSheet_ServesAllOverlayClassesBehindTheGate()
+    public async Task StyleSheet_IsGatedAndServedAsCss()
     {
         await using var context = DevToolsFixtures.CreateDemoContext();
         var registry = new ConfiglueDevToolsRegistry();
@@ -82,22 +82,7 @@ public sealed class DevToolsBrowserAssetTests
         );
         response.StatusCode.ShouldBe(HttpStatusCode.OK);
         response.Content.Headers.ContentType?.MediaType.ShouldBe("text/css");
-        var css = await response.Content.ReadAsStringAsync();
-        foreach (
-            var required in new[]
-            {
-                ".configlue-effective",
-                ".configlue-secret",
-                ".configlue-muted",
-                ".configlue-invalid",
-                ".configlue-glyph-secret",
-                ".configlue-glyph-readonly",
-                ".configlue-glyph-invalid",
-            }
-        )
-        {
-            css.ShouldContain(required);
-        }
+        (await response.Content.ReadAsStringAsync()).ShouldNotBeNullOrWhiteSpace();
     }
 
     [Test]
@@ -115,7 +100,7 @@ public sealed class DevToolsBrowserAssetTests
             host.Url + "_content/BlazorMonaco/jsInterop.js"
         );
         interop.StatusCode.ShouldBe(HttpStatusCode.OK);
-        (await interop.Content.ReadAsStringAsync()).ShouldContain("blazorMonaco");
+        (await interop.Content.ReadAsStringAsync()).ShouldNotBeNullOrWhiteSpace();
 
         using var loader = await anonymous.GetAsync(
             host.Url + "_content/BlazorMonaco/lib/monaco-editor/min/vs/loader.js"
