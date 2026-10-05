@@ -27,6 +27,14 @@ namespace Configlue;
 /// operations: a handler that blocks delays the operation that raised it, and waiting for
 /// registry disposal from inside a handler deadlocks.
 /// </para>
+/// <para>
+/// Compatibility: <c>ClearAsync</c>/<c>DisposeAsync</c> neither wait for concurrent
+/// in-flight removals nor aggregate their errors, and an empty <c>ClearAsync</c> never
+/// throws for another operation's failure. While deferred, mutation/disposal completion
+/// precedes notification delivery (a deferred <c>DisposeAsync</c> completes once entries
+/// are retired and disposed). <c>StateNames</c> throws <c>ObjectDisposedException</c> once
+/// disposal has started.
+/// </para>
 /// </remarks>
 internal sealed class ConfiglueOwnedStateRegistry<TModel>
     : IConfiglueStateRegistry<TModel>,

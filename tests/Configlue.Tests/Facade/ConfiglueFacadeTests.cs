@@ -539,6 +539,273 @@ public sealed class ConfiglueFacadeTests
         (laterListenerCalled).ShouldBeTrue();
     }
 
+    [Test]
+    public async Task FacadeRegistryBlockingHandlerKeepsMutationVisibleButSerializesCompletion()
+    {
+        var registry = CreateFacadeRegistry();
+        var added = new List<string>();
+        var firstEntered = new TaskCompletionSource(
+            TaskCreationOptions.RunContinuationsAsynchronously
+        );
+        var releaseFirst = new TaskCompletionSource(
+            TaskCreationOptions.RunContinuationsAsynchronously
+        );
+        registry.StateAdded += (name, _) =>
+        {
+            if (name == "first")
+            {
+                firstEntered.TrySetResult();
+                releaseFirst.Task.GetAwaiter().GetResult();
+            }
+            lock (added)
+            {
+                added.Add(name);
+            }
+        };
+
+        var firstAdd = Task.Run(() => registry.TryAddAsync("first").AsTask());
+        await firstEntered.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        await Task.Delay(TimeSpan.FromMilliseconds(50));
+        (firstAdd.IsCompleted).ShouldBeFalse();
+        registry.TryGet("first", out _).ShouldBeTrue();
+
+        var secondAdd = Task.Run(() => registry.TryAddAsync("second").AsTask());
+        (
+            await Task.Run(() =>
+                SpinWait.SpinUntil(
+                    () => registry.TryGet("second", out _),
+                    TimeSpan.FromSeconds(5)
+                )
+            )
+        ).ShouldBeTrue();
+        await Task.Delay(TimeSpan.FromMilliseconds(50));
+        (secondAdd.IsCompleted).ShouldBeFalse();
+
+        releaseFirst.TrySetResult();
+        (await Task.WhenAll(firstAdd, secondAdd)).ShouldBe(new[] { true, true });
+        lock (added)
+        {
+            (added).ShouldBe(new[] { "first", "second" });
+        }
+
+        await registry.DisposeAsync();
+    }
+
+    [Test]
+    public async Task FacadeRegistryConcurrentRemoveAndClearDisposeExactlyOnceWithoutMissingNotifications()
+    {
+        var disposeCounts = new System.Collections.Concurrent.ConcurrentDictionary<
+            string,
+            int
+        >(StringComparer.Ordinal);
+        var registry = new ConfiglueOwnedStateRegistry<AppSettings>(
+            name =>
+            {
+                var store = new InMemoryStateSource<AppSettings.Fragment>();
+                var source = new StateSource<AppSettings.Fragment>(
+                    $"facade-{name}",
+                    store,
+                    new StateSourceOptions<AppSettings.Fragment> { Writer = store, Watcher = store }
+                );
+                var runtime = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
+                    new StateSourceSet<AppSettings.Fragment>([source])
+                );
+                return (
+                    (IWritableState<AppSettings>)runtime,
+                    new object[] { new CountingDisposable(name, disposeCounts) }
+                );
+            },
+            reservedNames: []
+        );
+        (await registry.TryAddAsync("a")).ShouldBeTrue();
+        (await registry.TryAddAsync("b")).ShouldBeTrue();
+
+        var removed = new List<string>();
+        registry.StateRemoved += name =>
+        {
+            lock (removed)
+            {
+                removed.Add(name);
+            }
+        };
+
+        var removeA = Task.Run(() => registry.TryRemoveAsync("a").AsTask());
+        var clear = Task.Run(() => registry.ClearAsync().AsTask());
+        await Task.WhenAll(removeA, clear).WaitAsync(TimeSpan.FromSeconds(5));
+
+        (registry.StateNames.Count).ShouldBe(0);
+        registry.TryGet("a", out _).ShouldBeFalse();
+        registry.TryGet("b", out _).ShouldBeFalse();
+        List<string> removedSnapshot;
+        lock (removed)
+        {
+            removedSnapshot = removed.ToList();
+        }
+        (removedSnapshot.OrderBy(static name => name)).ShouldBe(new[] { "a", "b" });
+        (disposeCounts.GetValueOrDefault("a", 0)).ShouldBe(1);
+        (disposeCounts.GetValueOrDefault("b", 0)).ShouldBe(1);
+
+        await registry.DisposeAsync();
+        lock (removed)
+        {
+            (removed.Count).ShouldBe(2);
+        }
+    }
+
+    [Test]
+    public async Task FacadeRegistryClearDoesNotAggregateInFlightRemovalFailure()
+    {
+        var failingStarted = new TaskCompletionSource(
+            TaskCreationOptions.RunContinuationsAsynchronously
+        );
+        var releaseFailing = new TaskCompletionSource(
+            TaskCreationOptions.RunContinuationsAsynchronously
+        );
+        var registry = new ConfiglueOwnedStateRegistry<AppSettings>(
+            name =>
+            {
+                var store = new InMemoryStateSource<AppSettings.Fragment>();
+                var source = new StateSource<AppSettings.Fragment>(
+                    $"facade-{name}",
+                    store,
+                    new StateSourceOptions<AppSettings.Fragment> { Writer = store, Watcher = store }
+                );
+                var runtime = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
+                    new StateSourceSet<AppSettings.Fragment>([source])
+                );
+                object[] resources =
+                    name == "failing"
+                        ? [
+                            new GatedThrowingResource(
+                                failingStarted,
+                                releaseFailing,
+                                new InvalidOperationException("failing disposal failed.")
+                            ),
+                        ]
+                        : [];
+                return ((IWritableState<AppSettings>)runtime, resources);
+            },
+            reservedNames: []
+        );
+        (await registry.TryAddAsync("failing")).ShouldBeTrue();
+        (await registry.TryAddAsync("other")).ShouldBeTrue();
+
+        var removed = new List<string>();
+        registry.StateRemoved += name =>
+        {
+            lock (removed)
+            {
+                removed.Add(name);
+            }
+        };
+
+        var pendingRemove = Task.Run(() => registry.TryRemoveAsync("failing").AsTask());
+        (
+            await Task.Run(() =>
+                SpinWait.SpinUntil(
+                    () => !registry.TryGet("failing", out _),
+                    TimeSpan.FromSeconds(5)
+                )
+            )
+        ).ShouldBeTrue();
+        await failingStarted.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+        await registry.ClearAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(5));
+        List<string> afterClear;
+        lock (removed)
+        {
+            afterClear = removed.ToList();
+        }
+        (afterClear).ShouldBe(new[] { "other" });
+
+        releaseFailing.TrySetResult();
+        var failure = await Should.ThrowAsync<AggregateException>(async () =>
+            await pendingRemove.WaitAsync(TimeSpan.FromSeconds(5))
+        );
+        (failure.InnerExceptions.OfType<InvalidOperationException>().Count()).ShouldBe(1);
+
+        List<string> afterRemove;
+        lock (removed)
+        {
+            afterRemove = removed.ToList();
+        }
+        (afterRemove.OrderBy(static name => name)).ShouldBe(new[] { "failing", "other" });
+
+        await registry.DisposeAsync();
+    }
+
+    [Test]
+    public async Task FacadeRegistryClearReportsOwnFailuresWithUnifiedMessage()
+    {
+        var registry = new ConfiglueOwnedStateRegistry<AppSettings>(
+            name =>
+            {
+                var store = new InMemoryStateSource<AppSettings.Fragment>();
+                var source = new StateSource<AppSettings.Fragment>(
+                    $"facade-{name}",
+                    store,
+                    new StateSourceOptions<AppSettings.Fragment> { Writer = store, Watcher = store }
+                );
+                var runtime = new ConfiglueRuntime<AppSettings, AppSettings.Fragment>(
+                    new StateSourceSet<AppSettings.Fragment>([source])
+                );
+                object[] resources =
+                    name == "bad"
+                        ? [new ThrowingAsyncResource(new InvalidOperationException("bad broke."))]
+                        : [];
+                return ((IWritableState<AppSettings>)runtime, resources);
+            },
+            reservedNames: []
+        );
+        (await registry.TryAddAsync("bad")).ShouldBeTrue();
+
+        var failure = await Should.ThrowAsync<AggregateException>(async () =>
+            await registry.ClearAsync()
+        );
+        (failure.Message.StartsWith("One or more Configlue states failed to clear.", StringComparison.Ordinal)).ShouldBeTrue();
+
+        await registry.DisposeAsync();
+    }
+
+    [Test]
+    public async Task FacadeRegistryDeferredDisposeCompletesBeforeNotifications()
+    {
+        var registry = CreateFacadeRegistry();
+        (await registry.TryAddAsync("deferred")).ShouldBeTrue();
+
+        var deferrer = (IConfiglueStateRegistryNotificationDeferrer<AppSettings>)registry;
+        using var scope = deferrer.DeferNotifications();
+
+        var removed = new List<string>();
+        registry.StateRemoved += name =>
+        {
+            lock (removed)
+            {
+                removed.Add(name);
+            }
+        };
+
+        var disposeTask = registry.DisposeAsync().AsTask();
+        await disposeTask.WaitAsync(TimeSpan.FromSeconds(5));
+
+        Should.Throw<ObjectDisposedException>(() => registry.StateNames);
+        Should.Throw<ObjectDisposedException>(() => registry.Get("deferred"));
+        lock (removed)
+        {
+            (removed).ShouldBeEmpty();
+        }
+
+        scope.Dispose();
+
+        List<string> afterRelease;
+        lock (removed)
+        {
+            afterRelease = removed.ToList();
+        }
+        (afterRelease).ShouldBe(new[] { "deferred" });
+        (ReferenceEquals(registry.DisposeAsync().AsTask(), disposeTask)).ShouldBeTrue();
+    }
+
     private static ConfiglueOwnedStateRegistry<AppSettings> CreateFacadeRegistry() =>
         CreateGatedRegistry(gate: null);
 
@@ -577,6 +844,37 @@ public sealed class ConfiglueFacadeTests
             if (FailOnRelease)
                 throw new InvalidOperationException("Resource disposal failed.");
         }
+    }
+
+    private sealed class CountingDisposable(
+        string name,
+        System.Collections.Concurrent.ConcurrentDictionary<string, int> counts
+    ) : IAsyncDisposable
+    {
+        public ValueTask DisposeAsync()
+        {
+            counts.AddOrUpdate(name, 1, (_, current) => current + 1);
+            return ValueTask.CompletedTask;
+        }
+    }
+
+    private sealed class GatedThrowingResource(
+        TaskCompletionSource started,
+        TaskCompletionSource release,
+        Exception failure
+    ) : IAsyncDisposable
+    {
+        public async ValueTask DisposeAsync()
+        {
+            started.TrySetResult();
+            await release.Task.ConfigureAwait(false);
+            throw failure;
+        }
+    }
+
+    private sealed class ThrowingAsyncResource(Exception failure) : IAsyncDisposable
+    {
+        public ValueTask DisposeAsync() => ValueTask.FromException(failure);
     }
 
     private static StateSource<AppSettings.Fragment> CreateSource(string id, string label)
