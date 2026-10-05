@@ -645,7 +645,14 @@ public sealed class StateHttpPatchTests
             new AppSettings.Fragment { RetryCount = Optional<int>.Present(1) }
         );
         await using var app = await StartSingleStoreAppAsync(store, "/api/settings");
-        using var watcherClient = app.GetTestClient();
+        using var watcherServerClient = app.GetTestClient();
+        watcherServerClient.BaseAddress = new Uri("http://localhost");
+        var sseReady = new TaskCompletionSource<bool>(
+            TaskCreationOptions.RunContinuationsAsynchronously
+        );
+        using var watcherClient = new HttpClient(
+            new SseReadinessHandler(watcherServerClient, sseReady)
+        );
         watcherClient.BaseAddress = new Uri("http://localhost");
         using var writerClient = app.GetTestClient();
 
@@ -669,7 +676,7 @@ public sealed class StateHttpPatchTests
         (await watcher.GetValueAsync()).RetryCount.ShouldBe(1);
         using var changeObserved = new CancellationTokenSource(TimeSpan.FromSeconds(15));
         var waitTask = watcher.OnChangeObservedAsync(changeObserved.Token);
-        await Task.Delay(500, changeObserved.Token);
+        await sseReady.Task.WaitAsync(changeObserved.Token);
 
         var etag = await GetEtagAsync(writerClient, "http://localhost/api/settings");
         using (var patch = PatchRequest("http://localhost/api/settings", """[{"op":"replace","path":"/RetryCount","value":71}]""", etag))
@@ -985,6 +992,44 @@ public sealed class StateHttpPatchTests
             }
 
             return base.SendAsync(request, cancellationToken);
+        }
+    }
+
+    private sealed class SseReadinessHandler(
+        HttpClient inner,
+        TaskCompletionSource<bool> readiness
+    ) : HttpMessageHandler
+    {
+        protected override async Task<HttpResponseMessage> SendAsync(
+            HttpRequestMessage request,
+            CancellationToken cancellationToken
+        )
+        {
+            var isEvents =
+                request.RequestUri?.AbsolutePath.EndsWith(
+                    "/events",
+                    StringComparison.OrdinalIgnoreCase
+                ) == true;
+            var clone = new HttpRequestMessage(request.Method, request.RequestUri);
+            if (request.Content is not null)
+            {
+                clone.Content = request.Content;
+            }
+
+            foreach (var header in request.Headers)
+            {
+                clone.Headers.TryAddWithoutValidation(header.Key, header.Value);
+            }
+
+            var response = await inner
+                .SendAsync(clone, HttpCompletionOption.ResponseHeadersRead, cancellationToken)
+                .ConfigureAwait(false);
+            if (isEvents && response.IsSuccessStatusCode)
+            {
+                readiness.TrySetResult(true);
+            }
+
+            return response;
         }
     }
 

@@ -378,7 +378,12 @@ public sealed class StateHttpTransportTests
             new AppSettings.Fragment { RetryCount = Optional<int>.Present(1) }
         );
         await using var app = await StartStateAppAsync(store, "/api/settings");
-        using var httpClient = app.GetTestClient();
+        using var serverClient = app.GetTestClient();
+        serverClient.BaseAddress = new Uri("http://localhost");
+        var sseReady = new TaskCompletionSource<bool>(
+            TaskCreationOptions.RunContinuationsAsynchronously
+        );
+        using var httpClient = new HttpClient(new SseReadinessHandler(serverClient, sseReady));
         httpClient.BaseAddress = new Uri("http://localhost");
 
         await using var context = ConfiglueApp.CreateContext(builder =>
@@ -405,10 +410,13 @@ public sealed class StateHttpTransportTests
         (await state.GetValueAsync()).RetryCount.ShouldBe(21);
 
         // External server-side change drives SSE invalidation.
+        // Wait for the SSE subscription headers instead of a fixed delay: the
+        // handler signals once the server has flushed /events headers, and the
+        // server-side ConvergeAsync covers changes racing Subscribe.
         var watcherState = context.GetState<AppSettings>();
         using var changeObserved = new CancellationTokenSource(TimeSpan.FromSeconds(15));
         var waitTask = watcherState.OnChangeObservedAsync(changeObserved.Token);
-        await Task.Delay(500, changeObserved.Token);
+        await sseReady.Task.WaitAsync(changeObserved.Token);
         store.Set(new AppSettings.Fragment { RetryCount = Optional<int>.Present(33) });
         await waitTask;
         (await state.GetValueAsync()).RetryCount.ShouldBe(33);
@@ -421,7 +429,14 @@ public sealed class StateHttpTransportTests
             new AppSettings.Fragment { RetryCount = Optional<int>.Present(1) }
         );
         await using var app = await StartStateAppAsync(store, "/api/settings");
-        using var watcherClient = app.GetTestClient();
+        using var watcherServerClient = app.GetTestClient();
+        watcherServerClient.BaseAddress = new Uri("http://localhost");
+        var sseReady = new TaskCompletionSource<bool>(
+            TaskCreationOptions.RunContinuationsAsynchronously
+        );
+        using var watcherClient = new HttpClient(
+            new SseReadinessHandler(watcherServerClient, sseReady)
+        );
         watcherClient.BaseAddress = new Uri("http://localhost");
         using var writerClient = app.GetTestClient();
         writerClient.BaseAddress = new Uri("http://localhost");
@@ -464,7 +479,7 @@ public sealed class StateHttpTransportTests
         (await watcher.GetValueAsync()).RetryCount.ShouldBe(1);
         using var changeObserved = new CancellationTokenSource(TimeSpan.FromSeconds(15));
         var waitTask = watcher.OnChangeObservedAsync(changeObserved.Token);
-        await Task.Delay(500, changeObserved.Token);
+        await sseReady.Task.WaitAsync(changeObserved.Token);
 
         var writer = (IConfiglueRuntimeState<AppSettings>)writerContext.GetState<AppSettings>();
         await writer.SaveAsync(settings => settings.RetryCount = 55);
@@ -996,6 +1011,44 @@ public sealed class StateHttpTransportTests
                 HttpCompletionOption.ResponseHeadersRead,
                 cancellationToken
             );
+        }
+    }
+
+    private sealed class SseReadinessHandler(
+        HttpClient inner,
+        TaskCompletionSource<bool> readiness
+    ) : HttpMessageHandler
+    {
+        protected override async Task<HttpResponseMessage> SendAsync(
+            HttpRequestMessage request,
+            CancellationToken cancellationToken
+        )
+        {
+            var isEvents =
+                request.RequestUri?.AbsolutePath.EndsWith(
+                    "/events",
+                    StringComparison.OrdinalIgnoreCase
+                ) == true;
+            var clone = new HttpRequestMessage(request.Method, request.RequestUri);
+            if (request.Content is not null)
+            {
+                clone.Content = request.Content;
+            }
+
+            foreach (var header in request.Headers)
+            {
+                clone.Headers.TryAddWithoutValidation(header.Key, header.Value);
+            }
+
+            var response = await inner
+                .SendAsync(clone, HttpCompletionOption.ResponseHeadersRead, cancellationToken)
+                .ConfigureAwait(false);
+            if (isEvents && response.IsSuccessStatusCode)
+            {
+                readiness.TrySetResult(true);
+            }
+
+            return response;
         }
     }
 }
