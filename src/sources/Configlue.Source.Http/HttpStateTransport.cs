@@ -33,11 +33,17 @@ internal sealed class HttpStateTransport<TFragment>
         CancellationToken cancellationToken
     )
     {
+        // Single timeout scope shared by the send and content-read phases, matching
+        // the pre-split reader: wall clock is bounded by one requestTimeout, not two.
+        using var timeout = HttpStateProtocol.CreateRequestCancellation(
+            _requestTimeout,
+            cancellationToken
+        );
         HttpResponseMessage response;
         try
         {
             response = await HttpStateProtocol
-                .SendWithTimeoutAsync(
+                .SendWithSharedTimeoutAsync(
                     _httpClient,
                     () =>
                     {
@@ -54,7 +60,7 @@ internal sealed class HttpStateTransport<TFragment>
 
                         return request;
                     },
-                    _requestTimeout,
+                    timeout.Token,
                     cancellationToken
                 )
                 .ConfigureAwait(false);
@@ -70,10 +76,6 @@ internal sealed class HttpStateTransport<TFragment>
 
         using (response)
         {
-            using var timeout = HttpStateProtocol.CreateRequestCancellation(
-                _requestTimeout,
-                cancellationToken
-            );
             var revision = HttpStateProtocol.ParseEtagToRevision(response.Headers.ETag?.ToString());
             if (response.StatusCode == HttpStatusCode.NotFound)
             {
@@ -149,8 +151,12 @@ internal sealed class HttpStateTransport<TFragment>
         CancellationToken cancellationToken
     )
     {
+        using var timeout = HttpStateProtocol.CreateRequestCancellation(
+            _requestTimeout,
+            cancellationToken
+        );
         var httpResponse = await HttpStateProtocol
-            .SendWithTimeoutAsync(
+            .SendWithSharedTimeoutAsync(
                 _httpClient,
                 () =>
                 {
@@ -174,17 +180,13 @@ internal sealed class HttpStateTransport<TFragment>
 
                     return message;
                 },
-                _requestTimeout,
+                timeout.Token,
                 cancellationToken
             )
             .ConfigureAwait(false);
 
         using (httpResponse)
         {
-            using var timeout = HttpStateProtocol.CreateRequestCancellation(
-                _requestTimeout,
-                cancellationToken
-            );
             var revision = HttpStateProtocol.ParseEtagToRevision(
                 httpResponse.Headers.ETag?.ToString()
             );
@@ -212,8 +214,12 @@ internal sealed class HttpStateTransport<TFragment>
         CancellationToken cancellationToken
     )
     {
+        using var timeout = HttpStateProtocol.CreateRequestCancellation(
+            _requestTimeout,
+            cancellationToken
+        );
         var httpResponse = await HttpStateProtocol
-            .SendWithTimeoutAsync(
+            .SendWithSharedTimeoutAsync(
                 _httpClient,
                 () =>
                 {
@@ -228,17 +234,13 @@ internal sealed class HttpStateTransport<TFragment>
 
                     return message;
                 },
-                _requestTimeout,
+                timeout.Token,
                 cancellationToken
             )
             .ConfigureAwait(false);
 
         using (httpResponse)
         {
-            using var timeout = HttpStateProtocol.CreateRequestCancellation(
-                _requestTimeout,
-                cancellationToken
-            );
             var responseRevision = HttpStateProtocol.ParseEtagToRevision(
                 httpResponse.Headers.ETag?.ToString()
             );

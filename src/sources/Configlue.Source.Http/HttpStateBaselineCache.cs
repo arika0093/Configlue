@@ -3,7 +3,11 @@ using Configlue.State;
 namespace Configlue.Source.Http;
 
 /// <summary>Thread-safe canonical-baseline cache for PATCH-vs-PUT decisions and ETag state.</summary>
-/// <remarks>Owns mutable revision/baseline bytes; the SSE loop touches only revisions.</remarks>
+/// <remarks>
+/// Owns mutable revision/baseline bytes shared by the read, write, and watch paths;
+/// watch-loop convergence writes both revision and baseline bytes via
+/// <c>CacheGetResult</c>.
+/// </remarks>
 internal sealed class HttpStateBaselineCache
 {
     private readonly object _gate = new();

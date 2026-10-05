@@ -4,8 +4,10 @@ namespace Configlue.Source.Http;
 
 /// <summary>Shared SSE watch loop with waiter fan-out and exponential reconnect backoff.</summary>
 /// <remarks>
-/// Converges through the transport GET and revision cache; it never inspects
-/// baseline JSON bytes, only revision strings.
+/// Converges through the transport GET and writes the result into the shared baseline
+/// cache (revision and baseline bytes via <c>CacheGetResult</c>). The cache instance is
+/// shared with the read/write paths, so watch convergence replaces the PATCH baseline
+/// (cross-talk by design): the next write re-derives its patch from the converged bytes.
 /// </remarks>
 internal sealed class HttpStateWatchLoop<TFragment>
     where TFragment : class, IConfiglueFragment<TFragment>
@@ -47,7 +49,6 @@ internal sealed class HttpStateWatchLoop<TFragment>
             var initial = await _transport.GetAsync(null, cancellationToken).ConfigureAwait(false);
             _baseline.CacheGetResult(initial.Revision, initial.Content);
             baseline = initial.Revision;
-            _baseline.SetRevision(baseline);
         }
 
         if (!string.Equals(observedRevision, baseline, StringComparison.Ordinal))

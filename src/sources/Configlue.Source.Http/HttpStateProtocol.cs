@@ -5,7 +5,10 @@ using System.Text.Json;
 namespace Configlue.Source.Http;
 
 /// <summary>Shared State HTTP wire helpers: ETag handling, timeout scope, and error bodies.</summary>
-/// <remarks>Centralizes request timeout and error-response handling for GET/PUT/PATCH.</remarks>
+/// <remarks>
+/// Centralizes request timeout and error-response handling for GET/PUT/PATCH only.
+/// The SSE event-stream path is intentionally excluded and stays in <c>HttpSseClient</c>.
+/// </remarks>
 internal static class HttpStateProtocol
 {
     public static CancellationTokenSource CreateRequestCancellation(
@@ -175,6 +178,12 @@ internal static class HttpStateProtocol
     }
 
     /// <summary>Sends one request with unified transport/timeout mapping.</summary>
+    /// <remarks>
+    /// Single-shot helper that owns its timeout scope. Transport read/write methods that
+    /// must share one timeout across send and content-read phases use
+    /// <c>SendWithSharedTimeoutAsync</c> with a caller-owned scope instead, so the wall
+    /// clock stays bounded by a single <c>requestTimeout</c>.
+    /// </remarks>
     /// <exception cref="HttpStateUnavailableException">Transport or timeout failure.</exception>
     public static async ValueTask<HttpResponseMessage> SendWithTimeoutAsync(
         HttpClient httpClient,
@@ -183,12 +192,35 @@ internal static class HttpStateProtocol
         CancellationToken callerToken
     )
     {
-        using var message = messageFactory();
         using var timeout = CreateRequestCancellation(requestTimeout, callerToken);
+        return await SendWithSharedTimeoutAsync(
+                httpClient,
+                messageFactory,
+                timeout.Token,
+                callerToken
+            )
+            .ConfigureAwait(false);
+    }
+
+    /// <summary>Sends one request under a caller-owned timeout scope.</summary>
+    /// <remarks>
+    /// The <paramref name="timeoutToken"/> must already combine
+    /// <paramref name="callerToken"/> with the single request timeout, so callers can
+    /// reuse the same scope for the send phase and the subsequent content-read phase.
+    /// </remarks>
+    /// <exception cref="HttpStateUnavailableException">Transport or timeout failure.</exception>
+    public static async ValueTask<HttpResponseMessage> SendWithSharedTimeoutAsync(
+        HttpClient httpClient,
+        Func<HttpRequestMessage> messageFactory,
+        CancellationToken timeoutToken,
+        CancellationToken callerToken
+    )
+    {
+        using var message = messageFactory();
         try
         {
             return await httpClient
-                .SendAsync(message, HttpCompletionOption.ResponseHeadersRead, timeout.Token)
+                .SendAsync(message, HttpCompletionOption.ResponseHeadersRead, timeoutToken)
                 .ConfigureAwait(false);
         }
 #if NETSTANDARD

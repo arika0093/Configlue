@@ -51,26 +51,21 @@ internal sealed class HttpStateWriteStrategy<TFragment>
             throw;
         }
 
-        if (
-            result.Content is { Length: > 0 } content
-            && result is { Value: not null, Revision: not null }
-        )
+        var outcome = UpdatePatchBaseline(result);
+        // Direct PatchAsync preserves historic strictness: a usable payload and a 204
+        // both require a revision; a revision-less response is a protocol error.
+        switch (outcome)
         {
-            _baseline.SetBaseline(content, result.Revision);
-            return new HttpStatePatchResult<TFragment>(result.Value, result.Revision);
+            case PatchBaselineOutcome.SuccessWithContent when result.Revision is not null:
+                return new HttpStatePatchResult<TFragment>(result.Value, result.Revision);
+            case PatchBaselineOutcome.NoContent when result.Revision is not null:
+                // 204 No Content: keep the new revision without payload bytes.
+                return new HttpStatePatchResult<TFragment>(default, result.Revision);
+            default:
+                throw new HttpStateException(
+                    "The State HTTP PATCH endpoint returned an empty state payload."
+                );
         }
-
-        if (result.Revision is not null && result.Value is null && result.Content is null)
-        {
-            // 204 No Content: keep the new revision without payload bytes.
-            _baseline.SetRevision(result.Revision);
-            return new HttpStatePatchResult<TFragment>(default, result.Revision);
-        }
-
-        _baseline.SetRevision(result.Revision);
-        throw new HttpStateException(
-            "The State HTTP PATCH endpoint returned an empty state payload."
-        );
     }
 
     public async ValueTask<StateWriteResult> WriteAsync(
@@ -153,23 +148,14 @@ internal sealed class HttpStateWriteStrategy<TFragment>
             throw;
         }
 
-        if (result is { Value: null, Content: not null })
+        var outcome = UpdatePatchBaseline(result);
+        if (outcome == PatchBaselineOutcome.EmptyPayload)
         {
-            // 200 OK without a parsable payload is a protocol error; keep the
-            // revision update before surfacing it, matching historic behavior.
-            _baseline.SetRevision(result.Revision);
+            // 200 OK without a parsable payload is a protocol error; the revision
+            // update was already kept by UpdatePatchBaseline, matching historic behavior.
             throw new HttpStateException(
                 "The State HTTP PATCH endpoint returned an empty state payload."
             );
-        }
-
-        if (result.Content is { Length: > 0 } content && result.Revision is not null)
-        {
-            _baseline.SetBaseline(content, result.Revision);
-        }
-        else
-        {
-            _baseline.SetRevision(result.Revision);
         }
 
         return new StateWriteResult(result.Revision);
@@ -190,6 +176,60 @@ internal sealed class HttpStateWriteStrategy<TFragment>
             content => _transport.TryParseFragment(content, out _)
         );
         return new StateWriteResult(result.Revision);
+    }
+
+    /// <summary>
+    /// Shared 200-with-content / 204-no-content / 200-empty classification for PATCH.
+    /// </summary>
+    /// <remarks>
+    /// Updates the shared baseline cache (content bytes on success, revision only
+    /// otherwise) and returns the outcome so both direct <c>PatchAsync</c> and the
+    /// write-path <c>SendPatchWriteAsync</c> share one 200-empty/204 branch.
+    /// </remarks>
+    private PatchBaselineOutcome UpdatePatchBaseline(HttpTransportPatchResult<TFragment> result)
+    {
+        var outcome = ClassifyPatchResult(result);
+        if (
+            outcome == PatchBaselineOutcome.SuccessWithContent
+            && result.Content is { Length: > 0 } content
+            && result.Revision is not null
+        )
+        {
+            _baseline.SetBaseline(content, result.Revision);
+        }
+        else
+        {
+            _baseline.SetRevision(result.Revision);
+        }
+
+        return outcome;
+    }
+
+    private static PatchBaselineOutcome ClassifyPatchResult(
+        HttpTransportPatchResult<TFragment> result
+    )
+    {
+        // Revision-agnostic: callers decide whether a null revision is acceptable.
+        // Direct PatchAsync requires a revision; the write path accepts a null
+        // revision as success, matching pre-split behavior.
+        if (result.Content is { Length: > 0 } && result.Value is not null)
+        {
+            return PatchBaselineOutcome.SuccessWithContent;
+        }
+
+        if (result is { Value: null, Content: null })
+        {
+            return PatchBaselineOutcome.NoContent;
+        }
+
+        return PatchBaselineOutcome.EmptyPayload;
+    }
+
+    private enum PatchBaselineOutcome
+    {
+        SuccessWithContent,
+        NoContent,
+        EmptyPayload,
     }
 
     private byte[] SerializeValue(TFragment value)
