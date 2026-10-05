@@ -29,6 +29,10 @@ internal static class SparseFragmentCollectionCloneEmitter
     {
         code.AppendLineAt(
             1,
+            "private static int __CloneCollectionCount<T>(global::System.Collections.Generic.IEnumerable<T> source) => (source as global::System.Collections.Generic.ICollection<T>)?.Count ?? (source as global::System.Collections.Generic.IReadOnlyCollection<T>)?.Count ?? 0;"
+        );
+        code.AppendLineAt(
+            1,
             "private static TSet __CloneSet<T, TSet>(global::System.Collections.Generic.IEnumerable<T> source, global::System.Collections.Generic.Dictionary<object, object> context, global::System.Func<T, T> cloneElement)"
         );
         code.AppendLineAt(1, "{");
@@ -107,7 +111,7 @@ internal static class SparseFragmentCollectionCloneEmitter
         );
         code.AppendLineAt(
             2,
-            "else clone = new global::System.Collections.Generic.Dictionary<TKey, TValue>((source as global::System.Collections.Generic.Dictionary<TKey, TValue>)?.Comparer);"
+            "else clone = new global::System.Collections.Generic.Dictionary<TKey, TValue>(__CloneCollectionCount(source), (source as global::System.Collections.Generic.Dictionary<TKey, TValue>)?.Comparer);"
         );
         code.AppendLineAt(2, "context.Add(source, clone);");
         code.AppendLineAt(
@@ -158,7 +162,10 @@ internal static class SparseFragmentCollectionCloneEmitter
             2,
             "if (source is T[]) return __CloneArray<T, TCollection>(source, context, cloneElement);"
         );
-        code.AppendLineAt(2, "var clone = new global::System.Collections.Generic.List<T>();");
+        code.AppendLineAt(
+            2,
+            "var clone = new global::System.Collections.Generic.List<T>(__CloneCollectionCount(source));"
+        );
         code.AppendLineAt(2, "context.Add(source, clone);");
         code.AppendLineAt(2, "foreach (var item in source) clone.Add(cloneElement(item));");
         code.AppendLineAt(2, "return (TCollection)(object)clone;");

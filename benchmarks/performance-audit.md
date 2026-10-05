@@ -244,8 +244,12 @@ Validation: SparseFragments Release suite 108 passed; Configlue clone contracts
 13 passed; full Configlue Release net10.0 suite 1,703 passed, zero failures,
 17 external-service skips; generator compatibility suite 7 passed. The set-clones
 consumer builds netstandard2.0, net48 and net10.0 with zero warnings/errors.
-CSharpier formatting and git whitespace checks pass. Full logs are retained in
-the main worktree's ignored `artifacts/clone-*` files.
+CSharpier formatting and git whitespace checks pass. A concurrent checkout in
+the shared main worktree removed the implementation before the report commit;
+the candidate was restored in the isolated `Configlue-perf-goal` worktree and
+revalidated there (1,703 Configlue and 108 SparseFragments tests passing, all
+three consumer targets building). Further optimization work uses that isolated
+tree. Full logs are retained in its ignored `artifacts/clone-*` files.
 
 ## Remaining audit
 
