@@ -61,55 +61,8 @@ public sealed partial class FileResource
         FileResourceOptions? options = null,
         ResourceId? fixedResourceId = null
     )
-        : this(path, options, fixedResourceId, null, null) { }
-
-    /// <summary>Creates a file resource using the supplied host profile.</summary>
-    /// <remarks>Retained for compatibility; host-specific placement no longer affects the single backup location.</remarks>
-    public FileResource(
-        string path,
-        FileResourceOptions? options,
-        ResourceId? fixedResourceId,
-        IConfiglueHostPaths hostPaths
-    )
-        : this(path, options, fixedResourceId, null, hostPaths) { }
-
-    /// <summary>Creates a model-backed file resource at the supplied path.</summary>
-    /// <param name="path">The path of the file resource.</param>
-    /// <param name="backupSchema">The model identity. Retained for compatibility; it no longer affects the single backup location.</param>
-    /// <param name="options">The retry, backup, and change-detection settings.</param>
-    /// <param name="fixedResourceId">An optional stable physical identity for the resource.</param>
-    public FileResource(
-        string path,
-        StateSchemaMetadata backupSchema,
-        FileResourceOptions? options = null,
-        ResourceId? fixedResourceId = null
-    )
-        : this(path, options, fixedResourceId, backupSchema, null) { }
-
-    /// <summary>Creates a model-backed file resource using host-specific defaults.</summary>
-    /// <remarks>Retained for compatibility; model and host placement no longer affect the single backup location.</remarks>
-    public FileResource(
-        string path,
-        StateSchemaMetadata backupSchema,
-        FileResourceOptions? options,
-        ResourceId? fixedResourceId,
-        IConfiglueHostPaths hostPaths
-    )
-        : this(path, options, fixedResourceId, backupSchema, hostPaths) { }
-
-    private FileResource(
-        string path,
-        FileResourceOptions? options,
-        ResourceId? fixedResourceId,
-        StateSchemaMetadata? backupSchema,
-        IConfiglueHostPaths? hostPaths
-    )
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(path);
-        // The model and host arguments are accepted for compatibility only; the simplified
-        // backup contract always resolves a single backup from the options below.
-        _ = backupSchema;
-        _ = hostPaths;
         _path = System.IO.Path.GetFullPath(path);
         var identityPath = OperatingSystem.IsWindows() ? _path.ToUpperInvariant() : _path;
         ResourceId = fixedResourceId ?? new ResourceId($"file:{identityPath}");

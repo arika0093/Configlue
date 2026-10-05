@@ -32,10 +32,10 @@ public static class FileSourceComposition
     /// </summary>
     /// <typeparam name="TFragment">The generated fragment type.</typeparam>
     /// <param name="path">The backing file path.</param>
-    /// <param name="backupSchema">The model identity used to organize persistent backups.</param>
+    /// <param name="backupSchema">The model identity. Retained for compatibility; it no longer affects the single backup location.</param>
     /// <param name="resourceOptions">Backup and retry settings for the helper-created file resource.</param>
     /// <param name="fixedResourceId">An optional stable physical identity for the resource.</param>
-    /// <param name="hostPaths">Host-specific default backup locations.</param>
+    /// <param name="hostPaths">Host-specific defaults. Retained for compatibility; host-specific placement no longer affects the single backup location.</param>
     /// <param name="ownResource">Registers the created file resource with the facade lifetime.</param>
     /// <param name="readOnly">Whether the source exposes no writer.</param>
     /// <param name="watchChanges">Whether the source watches the file for changes.</param>
@@ -83,9 +83,11 @@ public static class FileSourceComposition
         ArgumentNullException.ThrowIfNull(codec);
         ArgumentException.ThrowIfNullOrWhiteSpace(derivedId);
 
-        var file = backupSchema is { } schema
-            ? new FileResource(path, schema, resourceOptions, fixedResourceId, hostPaths)
-            : new FileResource(path, resourceOptions, fixedResourceId, hostPaths);
+        // The model and host arguments are retained for provider-SPI compatibility only;
+        // the simplified backup contract always resolves a single backup from the options.
+        _ = backupSchema;
+        _ = hostPaths;
+        var file = new FileResource(path, resourceOptions, fixedResourceId);
         ownResource(file);
 
         IResourceReader resource = file;

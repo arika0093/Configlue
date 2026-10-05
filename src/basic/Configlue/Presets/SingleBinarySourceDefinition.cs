@@ -72,7 +72,10 @@ internal static class SingleBinarySourceFactory
         IConfiglueHostPaths hostPaths
     )
     {
-        var file = new FileResource(path, resourceOptions, null, hostPaths);
+        // Host placement is retained in the signature for composition compatibility only;
+        // the simplified backup contract resolves a single backup from the options.
+        _ = hostPaths;
+        var file = new FileResource(path, resourceOptions);
         ownResource(file);
         IResourceReader reader = file;
         IResourceBatchWriter? batchWriter = file;
