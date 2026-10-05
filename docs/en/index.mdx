@@ -1,9 +1,9 @@
 ---
 title: Configlue
-description: Read and write typed configuration without coupling application code to where configuration lives.
+description: Typed read/write configuration state for .NET, with storage and layout concerns outside normal application code.
 template: splash
 hero:
-  tagline: "Read and write typed configuration, wherever it lives."
+  tagline: "Typed configuration state your app can read and write."
   actions:
     - text: Get started
       link: getting-started/
@@ -16,50 +16,28 @@ hero:
 
 import { Card, CardGrid } from '@astrojs/starlight/components';
 
-## Configuration starts simple
+## Typed configuration state for .NET
 
-One JSON file does not need a configuration framework. Read it, deserialize it, change it, and write it back.
+Configlue is typed read/write configuration state for .NET. Application code reads and writes settings through a small state API, while storage and layout concerns stay outside normal application code.
 
-The difficulty appears when the application grows and configuration becomes infrastructure.
+It matters most when an application **edits** configuration rather than only consuming it.
 
-<CardGrid stagger>
-  <Card title="Git" icon="layers">
-    Even a CLI needs system, global, local, worktree, and command scopes. Reading follows precedence rules; writing needs a target scope.
-  </Card>
-  <Card title="Visual Studio Code" icon="puzzle">
-    User, remote, workspace, folder, language, profile, policy, and synchronized settings all coexist, while humans still edit JSON directly.
-  </Card>
-  <Card title="Chrome" icon="magnifier">
-    User preferences can coexist with centrally managed policy, different ownership levels, precedence, and values the user may not be allowed to change.
-  </Card>
-</CardGrid>
+## Why reading is not enough
 
-Your application may never become Git, VS Code, or Chrome. But configuration systems grow in the same directions: more scopes, more owners, more persistence rules, more schema changes, and more edge cases around writes.
+Read-side abstractions cover a large part of the problem, but once an application edits its own settings, several questions arrive together:
 
-Eventually you need to answer questions such as which source wins, where an update should be written, whether a value is missing or explicitly `null`, how old schemas migrate, how comments survive a save, and what happens when another process changes the same state.
+- how to write settings back without leaking storage details into application code;
+- how to combine multiple scopes or sources into one effective value;
+- how to preserve where each value came from;
+- how to choose where a change is written;
+- how to evolve the schema without breaking stored data;
+- how to observe external changes.
 
-Configlue handles that configuration plumbing.
-
-## Reading is solved. Writing is the missing half.
-
-.NET already has strong read-side abstractions. `IConfiguration` composes providers, and `IOptions<T>` gives application code typed values.
-
-Applications that *edit* configuration need another boundary.
-
-A settings screen should not need to know whether `Theme = "Dark"` belongs in a JSON file, browser storage, PostgreSQL, a user-scoped file, or another writable source.
-
-Configlue exposes that boundary as typed state:
-
-```csharp
-IReadOnlyState<AppSettings>
-IWritableState<AppSettings>
-```
-
-Your application says what to read or write. Infrastructure decides how.
+The pattern is familiar from tools such as Git, VS Code, and Chrome: layered scopes, precedence, and separate read and write targets. Configlue brings that pattern to ordinary .NET applications.
 
 ## The API your application sees
 
-Most application code can stay this small:
+Most application code depends only on `IReadOnlyState<T>` and `IWritableState<T>`. One compact read/write flow looks like this:
 
 ```csharp
 var settings = ConfiglueApp.GetState<AppSettings>();
@@ -72,50 +50,38 @@ await settings.SaveAsync(patch =>
 });
 ```
 
-Source layout, serialization, write routing, migration, validation, encryption, and hosting integration remain outside application logic.
+Application code says what to read or write. How settings are stored and combined stays configured elsewhere. [Concepts](concepts/) defines terms such as source, effective value, and provenance precisely.
 
 ## What Configlue handles
 
 <CardGrid stagger>
   <Card title="Typed read/write state" icon="pencil">
-    Depend on `IReadOnlyState<T>` or `IWritableState<T>` instead of storage and serialization details.
+    Read with `GetValueAsync` and write with `SaveAsync` through a small state API. Start from [Concepts](concepts/).
   </Card>
-  <Card title="Layered configuration" icon="layers">
-    Combine user, local, environment, command-line, remote, database, and custom sources while retaining provenance and editability.
+  <Card title="Layered configuration and provenance" icon="layers">
+    Combine multiple scopes or sources into one effective value while keeping where each value came from. See [Concepts](concepts/).
   </Card>
-  <Card title="Sparse writes" icon="pencil">
-    Generated patches preserve missing, default, `null`, set, and unset semantics instead of blindly rewriting the whole model.
+  <Card title="Sparse writes" icon="document">
+    Save only what changed, keeping the distinction between values that were set and values that were left alone. See [Guides](guides/).
   </Card>
-  <Card title="Schema evolution" icon="arrow-right">
-    Version models, migrate old schemas, reshape stored data, validate values, and export JSON Schema.
+  <Card title="Schema evolution and validation" icon="arrow-right">
+    Grow the settings shape over time and keep stored data readable. See [Guides](guides/).
   </Card>
-  <Card title="Production persistence" icon="approve-check">
-    Change notifications, safe saves, backups, conflict handling, comments where supported, encryption, and compression are available when needed.
+  <Card title="Change observation and persistence" icon="approve-check">
+    Observe external changes and keep persistence behavior outside application code. See [Guides](guides/).
   </Card>
-  <Card title="Broad .NET integration" icon="puzzle">
-    Use the same state model across plain .NET, DI, Microsoft Options, ASP.NET Core, Blazor, desktop UI, MAUI, Unity, Godot, R3, and NativeAOT scenarios.
-  </Card>
-</CardGrid>
-
-## One state model, every kind of .NET app
-
-<CardGrid>
-  <Card title="Plain .NET" icon="layers">
-    Initialize once with `ConfiglueApp.Initialize(...)`, then access process-wide typed state through `ConfiglueApp.GetState<T>()`.
-  </Card>
-  <Card title="Generic Host & ASP.NET Core" icon="puzzle">
-    Register Configlue through DI and inject only `IReadOnlyState<T>` or `IWritableState<T>`. Host integration can add subject-aware state for users or tenants.
-  </Card>
-  <Card title="Blazor & desktop UI" icon="pencil">
-    Use Blazor `StateReader<T>` / `StateEditor<T>` or the shared ComponentModel adapters, with host-native dispatcher integration.
-  </Card>
-  <Card title="MAUI, Unity & Godot" icon="arrow-right">
-    Keep the same state abstraction while each host supplies the correct application paths, lifecycle, storage, threading, and runtime semantics.
+  <Card title=".NET host and platform integration" icon="puzzle">
+    Use the same state model across different .NET hosts and UI frameworks. See [Integrations](integrations/).
   </Card>
 </CardGrid>
 
-## Start here
+## Where to go next
 
-New to Configlue? Start with [Getting Started](./getting-started/) for the smallest runnable example: one model, one local JSON file, one read, one save.
+Start with [Getting Started](getting-started/) for the smallest runnable setup.
 
-Start with the high-level state API. Add providers, resources, transformers, hosting packages, or lower-level configuration only when your application actually needs them. The repository [README](https://github.com/arika0093/Configlue#quick-start) remains the product pitch and install pointer; this site is the canonical tutorial and behavioral documentation.
+When you already know what you need:
+
+- [Concepts](concepts/) for the mental model behind state, sources, and writes.
+- [Guides](guides/) for task-oriented walkthroughs.
+- [Integrations](integrations/) for host and platform combinations.
+- [Reference](reference/) for contracts that API signatures alone cannot express.
