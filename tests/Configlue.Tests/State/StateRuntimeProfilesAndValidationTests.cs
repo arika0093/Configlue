@@ -319,7 +319,7 @@ public sealed partial class StateRuntimeTests
     }
 
     [Test]
-    public async Task RegistryAddClearAndDisposeWaitForQueuedNotifications()
+    public async Task RegistryDeliversOwnNotificationsInlineAndToleratesReentrantCleanup()
     {
         var services = new ServiceCollection();
         services.AddConfiglueMicrosoftOptions<AppSettings>();
@@ -334,147 +334,19 @@ public sealed partial class StateRuntimeTests
         );
         await using var serviceProvider = services.BuildServiceProvider();
         var registry = serviceProvider.GetRequiredService<IConfiglueStateRegistry<AppSettings>>();
-        var firstAdded = new TaskCompletionSource(
-            TaskCreationOptions.RunContinuationsAsynchronously
-        );
-        var releaseFirstAdded = new TaskCompletionSource(
-            TaskCreationOptions.RunContinuationsAsynchronously
-        );
-        var addOrder = new List<string>();
-        registry.StateAdded += (name, _) =>
-        {
-            if (name == "first")
-            {
-                firstAdded.TrySetResult();
-                releaseFirstAdded.Task.GetAwaiter().GetResult();
-            }
-            addOrder.Add(name);
-        };
+        var added = new List<string>();
+        var removed = new List<string>();
+        registry.StateAdded += (name, _) => added.Add(name);
+        registry.StateRemoved += removed.Add;
 
-        var firstAdd = Task.Run(async () => await registry.TryAddAsync("first"));
-        await firstAdded.Task.WaitAsync(TimeSpan.FromSeconds(5));
-        var secondAdd = Task.Run(async () => await registry.TryAddAsync("second"));
-        try
-        {
-            (
-                await Task.Run(() =>
-                    SpinWait.SpinUntil(
-                        () => registry.TryGet("second", out _),
-                        TimeSpan.FromSeconds(5)
-                    )
-                )
-            ).ShouldBeTrue();
-            await Task.Delay(TimeSpan.FromMilliseconds(50));
-            (secondAdd.IsCompleted).ShouldBeFalse();
-        }
-        finally
-        {
-            releaseFirstAdded.TrySetResult();
-        }
+        (await registry.TryAddAsync("first")).ShouldBeTrue();
+        (await registry.TryAddAsync("second")).ShouldBeTrue();
+        (await registry.TryAddAsync("first")).ShouldBeFalse();
+        (added).ShouldBe(new[] { "first", "second" });
 
-        (await Task.WhenAll(firstAdd, secondAdd)).ShouldBe(new[] { true, true });
-        (addOrder).ShouldBe(new[] { "first", "second" });
-
-        var firstRemoved = new TaskCompletionSource(
-            TaskCreationOptions.RunContinuationsAsynchronously
-        );
-        var releaseFirstRemoved = new TaskCompletionSource(
-            TaskCreationOptions.RunContinuationsAsynchronously
-        );
-        var removedNames = new List<string>();
-        registry.StateRemoved += name =>
-        {
-            if (name == "first")
-            {
-                firstRemoved.TrySetResult();
-                releaseFirstRemoved.Task.GetAwaiter().GetResult();
-            }
-            removedNames.Add(name);
-        };
-
-        var removeFirst = Task.Run(async () => await registry.TryRemoveAsync("first"));
-        await firstRemoved.Task.WaitAsync(TimeSpan.FromSeconds(5));
-        var clear = Task.Run(async () => await registry.ClearAsync());
-        try
-        {
-            (
-                await Task.Run(() =>
-                    SpinWait.SpinUntil(
-                        () => registry.StateNames.Count == 0,
-                        TimeSpan.FromSeconds(5)
-                    )
-                )
-            ).ShouldBeTrue();
-            await Task.Delay(TimeSpan.FromMilliseconds(50));
-            (clear.IsCompleted).ShouldBeFalse();
-        }
-        finally
-        {
-            releaseFirstRemoved.TrySetResult();
-        }
-
-        await Task.WhenAll(removeFirst, clear);
-        (removedNames).ShouldBe(new[] { "first", "second" });
-
-        (await registry.TryAddAsync("dispose")).ShouldBeTrue();
-        var disposedNameRemoved = new TaskCompletionSource(
-            TaskCreationOptions.RunContinuationsAsynchronously
-        );
-        var releaseDisposeNotification = new TaskCompletionSource(
-            TaskCreationOptions.RunContinuationsAsynchronously
-        );
-        registry.StateRemoved += name =>
-        {
-            if (name == "dispose")
-            {
-                disposedNameRemoved.TrySetResult();
-                releaseDisposeNotification.Task.GetAwaiter().GetResult();
-            }
-        };
-
-        var dispose = Task.Run(async () => await registry.DisposeAsync());
-        try
-        {
-            await disposedNameRemoved.Task.WaitAsync(TimeSpan.FromSeconds(5));
-            await Task.Delay(TimeSpan.FromMilliseconds(50));
-            (dispose.IsCompleted).ShouldBeFalse();
-        }
-        finally
-        {
-            releaseDisposeNotification.TrySetResult();
-        }
-
-        await dispose;
-    }
-
-    [Test]
-    public async Task RegistryNotificationsCanReenterClearAndDispose()
-    {
-        var services = new ServiceCollection();
-        services.AddConfiglueMicrosoftOptions<AppSettings>();
-        services.AddConfiglueStateRegistry<AppSettings, AppSettings.Fragment>(
-            (_, name) =>
-            {
-                var store = new InMemoryStateSource<AppSettings.Fragment>();
-                return new StateSourceSet<AppSettings.Fragment>([
-                    new StateSource<AppSettings.Fragment>(name, store, new StateSourceOptions<AppSettings.Fragment> { Writer = store, Watcher = store }),
-                ]);
-            }
-        );
-        await using var serviceProvider = services.BuildServiceProvider();
-        var registry = serviceProvider.GetRequiredService<IConfiglueStateRegistry<AppSettings>>();
-        (await registry.TryAddAsync("clear")).ShouldBeTrue();
-        registry.StateRemoved += name =>
-        {
-            if (name == "clear")
-            {
-                _ = registry.ClearAsync();
-            }
-        };
-
-        (
-            await Task.Run(async () => await registry.TryRemoveAsync("clear")).WaitAsync(TimeSpan.FromSeconds(5))
-        ).ShouldBeTrue();
+        (await registry.TryRemoveAsync("first")).ShouldBeTrue();
+        (await registry.TryRemoveAsync("first")).ShouldBeFalse();
+        (removed).ShouldBe(new[] { "first" });
 
         var listenerAfterFailureWasCalled = false;
         registry.StateAdded += (name, _) =>
@@ -493,7 +365,22 @@ public sealed partial class StateRuntimeTests
         };
         (await registry.TryAddAsync("listener-error")).ShouldBeTrue();
         (listenerAfterFailureWasCalled).ShouldBeTrue();
-        (await registry.TryRemoveAsync("listener-error")).ShouldBeTrue();
+
+        await registry.ClearAsync();
+        (removed.Skip(1).OrderBy(static name => name))
+            .ShouldBe(new[] { "listener-error", "second" });
+
+        (await registry.TryAddAsync("reentrant")).ShouldBeTrue();
+        registry.StateRemoved += name =>
+        {
+            if (name == "reentrant")
+            {
+                _ = registry.ClearAsync();
+            }
+        };
+        (
+            await registry.TryRemoveAsync("reentrant").AsTask().WaitAsync(TimeSpan.FromSeconds(5))
+        ).ShouldBeTrue();
 
         (await registry.TryAddAsync("dispose")).ShouldBeTrue();
         registry.StateRemoved += name =>
@@ -503,9 +390,8 @@ public sealed partial class StateRuntimeTests
                 _ = registry.DisposeAsync();
             }
         };
-
         (
-            await Task.Run(async () => await registry.TryRemoveAsync("dispose")).WaitAsync(TimeSpan.FromSeconds(5))
+            await registry.TryRemoveAsync("dispose").AsTask().WaitAsync(TimeSpan.FromSeconds(5))
         ).ShouldBeTrue();
     }
 }

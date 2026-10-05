@@ -134,7 +134,7 @@ public sealed partial class ConfiglueFacadeSourceTests
         });
         var registry = context.GetStateRegistry<AppSettings>();
         (await registry.TryAddAsync("late")).ShouldBeTrue();
-        var resource = ((ConfiglueFacadeStateRegistry<AppSettings>)registry)
+        var resource = ((ConfiglueOwnedStateRegistry<AppSettings>)registry)
             .GetOwnedResourcesForTests("late")
             .OfType<FileResource>()
             .Single();
@@ -182,7 +182,7 @@ public sealed partial class ConfiglueFacadeSourceTests
         await profiles.CreateProfileAsync("context-end", copyFrom: "default");
 
         var registry =
-            (ConfiglueFacadeStateRegistry<AppSettings>)context.GetStateRegistry<AppSettings>();
+            (ConfiglueOwnedStateRegistry<AppSettings>)context.GetStateRegistry<AppSettings>();
         var removedResource = registry
             .GetOwnedResourcesForTests("removed")
             .OfType<FileResource>()

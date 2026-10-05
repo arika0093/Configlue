@@ -282,17 +282,22 @@ public static class ConfiglueServiceCollectionExtensions
         ArgumentNullException.ThrowIfNull(sourceSetFactory);
 
         services.AddSingleton<IConfiglueStateRegistry<TModel>>(
-            provider => new ConfiglueStateRegistry<TModel, TFragment>(
-                stateName => new ConfiglueRuntime<TModel, TFragment>(
-                    sourceSetFactory(provider, stateName),
-                    writePlan,
-                    provider.GetServices<IStateSchemaMigration<TFragment>>(),
-                    provider.GetServices<IConfiglueValidator<TModel>>(),
-                    validateDataAnnotations,
-                    onChangeDebounce,
-                    stateName: stateName,
-                    writeConflictResolution: writeConflictResolution
-                )
+            provider => new ConfiglueOwnedStateRegistry<TModel>(
+                stateName =>
+                    (
+                        new ConfiglueRuntime<TModel, TFragment>(
+                            sourceSetFactory(provider, stateName),
+                            writePlan,
+                            provider.GetServices<IStateSchemaMigration<TFragment>>(),
+                            provider.GetServices<IConfiglueValidator<TModel>>(),
+                            validateDataAnnotations,
+                            onChangeDebounce,
+                            stateName: stateName,
+                            writeConflictResolution: writeConflictResolution
+                        ),
+                        []
+                    ),
+                []
             )
         );
         return services;

@@ -783,7 +783,7 @@ internal sealed class ConfiglueModelRegistration<TModel>(ConfiglueModelBuilder<T
         IReadOnlyList<string> reservedNames,
         IConfiglueHostPaths hostPaths
     ) =>
-        new ConfiglueFacadeStateRegistry<TModel>(
+        new ConfiglueOwnedStateRegistry<TModel>(
             name =>
             {
                 var resources = new List<object>();

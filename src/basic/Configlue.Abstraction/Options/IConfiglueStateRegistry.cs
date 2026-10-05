@@ -13,15 +13,18 @@ namespace Configlue;
 /// Subjects never select state instances. A subject scopes operations inside one state instance
 /// and affects provider addressing; see <see cref="ISubjectState{T}"/>.
 /// </para>
-/// Notifications are delivered in state-transition order. Built-in registries wait for callbacks
-/// associated with an operation's transitions before that operation completes. Calls made
-/// reentrantly from a callback, or while notifications are deferred, may complete before their
-/// queued callbacks; the active dispatcher or deferral scope delivers them afterward. A listener
-/// exception is logged and does not prevent other listeners from receiving the notification. A
-/// custom registry used by a state manager should implement
-/// <see cref="IConfiglueStateRegistryNotificationDeferrer{T}"/> when its listeners reenter that
-/// manager. Without that capability, callbacks may run synchronously while the manager is in an
-/// operation, so listeners must not synchronously wait for another manager operation.
+/// Notifications are delivered for an operation's own transitions. Built-in registries
+/// apply the mutation and dispose retired runtimes first, then deliver that operation's
+/// callbacks synchronously before the operation completes (unless notifications are
+/// deferred, in which case delivery waits for the deferral scope). There is no global
+/// ordering across concurrent operations, and an operation never waits for another
+/// operation's callbacks. A listener exception is logged and does not prevent other
+/// listeners from receiving the notification. Listeners must be quick and must not
+/// synchronously wait for registry operations. A custom registry used by a state manager
+/// should implement <see cref="IConfiglueStateRegistryNotificationDeferrer{T}"/> when its
+/// listeners reenter that manager. Without that capability, callbacks run while the manager
+/// is in an operation, so listeners must not synchronously wait for another manager
+/// operation.
 /// Advanced application API for dynamic named states.
 /// </remarks>
 [System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Advanced)]
@@ -37,13 +40,13 @@ public interface IConfiglueStateRegistry<T> : IAsyncDisposable
     bool TryGet(string stateName, out IWritableState<T>? state);
 
     /// <summary>Creates and registers a state instance if its name is not already in use.</summary>
-    /// <remarks>Waits asynchronously for its add notification unless called reentrantly or while notifications are deferred.</remarks>
+    /// <remarks>Delivers its add notification before completing unless notifications are deferred.</remarks>
     ValueTask<bool> TryAddAsync(string stateName);
 
-    /// <summary>Removes a state instance and waits for its runtime, watchers, and notification to complete.</summary>
+    /// <summary>Removes a state instance, disposes its runtime and owned resources, then delivers its notification.</summary>
     ValueTask<bool> TryRemoveAsync(string stateName);
 
-    /// <summary>Removes every state instance and waits for its runtimes, watchers, and notifications to complete.</summary>
+    /// <summary>Removes every state instance, disposes their runtimes and owned resources, then delivers their notifications.</summary>
     ValueTask ClearAsync();
 
     /// <summary>Raised after a state instance is registered.</summary>
