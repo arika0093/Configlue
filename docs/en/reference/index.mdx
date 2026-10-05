@@ -45,7 +45,7 @@ Write-target behavior:
 - **Writes to** the configured writable contribution (for example, the local file), not necessarily the source that won the read.
 - **Does not** silently overwrite a winning higher layer. When higher-priority contributions prevent the patch from producing its requested effective values, `SaveAsync` throws `StateConflictException`.
 - **Does not** rewrite untouched members. Members absent from the patch keep their layered behavior.
-- Concurrent-write conflicts fail instead of overwriting. Do not disable conflict detection to make the error disappear.
+- Concurrent-write conflicts fail instead of overwriting within the guaranteed scope (in-process concurrency and sequential cross-process use). Concurrent cross-process conditional writes are last-writer-wins; coordinate externally when a single writer is required.
 
 ## Change observation
 
@@ -60,7 +60,7 @@ Operational contract for the normal single-file path:
 
 - **Does:** read a missing file as model defaults.
 - **Does:** create the file (including its directory) on the first save.
-- **Does:** replace the file atomically (temporary file plus rename) and keep one backup generation.
+- **Does:** replace the file atomically (temporary file plus rename) and keep one backup generation (most recently replaced content only; never restored automatically).
 - **Does:** watch the file; external edits reload and `OnChange` listeners observe new effective values.
 - **Does:** accept comments on read; persist plain simple-layout JSON (`{ "$version": 1, ... }`).
 - **Throws:** the JSON format exception on malformed-document reads instead of silently returning defaults; the watcher reports the failure and recovers on the next valid write.
