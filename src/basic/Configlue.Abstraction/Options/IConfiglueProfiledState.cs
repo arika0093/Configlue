@@ -13,11 +13,16 @@ namespace Configlue;
 /// identity already exists, but creating a profile never reserves a name beyond that identity.
 /// </para>
 /// <para>
-/// The profile catalog is the source of truth for which named states are profiles and which is
-/// active. The dynamic-state registry is only a materialization cache; unloading a runtime from
-/// the registry does not remove the persisted profile, and reading a profile rematerializes its
-/// runtime when needed. Removing a profile removes its catalog membership and may unload the
-/// runtime, but leaves the backing configuration data available for later materialization.
+/// The profile catalog is ordinary persisted configuration holding the set of names plus one
+/// active name. The dynamic-state registry is only a materialization cache: profile runtimes
+/// are created on demand, unloading a runtime never removes catalog membership, and removal
+/// unloads the runtime while leaving backing configuration data available for later
+/// materialization. Operations use ordinary optimistic concurrency: a lost race throws
+/// <c>StateConflictException</c> without corrupting committed data and is safe to retry.
+/// Catalog writes, registry events, and user callbacks are not coordinated as one
+/// transaction. <c>ActiveProfileChanged</c> is best-effort (raised after the changing
+/// operation completes, without ordering guarantees across concurrent operations), and
+/// registry listeners must not synchronously wait for profile operations.
 /// </para>
 /// </remarks>
 /// <remarks>Advanced application API for profiled state.</remarks>
@@ -27,7 +32,7 @@ public interface IConfiglueProfiledState<TModel>
     /// <summary>The configured profile name that cannot be removed.</summary>
     string DefaultProfileName { get; }
 
-    /// <summary>Raised after the active profile changes.</summary>
+    /// <summary>Raised after the active profile changes (best-effort, unordered).</summary>
     event Action<string>? ActiveProfileChanged;
 
     /// <summary>Subscribes to changes in the active profile value and active-profile selection.</summary>
@@ -69,7 +74,7 @@ public interface IConfiglueProfiledState<TModel>
         CancellationToken cancellationToken = default
     );
 
-    /// <summary>Removes a profile's catalog membership and may unload its runtime. The backing configuration data is retained; the default cannot be removed.</summary>
+    /// <summary>Removes a profile's catalog membership and unloads its runtime on a best-effort basis. The backing configuration data is retained; the default cannot be removed.</summary>
     ValueTask RemoveProfileAsync(string profileName, CancellationToken cancellationToken = default);
 
     /// <summary>Persists a new active profile selection.</summary>

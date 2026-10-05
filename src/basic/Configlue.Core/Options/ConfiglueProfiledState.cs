@@ -6,6 +6,24 @@ namespace Configlue;
 /// <summary>Manages profile state instances using a persisted catalog.</summary>
 /// <typeparam name="TModel">The generated configuration model.</typeparam>
 /// <typeparam name="TFragment">The model's generated sparse fragment.</typeparam>
+/// <remarks>
+/// Minimal concept: the catalog is ordinary persisted configuration holding a set of
+/// profile names plus one active name. The runtime registry is only a materialization
+/// cache: profile runtimes are created on demand and removal unloads the runtime while
+/// leaving backing configuration data intact. Operations use ordinary optimistic
+/// concurrency (a conditional catalog write; <see cref="StateConflictException"/> on a
+/// lost race, safe to retry) and never coordinate catalog storage, registry events,
+/// and user callbacks as one transaction. Registry listeners run synchronously on the
+/// mutating caller's thread and must not synchronously wait for profile operations.
+/// <see cref="ActiveProfileChanged"/> is best-effort: raised once after the operation
+/// that changed the active profile completes, without ordering guarantees across
+/// concurrent operations. Exceptions in listeners are logged and suppressed.
+/// Loads fill the registry cache for catalog names (add-missing only, best-effort) so
+/// profile instances keep composing with dynamic named states by
+/// <c>(TModel, StateName)</c>. Unloaded or removed runtimes are never reaped here;
+/// removal unloads on a best-effort basis and any missing runtime rematerializes
+/// from retained backing data when requested.
+/// </remarks>
 internal sealed partial class ConfiglueProfiledState<TModel, TFragment>
     : IConfiglueProfiledState<TModel>,
         IDisposable,
@@ -17,20 +35,13 @@ internal sealed partial class ConfiglueProfiledState<TModel, TFragment>
     private readonly StateSource<ConfiglueProfileCatalog> _catalogSource;
     private readonly string _defaultProfileName;
     private readonly IReadOnlyList<object> _ownedResources;
-    private readonly HashSet<string> _catalogRuntimeNames = new(StringComparer.Ordinal);
     private readonly SemaphoreSlim _gate = new(1, 1);
-    private readonly object _activeProfileNotificationGate = new();
     private readonly object _subscriptionGate = new();
-    private readonly Queue<string> _pendingActiveProfileNotifications = new();
     private readonly HashSet<ActiveProfileValueSubscription> _subscriptions = [];
-    private readonly CancellationTokenSource _watcherCancellation = new();
     private ConfiglueProfileCatalog? _catalog;
-    private string? _catalogRevision;
-    private Task? _catalogWatchTask;
+    private ConfiglueProfileCatalog? _ensuredCatalog;
     private Task? _disposeTask;
     private int _disposed;
-    private bool _dispatchingActiveProfileNotifications;
-    private bool _initialized;
 
     /// <summary>Creates a profile manager backed by the supplied catalog source.</summary>
     public ConfiglueProfiledState(
@@ -103,9 +114,8 @@ internal sealed partial class ConfiglueProfiledState<TModel, TFragment>
             }
 
             Volatile.Write(ref _disposed, 1);
-            _watcherCancellation.Cancel();
             var subscriptions = _subscriptions.ToArray();
-            disposeTask = DisposeCoreAsync(_catalogWatchTask, subscriptions);
+            disposeTask = DisposeCoreAsync(subscriptions);
             _disposeTask = disposeTask;
         }
 
@@ -117,26 +127,10 @@ internal sealed partial class ConfiglueProfiledState<TModel, TFragment>
         CancellationToken cancellationToken = default
     )
     {
-        await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
-        IConfiglueStateRegistryNotificationDeferral<TModel>? notificationScope = null;
-        try
-        {
-            notificationScope = DeferRegistryNotifications();
-            await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
-            return Array.AsReadOnly(_catalog!.ProfileNames.ToArray());
-        }
-        finally
-        {
-            _gate.Release();
-            try
-            {
-                notificationScope?.Dispose();
-            }
-            finally
-            {
-                DrainPendingActiveProfileNotifications();
-            }
-        }
+        var (catalog, notification) = await LoadUnderGateAsync(cancellationToken)
+            .ConfigureAwait(false);
+        NotifyAfterGate(notification);
+        return Array.AsReadOnly(catalog.ProfileNames.ToArray());
     }
 
     /// <inheritdoc />
@@ -144,26 +138,10 @@ internal sealed partial class ConfiglueProfiledState<TModel, TFragment>
         CancellationToken cancellationToken = default
     )
     {
-        await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
-        IConfiglueStateRegistryNotificationDeferral<TModel>? notificationScope = null;
-        try
-        {
-            notificationScope = DeferRegistryNotifications();
-            await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
-            return _catalog!.ActiveProfileName!;
-        }
-        finally
-        {
-            _gate.Release();
-            try
-            {
-                notificationScope?.Dispose();
-            }
-            finally
-            {
-                DrainPendingActiveProfileNotifications();
-            }
-        }
+        var (catalog, notification) = await LoadUnderGateAsync(cancellationToken)
+            .ConfigureAwait(false);
+        NotifyAfterGate(notification);
+        return catalog.ActiveProfileName!;
     }
 
     /// <inheritdoc />
@@ -173,27 +151,23 @@ internal sealed partial class ConfiglueProfiledState<TModel, TFragment>
     )
     {
         ValidateProfileName(profileName);
+        ConfiglueProfileCatalog catalog;
+        string? notification;
+        IWritableState<TModel> runtime;
         await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
-        IConfiglueStateRegistryNotificationDeferral<TModel>? notificationScope = null;
         try
         {
-            notificationScope = DeferRegistryNotifications();
-            await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
-            EnsureProfileExists(profileName);
-            return await MaterializeAsync(profileName).ConfigureAwait(false);
+            (catalog, notification) = await LoadCatalogLockedAsync(cancellationToken)
+                .ConfigureAwait(false);
+            EnsureProfileExists(catalog, profileName);
+            runtime = await MaterializeAsync(profileName).ConfigureAwait(false);
         }
         finally
         {
             _gate.Release();
-            try
-            {
-                notificationScope?.Dispose();
-            }
-            finally
-            {
-                DrainPendingActiveProfileNotifications();
-            }
         }
+        NotifyAfterGate(notification);
+        return runtime;
     }
 
     /// <inheritdoc />
@@ -201,26 +175,23 @@ internal sealed partial class ConfiglueProfiledState<TModel, TFragment>
         CancellationToken cancellationToken = default
     )
     {
+        ValidateProfileName(_defaultProfileName);
+        ConfiglueProfileCatalog catalog;
+        string? notification;
+        IWritableState<TModel> runtime;
         await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
-        IConfiglueStateRegistryNotificationDeferral<TModel>? notificationScope = null;
         try
         {
-            notificationScope = DeferRegistryNotifications();
-            await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
-            return await MaterializeAsync(_catalog!.ActiveProfileName!).ConfigureAwait(false);
+            (catalog, notification) = await LoadCatalogLockedAsync(cancellationToken)
+                .ConfigureAwait(false);
+            runtime = await MaterializeAsync(catalog.ActiveProfileName!).ConfigureAwait(false);
         }
         finally
         {
             _gate.Release();
-            try
-            {
-                notificationScope?.Dispose();
-            }
-            finally
-            {
-                DrainPendingActiveProfileNotifications();
-            }
         }
+        NotifyAfterGate(notification);
+        return runtime;
     }
 
     /// <inheritdoc />
@@ -245,13 +216,17 @@ internal sealed partial class ConfiglueProfiledState<TModel, TFragment>
             ValidateProfileName(copyFrom);
         }
 
+        string? notification = null;
         await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
-        IConfiglueStateRegistryNotificationDeferral<TModel>? notificationScope = null;
+        var addedRuntime = false;
         try
         {
-            notificationScope = DeferRegistryNotifications();
-            await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
-            if (_catalog!.ProfileNames.Contains(profileName, StringComparer.Ordinal))
+            ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) != 0, this);
+            var (catalog, _, externalNotification) = await ReadCatalogAsync(cancellationToken)
+                .ConfigureAwait(false);
+            notification = externalNotification;
+            await EnsureRuntimesLockedAsync(catalog).ConfigureAwait(false);
+            if (catalog.ProfileNames.Contains(profileName, StringComparer.Ordinal))
             {
                 throw new InvalidOperationException($"The profile '{profileName}' already exists.");
             }
@@ -260,7 +235,7 @@ internal sealed partial class ConfiglueProfiledState<TModel, TFragment>
             var hasSourceValue = false;
             if (copyFrom is not null)
             {
-                EnsureProfileExists(copyFrom);
+                EnsureProfileExists(catalog, copyFrom);
                 var sourceRuntime = await MaterializeAsync(copyFrom).ConfigureAwait(false);
                 sourceValue = await sourceRuntime
                     .GetValueAsync(cancellationToken)
@@ -268,31 +243,39 @@ internal sealed partial class ConfiglueProfiledState<TModel, TFragment>
                 hasSourceValue = true;
             }
 
-            var originalActiveProfileName = _catalog.ActiveProfileName;
-            var updated = Clone(_catalog);
+            var updated = Clone(catalog);
             updated.ProfileNames.Add(profileName);
             if (string.IsNullOrWhiteSpace(updated.ActiveProfileName))
             {
                 updated.ActiveProfileName = profileName;
             }
 
-            // A dynamic named state already materialized in the registry is adopted into the
-            // catalog instead of failing, provided it does not conflict with a fixed StateName.
-            var adopted = _registry.TryGet(profileName, out var existingRuntime);
+            // An already-materialized dynamic state is adopted; a fixed StateName is a conflict.
             IWritableState<TModel> createdRuntime;
-            if (adopted)
+            if (_registry.TryGet(profileName, out var existing) && existing is not null)
             {
-                createdRuntime = existingRuntime!;
+                createdRuntime = existing;
             }
             else
             {
                 if (!await _registry.TryAddAsync(profileName).ConfigureAwait(false))
                 {
-                    throw new InvalidOperationException(
-                        $"The profile name '{profileName}' conflicts with a fixed StateName."
-                    );
+                    if (_registry.TryGet(profileName, out existing) && existing is not null)
+                    {
+                        createdRuntime = existing;
+                    }
+                    else
+                    {
+                        throw new InvalidOperationException(
+                            $"The profile name '{profileName}' conflicts with a fixed StateName."
+                        );
+                    }
                 }
-                createdRuntime = _registry.Get(profileName);
+                else
+                {
+                    createdRuntime = _registry.Get(profileName);
+                    addedRuntime = true;
+                }
             }
 
             try
@@ -306,64 +289,45 @@ internal sealed partial class ConfiglueProfiledState<TModel, TFragment>
                     await session.CommitAsync(cancellationToken).ConfigureAwait(false);
                 }
 
-                await PersistCatalogAsync(updated, cancellationToken).ConfigureAwait(false);
-                _catalogRuntimeNames.Add(profileName);
-                if (
-                    !string.Equals(
-                        originalActiveProfileName,
-                        updated.ActiveProfileName,
-                        StringComparison.Ordinal
-                    )
-                )
+                // Profile values may share the catalog's physical resource and advance its
+                // revision. Refresh the revision while the logical catalog still matches
+                // before attempting the conditional write.
+                var freshRevision = await RefreshRevisionAsync(catalog, cancellationToken)
+                    .ConfigureAwait(false);
+                await WriteCatalogAsync(updated, freshRevision, cancellationToken)
+                    .ConfigureAwait(false);
+                _catalog = updated;
+                _ensuredCatalog = updated;
+                if (ActiveChanged(catalog, updated))
                 {
-#if NETSTANDARD2_0
-                    EnqueueActiveProfileNotification(updated.ActiveProfileName!);
-#else
-                    EnqueueActiveProfileNotification(updated.ActiveProfileName);
-#endif
+                    notification = updated.ActiveProfileName;
                 }
             }
-            catch (Exception creationException)
+            catch
             {
-                // A writer may fail after committing. Force the next manager operation to
-                // reread the catalog before trusting either the old or proposed state.
-                _initialized = false;
-                if (adopted)
+                // The catalog is unchanged on failure; drop the optimistic cache so the
+                // next operation rereads. A writer may report failure after committing,
+                // so never trust the proposed catalog here.
+                _catalog = null;
+                if (addedRuntime)
                 {
-                    // The runtime existed before this operation and remains an ordinary dynamic state.
-                    throw;
+                    try
+                    {
+                        await _registry.TryRemoveAsync(profileName).ConfigureAwait(false);
+                    }
+                    catch
+                    {
+                        // Preserve the original failure; cleanup is best-effort.
+                    }
                 }
-
-                try
-                {
-                    await _registry.TryRemoveAsync(profileName).ConfigureAwait(false);
-                }
-                catch (Exception cleanupException)
-                {
-                    notificationScope?.Cancel(createdRuntime);
-                    throw new AggregateException(
-                        $"Profile '{profileName}' could not be created and its runtime could not be cleaned up.",
-                        creationException,
-                        cleanupException
-                    );
-                }
-                notificationScope?.Cancel(createdRuntime);
-
                 throw;
             }
         }
         finally
         {
             _gate.Release();
-            try
-            {
-                notificationScope?.Dispose();
-            }
-            finally
-            {
-                DrainPendingActiveProfileNotifications();
-            }
         }
+        NotifyAfterGate(notification);
     }
 
     /// <inheritdoc />
@@ -373,49 +337,64 @@ internal sealed partial class ConfiglueProfiledState<TModel, TFragment>
     )
     {
         ValidateProfileName(profileName);
+        string? notification = null;
         await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
-        IConfiglueStateRegistryNotificationDeferral<TModel>? notificationScope = null;
         try
         {
-            notificationScope = DeferRegistryNotifications();
-            await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
-            EnsureProfileExists(profileName);
+            ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) != 0, this);
+            var (catalog, revision, externalNotification) = await ReadCatalogAsync(
+                    cancellationToken
+                )
+                .ConfigureAwait(false);
+            notification = externalNotification;
+            await EnsureRuntimesLockedAsync(catalog).ConfigureAwait(false);
+            EnsureProfileExists(catalog, profileName);
             if (string.Equals(profileName, _defaultProfileName, StringComparison.Ordinal))
             {
                 throw new InvalidOperationException("The default profile cannot be removed.");
             }
 
-            var updated = Clone(_catalog!);
-            string? changedActiveProfile = null;
+            var updated = Clone(catalog);
             updated.ProfileNames.RemoveAll(name =>
                 string.Equals(name, profileName, StringComparison.Ordinal)
             );
             if (string.Equals(updated.ActiveProfileName, profileName, StringComparison.Ordinal))
             {
                 updated.ActiveProfileName = updated.ProfileNames[0];
-                changedActiveProfile = updated.ActiveProfileName;
             }
 
-            await PersistCatalogAsync(updated, cancellationToken).ConfigureAwait(false);
-            if (changedActiveProfile is not null)
+            try
             {
-                EnqueueActiveProfileNotification(changedActiveProfile);
+                await WriteCatalogAsync(updated, revision, cancellationToken).ConfigureAwait(false);
             }
-            await _registry.TryRemoveAsync(profileName).ConfigureAwait(false);
-            _catalogRuntimeNames.Remove(profileName);
+            catch
+            {
+                _catalog = null;
+                throw;
+            }
+            _catalog = updated;
+            _ensuredCatalog = updated;
+            if (ActiveChanged(catalog, updated))
+            {
+                notification = updated.ActiveProfileName;
+            }
+
+            // Best-effort cache unload; backing configuration data is retained and the
+            // runtime rematerializes on demand.
+            try
+            {
+                await _registry.TryRemoveAsync(profileName).ConfigureAwait(false);
+            }
+            catch (Exception exception)
+            {
+                Trace.TraceError("Configlue profile runtime unload failed: {0}", exception);
+            }
         }
         finally
         {
             _gate.Release();
-            try
-            {
-                notificationScope?.Dispose();
-            }
-            finally
-            {
-                DrainPendingActiveProfileNotifications();
-            }
         }
+        NotifyAfterGate(notification);
     }
 
     /// <inheritdoc />
@@ -425,35 +404,46 @@ internal sealed partial class ConfiglueProfiledState<TModel, TFragment>
     )
     {
         ValidateProfileName(profileName);
+        string? notification = null;
         await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
-        IConfiglueStateRegistryNotificationDeferral<TModel>? notificationScope = null;
         try
         {
-            notificationScope = DeferRegistryNotifications();
-            await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
-            EnsureProfileExists(profileName);
-            if (string.Equals(profileName, _catalog!.ActiveProfileName, StringComparison.Ordinal))
+            ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) != 0, this);
+            var (catalog, revision, externalNotification) = await ReadCatalogAsync(
+                    cancellationToken
+                )
+                .ConfigureAwait(false);
+            notification = externalNotification;
+            await EnsureRuntimesLockedAsync(catalog).ConfigureAwait(false);
+            EnsureProfileExists(catalog, profileName);
+            if (string.Equals(profileName, catalog.ActiveProfileName, StringComparison.Ordinal))
             {
+                _catalog = catalog;
+                _ensuredCatalog = catalog;
+                notification = null;
                 return;
             }
 
-            var updated = Clone(_catalog);
+            var updated = Clone(catalog);
             updated.ActiveProfileName = profileName;
-            await PersistCatalogAsync(updated, cancellationToken).ConfigureAwait(false);
-            EnqueueActiveProfileNotification(profileName);
+            try
+            {
+                await WriteCatalogAsync(updated, revision, cancellationToken).ConfigureAwait(false);
+            }
+            catch
+            {
+                _catalog = null;
+                throw;
+            }
+            _catalog = updated;
+            _ensuredCatalog = updated;
+            notification = profileName;
         }
         finally
         {
             _gate.Release();
-            try
-            {
-                notificationScope?.Dispose();
-            }
-            finally
-            {
-                DrainPendingActiveProfileNotifications();
-            }
         }
+        NotifyAfterGate(notification);
     }
 
     private void RemoveSubscription(ActiveProfileValueSubscription subscription)
@@ -464,35 +454,207 @@ internal sealed partial class ConfiglueProfiledState<TModel, TFragment>
         }
     }
 
-    private async Task SynchronizeRegistryAsync(ConfiglueProfileCatalog catalog)
+    private async Task<(ConfiglueProfileCatalog Catalog, string? Notification)> LoadUnderGateAsync(
+        CancellationToken cancellationToken
+    )
     {
-        var expected = new HashSet<string>(catalog.ProfileNames, StringComparer.Ordinal);
-        foreach (var profileName in catalog.ProfileNames)
+        await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
         {
-            if (
-                !_catalogRuntimeNames.Contains(profileName)
-                && !_registry.TryGet(profileName, out _)
-                && !await _registry.TryAddAsync(profileName).ConfigureAwait(false)
-                && !_registry.TryGet(profileName, out _)
-            )
-            {
-                throw new InvalidDataException(
-                    $"Profile '{profileName}' conflicts with a fixed StateName or could not be registered."
-                );
-            }
-            _catalogRuntimeNames.Add(profileName);
+            ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) != 0, this);
+            var (catalog, _, notification) = await ReadCatalogAsync(cancellationToken)
+                .ConfigureAwait(false);
+            _catalog = catalog;
+            await EnsureRuntimesLockedAsync(catalog).ConfigureAwait(false);
+            return (catalog, notification);
         }
-
-        foreach (
-            var registeredName in _catalogRuntimeNames
-                .Where(name => !expected.Contains(name))
-                .ToArray()
-        )
+        finally
         {
-            await _registry.TryRemoveAsync(registeredName).ConfigureAwait(false);
-            _catalogRuntimeNames.Remove(registeredName);
+            _gate.Release();
         }
     }
+
+    private async Task<(
+        ConfiglueProfileCatalog Catalog,
+        string? Notification
+    )> LoadCatalogLockedAsync(CancellationToken cancellationToken)
+    {
+        ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) != 0, this);
+        var (catalog, _, notification) = await ReadCatalogAsync(cancellationToken)
+            .ConfigureAwait(false);
+        _catalog = catalog;
+        await EnsureRuntimesLockedAsync(catalog).ConfigureAwait(false);
+        return (catalog, notification);
+    }
+
+    private async Task<(
+        ConfiglueProfileCatalog Catalog,
+        string? Revision,
+        string? ActiveChangedNotification
+    )> ReadCatalogAsync(CancellationToken cancellationToken)
+    {
+        var previousActive = _catalog?.ActiveProfileName;
+        for (var attempt = 0; attempt < 5; attempt++)
+        {
+            var result = await _catalogSource
+                .Reader.ReadAsync(ConfiglueResourceContext.Default, cancellationToken)
+                .ConfigureAwait(false);
+            if (result.Status == StateReadStatus.Success)
+            {
+                if (result.Value is null)
+                {
+                    throw new InvalidDataException(
+                        "The profile catalog source returned a null catalog."
+                    );
+                }
+
+                var catalog = Normalize(result.Value, out var needsWrite);
+                if (!needsWrite)
+                {
+                    return (catalog, result.Revision, ChangedNotification(previousActive, catalog));
+                }
+
+                try
+                {
+                    var writeResult = await _catalogSource
+                        .Writer!.WriteAsync(
+                            ConfiglueResourceContext.Default,
+                            new StateWriteRequest<ConfiglueProfileCatalog>(
+                                catalog,
+                                Condition: RevisionCondition.FromRevision(result.Revision)
+                            ),
+                            cancellationToken
+                        )
+                        .ConfigureAwait(false);
+                    return (
+                        catalog,
+                        writeResult.Revision,
+                        ChangedNotification(previousActive, catalog)
+                    );
+                }
+                catch (StateConflictException) when (attempt < 4)
+                {
+                    continue;
+                }
+            }
+            else if (result.Status == StateReadStatus.NotFound)
+            {
+                var catalog = CreateDefaultCatalog();
+                try
+                {
+                    var writeResult = await _catalogSource
+                        .Writer!.WriteAsync(
+                            ConfiglueResourceContext.Default,
+                            new StateWriteRequest<ConfiglueProfileCatalog>(
+                                catalog,
+                                Condition: RevisionCondition.FromRevision(result.Revision)
+                            ),
+                            cancellationToken
+                        )
+                        .ConfigureAwait(false);
+                    return (
+                        catalog,
+                        writeResult.Revision,
+                        ChangedNotification(previousActive, catalog)
+                    );
+                }
+                catch (StateConflictException) when (attempt < 4)
+                {
+                    continue;
+                }
+            }
+            else
+            {
+                throw new InvalidOperationException(
+                    $"The profile catalog could not be read: {result.Status}."
+                );
+            }
+        }
+
+        throw new StateConflictException(
+            "The profile catalog changed repeatedly while it was being read."
+        );
+    }
+
+    private async Task<string?> RefreshRevisionAsync(
+        ConfiglueProfileCatalog baseCatalog,
+        CancellationToken cancellationToken
+    )
+    {
+        var current = await _catalogSource
+            .Reader.ReadAsync(ConfiglueResourceContext.Default, cancellationToken)
+            .ConfigureAwait(false);
+        if (current.Status != StateReadStatus.Success || current.Value is null)
+        {
+            _catalog = null;
+            throw new StateConflictException(
+                "The profile catalog changed before it could be updated."
+            );
+        }
+
+        var normalized = Normalize(current.Value, out _);
+        if (!CatalogEquals(normalized, baseCatalog))
+        {
+            _catalog = normalized;
+            throw new StateConflictException("The profile catalog was updated by another process.");
+        }
+
+        return current.Revision;
+    }
+
+    private static bool CatalogEquals(
+        ConfiglueProfileCatalog left,
+        ConfiglueProfileCatalog right
+    ) =>
+        left.ProfileNames.SequenceEqual(right.ProfileNames, StringComparer.Ordinal)
+        && string.Equals(left.ActiveProfileName, right.ActiveProfileName, StringComparison.Ordinal);
+
+    private async Task WriteCatalogAsync(
+        ConfiglueProfileCatalog catalog,
+        string? revision,
+        CancellationToken cancellationToken
+    )
+    {
+        try
+        {
+            await _catalogSource
+                .Writer!.WriteAsync(
+                    ConfiglueResourceContext.Default,
+                    new StateWriteRequest<ConfiglueProfileCatalog>(
+                        catalog,
+                        Condition: RevisionCondition.FromRevision(revision)
+                    ),
+                    cancellationToken
+                )
+                .ConfigureAwait(false);
+        }
+        catch (StateConflictException)
+        {
+            _catalog = null;
+            throw new StateConflictException("The profile catalog was updated by another process.");
+        }
+        catch
+        {
+            // A writer may report failure after committing; force a reread next time.
+            _catalog = null;
+            throw;
+        }
+    }
+
+    private static string? ChangedNotification(
+        string? previousActive,
+        ConfiglueProfileCatalog catalog
+    ) =>
+        previousActive is not null
+        && !string.Equals(previousActive, catalog.ActiveProfileName, StringComparison.Ordinal)
+            ? catalog.ActiveProfileName
+            : null;
+
+    private static bool ActiveChanged(
+        ConfiglueProfileCatalog before,
+        ConfiglueProfileCatalog after
+    ) =>
+        !string.Equals(before.ActiveProfileName, after.ActiveProfileName, StringComparison.Ordinal);
 
     private ConfiglueProfileCatalog Normalize(ConfiglueProfileCatalog source, out bool changed)
     {
@@ -540,16 +702,37 @@ internal sealed partial class ConfiglueProfiledState<TModel, TFragment>
     private ConfiglueProfileCatalog CreateDefaultCatalog() =>
         new() { ProfileNames = [_defaultProfileName], ActiveProfileName = _defaultProfileName };
 
-    private void EnsureProfileExists(string profileName)
+    private static void EnsureProfileExists(ConfiglueProfileCatalog catalog, string profileName)
     {
-        if (!_catalog!.ProfileNames.Contains(profileName, StringComparer.Ordinal))
+        if (!catalog.ProfileNames.Contains(profileName, StringComparer.Ordinal))
         {
             throw new KeyNotFoundException($"The profile '{profileName}' does not exist.");
         }
     }
 
-    // The registry is a materialization cache; the catalog is the source of truth. Rematerialize
-    // a catalog-managed named state whose runtime was unloaded from the registry.
+    // The registry is a materialization cache; the catalog is the source of truth.
+    // A missing runtime is recreated on demand from retained backing data.
+    // Loads additionally fill the cache for every catalog name (add-missing only,
+    // best-effort) so reopened contexts keep resolving profiles by (TModel, StateName).
+    // Entries are never reaped here: explicit removal unloads on a best-effort basis.
+    private async Task EnsureRuntimesLockedAsync(ConfiglueProfileCatalog catalog)
+    {
+        if (_ensuredCatalog is not null && CatalogEquals(_ensuredCatalog, catalog))
+        {
+            return;
+        }
+
+        foreach (var profileName in catalog.ProfileNames)
+        {
+            if (!_registry.TryGet(profileName, out _))
+            {
+                await _registry.TryAddAsync(profileName).ConfigureAwait(false);
+            }
+        }
+
+        _ensuredCatalog = catalog;
+    }
+
     private async ValueTask<IWritableState<TModel>> MaterializeAsync(string profileName)
     {
         if (_registry.TryGet(profileName, out var existing) && existing is not null)
@@ -579,62 +762,26 @@ internal sealed partial class ConfiglueProfiledState<TModel, TFragment>
             ActiveProfileName = source.ActiveProfileName,
         };
 
-    private static bool CatalogEquals(
-        ConfiglueProfileCatalog left,
-        ConfiglueProfileCatalog right
-    ) =>
-        left.ProfileNames.SequenceEqual(right.ProfileNames, StringComparer.Ordinal)
-        && string.Equals(left.ActiveProfileName, right.ActiveProfileName, StringComparison.Ordinal);
-
-    private IConfiglueStateRegistryNotificationDeferral<TModel>? DeferRegistryNotifications() =>
-        (_registry as IConfiglueStateRegistryNotificationDeferrer<TModel>)?.DeferNotifications();
-
     private static IConfiglueEditSessions<TModel> AsAdvancedState(IWritableState<TModel> state) =>
         state as IConfiglueEditSessions<TModel>
         ?? throw new InvalidOperationException(
             "The profile registry returned a state without edit-session support."
         );
 
-    private void EnqueueActiveProfileNotification(string profileName)
-    {
-        lock (_activeProfileNotificationGate)
-        {
-            _pendingActiveProfileNotifications.Enqueue(profileName);
-        }
-    }
-
-    private void DrainPendingActiveProfileNotifications()
-    {
-        lock (_activeProfileNotificationGate)
-        {
-            if (_dispatchingActiveProfileNotifications)
-            {
-                return;
-            }
-            _dispatchingActiveProfileNotifications = true;
-        }
-
-        while (true)
-        {
-            string profileName;
-            lock (_activeProfileNotificationGate)
-            {
-                if (_pendingActiveProfileNotifications.Count == 0)
-                {
-                    _dispatchingActiveProfileNotifications = false;
-                    return;
-                }
-                profileName = _pendingActiveProfileNotifications.Dequeue();
-            }
-
-            NotifyActiveProfileChanged(profileName);
-        }
-    }
-
     private static void ValidateProfileName(string profileName)
     {
         // Profiles share the logical state-name namespace; only empty or whitespace names are invalid.
         ArgumentException.ThrowIfNullOrWhiteSpace(profileName);
+    }
+
+    private void NotifyAfterGate(string? profileName)
+    {
+        if (profileName is null)
+        {
+            return;
+        }
+
+        NotifyActiveProfileChanged(profileName);
     }
 
     private void NotifyActiveProfileChanged(string profileName)
@@ -655,6 +802,28 @@ internal sealed partial class ConfiglueProfiledState<TModel, TFragment>
             {
                 Trace.TraceError("Configlue active-profile listener failed: {0}", exception);
             }
+        }
+    }
+
+    private async Task DisposeCoreAsync(ActiveProfileValueSubscription[] subscriptions)
+    {
+        // Leave the owner's subscription lock before cancelling sources or awaiting work.
+        await Task.Yield();
+        foreach (var subscription in subscriptions)
+        {
+            subscription.Dispose();
+        }
+        await Task.WhenAll(
+                subscriptions.Select(static subscription => subscription.WaitForCompletionAsync())
+            )
+            .ConfigureAwait(false);
+
+        await _gate.WaitAsync(CancellationToken.None).ConfigureAwait(false);
+        _gate.Release();
+
+        foreach (var resource in _ownedResources)
+        {
+            await ConfiglueOwnedResources.DisposeAsync(resource).ConfigureAwait(false);
         }
     }
 }

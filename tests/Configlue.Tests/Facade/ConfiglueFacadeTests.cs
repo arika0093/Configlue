@@ -260,7 +260,7 @@ public sealed class ConfiglueFacadeTests
     }
 
     [Test]
-    public async Task ProfileCatalogReconciliationKeepsUnrelatedDynamicOptions()
+    public async Task ProfileCatalogKeepsUnrelatedDynamicOptions()
     {
         var catalogStore = new InMemoryStateSource<ConfiglueProfileCatalog>(
             new ConfiglueProfileCatalog
@@ -359,7 +359,7 @@ public sealed class ConfiglueFacadeTests
     }
 
     [Test]
-    public async Task FacadeProfileRegistryEventsCanReenterManagerAfterCatalogChanges()
+    public async Task FacadeProfileRegistryEventsObserveCreatedAndRemovedProfiles()
     {
         var catalogStore = new InMemoryStateSource<ConfiglueProfileCatalog>();
         var catalog = new StateSource<ConfiglueProfileCatalog>(
@@ -392,60 +392,37 @@ public sealed class ConfiglueFacadeTests
         var profiles = context.GetProfiledState<AppSettings>();
         await profiles.GetProfileNamesAsync();
         var registry = context.GetStateRegistry<AppSettings>();
-        var addedObservation = new TaskCompletionSource<(bool IsPublished, string? Value)>(
+        // Registry listeners observe transitions but must not synchronously wait for
+        // profile operations: profile mutations hold their own gate while registry
+        // events dispatch synchronously.
+        var addedObservation = new TaskCompletionSource<string>(
             TaskCreationOptions.RunContinuationsAsynchronously
         );
-        registry.StateAdded += (name, options) =>
+        registry.StateAdded += (name, _) =>
         {
-            if (name != "Work")
+            if (name == "Work")
             {
-                return;
+                addedObservation.TrySetResult(name);
             }
-
-            var names = profiles
-                .GetProfileNamesAsync()
-                .AsTask()
-                .WaitAsync(TimeSpan.FromSeconds(5))
-                .GetAwaiter()
-                .GetResult();
-            var value = options
-                .GetValueAsync()
-                .AsTask()
-                .WaitAsync(TimeSpan.FromSeconds(5))
-                .GetAwaiter()
-                .GetResult();
-            addedObservation.TrySetResult((names.Contains(name), value.Label));
         };
-
-        await profiles
-            .CreateProfileAsync("Work", copyFrom: "default")
-            .AsTask()
-            .WaitAsync(TimeSpan.FromSeconds(5));
-        (await addedObservation.Task.WaitAsync(TimeSpan.FromSeconds(5))).ShouldBe(
-            (true, "default-value")
-        );
-
-        var removedObservation = new TaskCompletionSource<bool>(
+        var removedObservation = new TaskCompletionSource<string>(
             TaskCreationOptions.RunContinuationsAsynchronously
         );
         registry.StateRemoved += name =>
         {
-            if (name != "Work")
+            if (name == "Work")
             {
-                return;
+                removedObservation.TrySetResult(name);
             }
-
-            var names = profiles
-                .GetProfileNamesAsync()
-                .AsTask()
-                .WaitAsync(TimeSpan.FromSeconds(5))
-                .GetAwaiter()
-                .GetResult();
-            removedObservation.TrySetResult(!names.Contains(name));
         };
 
-        await profiles.RemoveProfileAsync("Work").AsTask().WaitAsync(TimeSpan.FromSeconds(5));
-        (await removedObservation.Task.WaitAsync(TimeSpan.FromSeconds(5))).ShouldBeTrue();
+        await profiles.CreateProfileAsync("Work", copyFrom: "default");
+        (await addedObservation.Task.WaitAsync(TimeSpan.FromSeconds(5))).ShouldBe("Work");
+        (await profiles.GetProfileNamesAsync()).ShouldContain("Work");
+
+        await profiles.RemoveProfileAsync("Work");
+        (await removedObservation.Task.WaitAsync(TimeSpan.FromSeconds(5))).ShouldBe("Work");
+        (await profiles.GetProfileNamesAsync()).ShouldNotContain("Work");
     }
 
     [Test]
