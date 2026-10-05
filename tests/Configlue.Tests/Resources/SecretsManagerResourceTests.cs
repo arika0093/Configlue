@@ -56,7 +56,8 @@ public sealed class SecretsManagerResourceTests
             );
         var resource = new SecretsManagerResource(client, "app");
 
-        resource.IsPipelineReadPreferred.ShouldBeTrue();
+        // Measured (#295): small buffered secrets stay on the buffered path.
+        resource.IsPipelineReadPreferred.ShouldBeFalse();
         await using var result = await resource.ReadPipelineAsync();
         var content = await result.ReadAllAsync();
         var bytes = content.ToArray();

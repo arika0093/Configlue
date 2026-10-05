@@ -76,7 +76,12 @@ public sealed class ConsulKvResource
     public string Key => _key;
 
     /// <inheritdoc />
-    public bool IsPipelineReadPreferred => true;
+    /// <remarks>
+    /// Measured (#295): KV entries are small and already buffered by
+    /// <see cref="ReadAsync(ConfiglueResourceContext,CancellationToken)"/>, so wrapping them in a
+    /// pipeline adds Pipe/Stream overhead without avoiding any copy. Buffered reads stay default.
+    /// </remarks>
+    public bool IsPipelineReadPreferred => false;
 
     /// <inheritdoc />
     public ResourceId GetResourceId(ConfiglueResourceContext context)

@@ -113,7 +113,8 @@ public sealed class GoogleSecretManagerResourceTests
         };
         using var resource = new GoogleSecretManagerResource(client, "p", "s");
 
-        resource.IsPipelineReadPreferred.ShouldBeTrue();
+        // Measured (#295): small buffered secrets stay on the buffered path.
+        resource.IsPipelineReadPreferred.ShouldBeFalse();
         await using var result = await resource.ReadPipelineAsync();
         var content = await result.ReadAllAsync();
         var bytes = new byte[3];

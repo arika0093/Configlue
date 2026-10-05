@@ -43,7 +43,9 @@ public sealed class ContextualResourceContractTests
     [Test]
     public async Task SerializedAdaptersPassContextThroughPipelineWritesAndBatchMutations()
     {
-        var codec = new JsonStateCodec<AppSettings.Fragment>();
+        // Context propagation through the streaming path (#295): pipeline reads require an
+        // explicit streaming-codec opt-in, so enable it here to exercise ReadPipelineAsync.
+        var codec = new JsonStateCodec<AppSettings.Fragment> { UseAsyncStreamDecoding = true };
         var resource = new ContextualMemoryResource(perSubjectIdentity: true);
         var subjectA = new SettingsSubject("tenant-a", "user-a");
         var subjectB = new SettingsSubject("tenant-b", "user-b");

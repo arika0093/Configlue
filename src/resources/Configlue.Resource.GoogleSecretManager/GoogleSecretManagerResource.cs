@@ -254,7 +254,12 @@ public sealed class GoogleSecretManagerResource
         );
 
     /// <inheritdoc />
-    public bool IsPipelineReadPreferred => true;
+    /// <remarks>
+    /// Measured (#295): secret values are small and already buffered by the budgeted read path,
+    /// so wrapping them in a pipeline adds Pipe/Stream overhead without avoiding any copy.
+    /// Buffered reads stay default.
+    /// </remarks>
+    public bool IsPipelineReadPreferred => false;
 
     /// <inheritdoc />
     public async ValueTask<PipelineResourceReadResult> ReadPipelineAsync(

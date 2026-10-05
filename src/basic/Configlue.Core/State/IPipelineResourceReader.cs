@@ -10,10 +10,25 @@ namespace Configlue.State;
 /// only when segmented reads avoid materializing large payloads (for example file, object-store,
 /// or streaming resources where buffering would add large-object-heap pressure).
 /// <para>
-/// Lifetime and buffering: the returned <see cref="Resources.PipelineResourceReadResult"/> owns its
-/// pipe; the serialized pipeline disposes it after consuming content to the end. Implementations
-/// must return a reader positioned at the start of the payload and must not require the caller to
-/// complete the pipe. Revisions may be finalized while the content is consumed.
+/// Measured (#295): 1/4/16/64 KiB payloads show no consistent win (Pipe/Stream overhead
+/// dominates); only large blobs (hundreds of KiB/MiB) paired with a streaming-capable codec
+/// justify this path. Wrapping already-buffered bytes (secrets, KV entries, section slices)
+/// never avoids a copy: keep <see cref="IsPipelineReadPreferred"/> false there. Transformers,
+/// schema migration, and backup recovery always force buffering, and the serialized pipeline
+/// only enters this path when the codec opts in via
+/// <see cref="IPipelineStateCodec{T}.IsPipelineDecodePreferred"/>.
+/// </para>
+/// <para>
+/// Concrete third-party use case: a provider that streams large objects straight from the
+/// transport (for example an S3/Azure Blob/GCS object client exposing a response stream, or a
+/// file handle) without an intermediate full-payload buffer, combined with a codec that decodes
+/// incrementally from the pipe. Small or already-buffered providers must not implement this.
+/// </para>
+/// <para>
+/// Ownership (simplified): the returned <see cref="Resources.PipelineResourceReadResult"/> owns its
+/// pipe; the serialized pipeline consumes it to the end and disposes it. Implementations return a
+/// reader positioned at the start of the payload and never require the caller to complete the
+/// pipe. Revisions may be finalized while the content is consumed.
 /// </para>
 /// </remarks>
 /// <remarks>Advanced performance SPI; class-level hiding keeps it out of ordinary completion.</remarks>

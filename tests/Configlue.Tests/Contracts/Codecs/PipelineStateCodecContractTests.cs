@@ -79,8 +79,10 @@ public sealed class PipelineStateCodecContractTests
         var defaultResult = await defaultReader.ReadAsync();
 
         defaultResult.Value!.Value.ShouldBe(23);
-        defaultResource.PipelineReadCount.ShouldBe(1);
-        defaultResource.MemoryReadCount.ShouldBe(0);
+        // Measured (#295): the ReadAllAsync fallback never beats buffered reads, so ordinary
+        // codecs stay buffered even when the resource prefers the pipeline.
+        defaultResource.PipelineReadCount.ShouldBe(0);
+        defaultResource.MemoryReadCount.ShouldBe(1);
         defaultCodec.PipelineDecodeCount.ShouldBe(0);
     }
 

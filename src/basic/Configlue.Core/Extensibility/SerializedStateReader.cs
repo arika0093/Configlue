@@ -71,11 +71,21 @@ internal sealed class SerializedStateReader<T> : ISourceReader<T>, ITryResourceI
         CancellationToken cancellationToken = default
     )
     {
+        // Measured (#295): 1/4/16/64 KiB show no consistent win for the pipeline path
+        // (Pipe + ReadAll/Drain overhead dominates); only large payloads with a
+        // streaming-capable codec (e.g. File/S3/AzureBlob/GCS + Json
+        // UseAsyncStreamDecoding, ~0.25 MiB saving at 256 KiB and ~1.9 MiB at 2 MiB)
+        // justify it. Transformers, schema migration, and backup recovery always
+        // force buffering, and the ReadAllAsync fallback materialization never beats
+        // buffered reads. Gate the pipeline on an explicit codec opt-in so ordinary
+        // small configuration reads stay on the simple buffered path.
         if (
             _schemaDispatcher is null
             && _transformers.Length == 0
             && _resource is IPipelineResourceReader { IsPipelineReadPreferred: true } pipelineReader
             && _resource is not IResourceBackupRecovery { AutomaticBackupRecoveryEnabled: true }
+            && _codecBinding.GetCapability<IPipelineStateCodec<T>>()
+                is { IsPipelineDecodePreferred: true }
         )
         {
             try
