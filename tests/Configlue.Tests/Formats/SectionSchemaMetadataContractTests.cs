@@ -211,7 +211,7 @@ public sealed class SectionSchemaMetadataContractTests
             watcher: null,
             serializerOptions: null,
             fixedResourceId: null,
-            schemaShape: []
+            schemaShape: null
         );
         await jsonRoot.WriteAsync(
             new ResourceWriteRequest("""{"value":1}"""u8.ToArray(), Schema: LogicalSectionSchema)
@@ -225,7 +225,7 @@ public sealed class SectionSchemaMetadataContractTests
             watcher: null,
             fixedResourceId: null,
             textEncoding: null,
-            schemaShape: []
+            schemaShape: null
         );
         await yamlRoot.WriteAsync(
             new ResourceWriteRequest(

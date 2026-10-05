@@ -31,18 +31,6 @@ internal sealed class JsoncDocumentEditor
         ReadOnlyMemory<byte> current,
         ReadOnlyMemory<byte> updated,
         IReadOnlyList<string> path,
-        ReadOnlyMemory<byte> schemaShape,
-        JsonSerializerOptions serializerOptions
-    )
-    {
-        return Update(current, updated, path, schemaShape, null, serializerOptions);
-    }
-
-    internal static byte[] Update(
-        ReadOnlyMemory<byte> current,
-        ReadOnlyMemory<byte> updated,
-        IReadOnlyList<string> path,
-        ReadOnlyMemory<byte> legacySchemaShape,
         JsonSchemaShape? schemaShape,
         JsonSerializerOptions serializerOptions
     )
@@ -63,17 +51,8 @@ internal sealed class JsoncDocumentEditor
             schemaShape
         );
         var updatedEditor = JsoncSyntaxTree.Parse(updated.ToArray());
-        JsoncValueNode? shapeRoot = null;
-        ConfiglueModelSchema? shapeSchema = null;
-        if (schemaShape is not null)
-        {
-            shapeRoot = schemaShape.RootNode;
-            shapeSchema = schemaShape.RootSchema;
-        }
-        else if (!legacySchemaShape.IsEmpty)
-        {
-            shapeRoot = JsoncSyntaxTree.Parse(legacySchemaShape.ToArray()).Root;
-        }
+        JsoncValueNode? shapeRoot = schemaShape?.RootNode;
+        ConfiglueModelSchema? shapeSchema = schemaShape?.RootSchema;
 
         if (path.Count == 0)
         {
@@ -131,41 +110,6 @@ internal sealed class JsoncDocumentEditor
         }
 
         return editor.ApplyEdits();
-    }
-
-    internal static byte[] CreateSchemaShape<TFragment>(
-        ConfiglueModelSchema schema,
-        JsonSerializerOptions? serializerOptions,
-        DocumentLayoutOptions? layout,
-        string? schemaReferenceBaseUri
-    )
-        where TFragment : class, IConfiglueFragment<TFragment>
-    {
-        var fragment = DocumentSemanticEditPlan.CreateShallowPresentFragment(schema);
-        if (fragment is not TFragment typedFragment)
-        {
-            throw new InvalidOperationException(
-                $"The schema '{schema.Id}' created a fragment of an unexpected type."
-            );
-        }
-
-        var codec = new JsonStateCodec<TFragment>(
-            serializerOptions,
-            ConfiglueJsonFragmentRegistry<TFragment>.Converter,
-            layout
-        );
-        var buffer = new ArrayBufferWriter<byte>();
-        codec.Serialize(
-            typedFragment,
-            buffer,
-            new StateCodecContext(schema.ToMetadata(), null, schemaReferenceBaseUri)
-        );
-        using var document = JsonDocument.Parse(buffer.WrittenMemory);
-        if (document.RootElement.ValueKind != JsonValueKind.Object)
-        {
-            throw new JsonException("The generated JSON schema shape must be an object.");
-        }
-        return buffer.WrittenSpan.ToArray();
     }
 
     private static byte[] WrapProperty(
@@ -833,20 +777,16 @@ internal sealed class JsonSchemaShape
 
     private JsonSchemaShape(
         ConfiglueModelSchema rootSchema,
-        byte[] rootShapeBytes,
         JsoncValueNode rootNode,
         JsonSerializerOptions bareOptions
     )
     {
         RootSchema = rootSchema;
-        RootShapeBytes = rootShapeBytes;
         RootNode = rootNode;
         _bareOptions = bareOptions;
     }
 
     internal ConfiglueModelSchema RootSchema { get; }
-
-    internal byte[] RootShapeBytes { get; }
 
     internal JsoncValueNode RootNode { get; }
 
@@ -858,18 +798,38 @@ internal sealed class JsonSchemaShape
     )
         where TFragment : class, IConfiglueFragment<TFragment>
     {
-        var rootBytes = JsoncDocumentEditor.CreateSchemaShape<TFragment>(
-            schema,
+        var fragment = DocumentSemanticEditPlan.CreateShallowPresentFragment(schema);
+        if (fragment is not TFragment typedFragment)
+        {
+            throw new InvalidOperationException(
+                $"The schema '{schema.Id}' created a fragment of an unexpected type."
+            );
+        }
+
+        var codec = new JsonStateCodec<TFragment>(
             serializerOptions,
-            layout,
-            schemaReferenceBaseUri
+            ConfiglueJsonFragmentRegistry<TFragment>.Converter,
+            layout
         );
+        var buffer = new ArrayBufferWriter<byte>();
+        codec.Serialize(
+            typedFragment,
+            buffer,
+            new StateCodecContext(schema.ToMetadata(), null, schemaReferenceBaseUri)
+        );
+        using var document = JsonDocument.Parse(buffer.WrittenMemory);
+        if (document.RootElement.ValueKind != JsonValueKind.Object)
+        {
+            throw new JsonException("The generated JSON schema shape must be an object.");
+        }
+
+        var rootBytes = buffer.WrittenSpan.ToArray();
         var rootNode = JsoncSyntaxTree.Parse(rootBytes).Root;
         var bareOptions = serializerOptions is null
             ? new JsonSerializerOptions()
             : new JsonSerializerOptions(serializerOptions);
         JsonStateCodecOperations.EnsureTypeInfoResolver(bareOptions);
-        return new JsonSchemaShape(schema, rootBytes, rootNode, bareOptions);
+        return new JsonSchemaShape(schema, rootNode, bareOptions);
     }
 
     internal bool TryGetNested(

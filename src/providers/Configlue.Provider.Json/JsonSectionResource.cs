@@ -27,7 +27,6 @@ public sealed class JsonSectionResource
     private readonly string[] _path;
     private readonly string _batchScope;
     private readonly ResourceId? _configuredResourceId;
-    private readonly byte[] _legacySchemaShape;
     private readonly JsonSchemaShape? _schemaShape;
     private readonly JsonSerializerOptions _serializerOptions;
 
@@ -67,26 +66,7 @@ public sealed class JsonSectionResource
             watcher,
             serializerOptions,
             fixedResourceId,
-            []
-        ) { }
-
-    internal JsonSectionResource(
-        IResourceReader reader,
-        IResourceWriter? writer,
-        string sectionPath,
-        ISourceWatcher? watcher,
-        JsonSerializerOptions? serializerOptions,
-        ResourceId? fixedResourceId,
-        byte[] schemaShape
-    )
-        : this(
-            reader,
-            writer,
-            ParseSectionPath(sectionPath),
-            watcher,
-            serializerOptions,
-            fixedResourceId,
-            schemaShape
+            schemaShape: null
         ) { }
 
     internal JsonSectionResource(
@@ -105,7 +85,6 @@ public sealed class JsonSectionResource
             watcher,
             serializerOptions,
             fixedResourceId,
-            [],
             schemaShape
         ) { }
 
@@ -116,8 +95,7 @@ public sealed class JsonSectionResource
         ISourceWatcher? watcher,
         JsonSerializerOptions? serializerOptions,
         ResourceId? fixedResourceId,
-        byte[] legacySchemaShape,
-        JsonSchemaShape? schemaShape = null
+        JsonSchemaShape? schemaShape
     )
     {
         ArgumentNullException.ThrowIfNull(reader);
@@ -126,7 +104,6 @@ public sealed class JsonSectionResource
         _writer = writer;
         _watcher = watcher;
         _path = path;
-        _legacySchemaShape = legacySchemaShape;
         _schemaShape = schemaShape;
         _configuredResourceId = fixedResourceId;
         _serializerOptions = serializerOptions is null
@@ -141,17 +118,8 @@ public sealed class JsonSectionResource
         ISourceWatcher? watcher,
         JsonSerializerOptions? serializerOptions,
         ResourceId? fixedResourceId,
-        byte[] schemaShape
-    ) => new(reader, writer, [], watcher, serializerOptions, fixedResourceId, schemaShape);
-
-    internal static JsonSectionResource CreateRoot(
-        IResourceReader reader,
-        IResourceWriter? writer,
-        ISourceWatcher? watcher,
-        JsonSerializerOptions? serializerOptions,
-        ResourceId? fixedResourceId,
         JsonSchemaShape? schemaShape
-    ) => new(reader, writer, [], watcher, serializerOptions, fixedResourceId, [], schemaShape);
+    ) => new(reader, writer, [], watcher, serializerOptions, fixedResourceId, schemaShape);
 
     private static string[] ParseSectionPath(string sectionPath)
     {
@@ -375,7 +343,6 @@ public sealed class JsonSectionResource
             current.Status == StateReadStatus.Success ? current.Content : "{}"u8.ToArray(),
             sectionContent,
             _path,
-            _legacySchemaShape,
             _schemaShape,
             _serializerOptions
         );
