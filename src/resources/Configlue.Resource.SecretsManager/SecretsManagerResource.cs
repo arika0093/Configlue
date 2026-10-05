@@ -24,6 +24,12 @@ namespace Configlue.Resource.SecretsManager;
 /// in exceptions, revisions, identities, or diagnostics. Only safe metadata (secret ARN or name,
 /// version ID, and staging labels) is surfaced.
 /// </para>
+/// <para>
+/// Request resilience is owned by the caller-supplied AWS SDK client: Configlue issues
+/// one SDK call per read, write, or metadata poll and maps a throttling or transient
+/// outcome reported by the client into an unavailable result. Configure retries on the
+/// SDK client. Watch polling intervals remain independent from SDK request retries.
+/// </para>
 /// </remarks>
 public sealed class SecretsManagerResource
     : IResourceReader,
@@ -130,14 +136,11 @@ public sealed class SecretsManagerResource
         SecretsManagerSecretValue value;
         try
         {
-            value = await ExecuteWithRetryAsync(
-                    token =>
-                        client.GetSecretValueAsync(
-                            selection.SecretId,
-                            selection.VersionId,
-                            selection.VersionStage,
-                            token
-                        ),
+            value = await client
+                .GetSecretValueAsync(
+                    selection.SecretId,
+                    selection.VersionId,
+                    selection.VersionStage,
                     cancellationToken
                 )
                 .ConfigureAwait(false);
@@ -200,16 +203,13 @@ public sealed class SecretsManagerResource
         SecretsManagerPutResult result;
         try
         {
-            result = await ExecuteWithRetryAsync(
-                    token =>
-                        client.PutSecretValueAsync(
-                            selection.SecretId,
-                            request.Content,
-                            _options.UseSecretBinary,
-                            _options.WriteVersionStages,
-                            clientRequestToken,
-                            token
-                        ),
+            result = await client
+                .PutSecretValueAsync(
+                    selection.SecretId,
+                    request.Content,
+                    _options.UseSecretBinary,
+                    _options.WriteVersionStages,
+                    clientRequestToken,
                     cancellationToken
                 )
                 .ConfigureAwait(false);
@@ -248,15 +248,12 @@ public sealed class SecretsManagerResource
         var client = GetClient(context);
         try
         {
-            await ExecuteWithRetryAsync(
-                    token =>
-                        client.UpdateSecretVersionStageAsync(
-                            selection.SecretId,
-                            versionStage,
-                            versionId,
-                            removeFromVersionId,
-                            token
-                        ),
+            await client
+                .UpdateSecretVersionStageAsync(
+                    selection.SecretId,
+                    versionStage,
+                    versionId,
+                    removeFromVersionId,
                     cancellationToken
                 )
                 .ConfigureAwait(false);
@@ -334,7 +331,7 @@ public sealed class SecretsManagerResource
     /// Missing or deleted secrets map to a <c>null</c> revision so the shared
     /// polling primitive compares revisions only.
     /// </summary>
-    private async ValueTask<string?> ReadStageRevisionAsync(
+    private static async ValueTask<string?> ReadStageRevisionAsync(
         ISecretsManagerClient client,
         string secretId,
         string versionStage,
@@ -343,10 +340,8 @@ public sealed class SecretsManagerResource
     {
         try
         {
-            var description = await ExecuteWithRetryAsync(
-                    token => client.DescribeSecretAsync(secretId, token),
-                    cancellationToken
-                )
+            var description = await client
+                .DescribeSecretAsync(secretId, cancellationToken)
                 .ConfigureAwait(false);
             if (description.DeletedDate is not null)
             {
@@ -363,60 +358,6 @@ public sealed class SecretsManagerResource
         {
             return null;
         }
-    }
-
-    private async ValueTask ExecuteWithRetryAsync(
-        Func<CancellationToken, ValueTask> operation,
-        CancellationToken cancellationToken
-    )
-    {
-        var attempts = 0;
-        while (true)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            try
-            {
-                await operation(cancellationToken).ConfigureAwait(false);
-                return;
-            }
-            catch (Exception exception)
-                when (IsTransient(exception) && attempts < _options.MaxRetryAttempts)
-            {
-                attempts++;
-                await Task.Delay(ComputeRetryDelay(attempts), cancellationToken)
-                    .ConfigureAwait(false);
-            }
-        }
-    }
-
-    private async ValueTask<T> ExecuteWithRetryAsync<T>(
-        Func<CancellationToken, ValueTask<T>> operation,
-        CancellationToken cancellationToken
-    )
-    {
-        var attempts = 0;
-        while (true)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            try
-            {
-                return await operation(cancellationToken).ConfigureAwait(false);
-            }
-            catch (Exception exception)
-                when (IsTransient(exception) && attempts < _options.MaxRetryAttempts)
-            {
-                attempts++;
-                await Task.Delay(ComputeRetryDelay(attempts), cancellationToken)
-                    .ConfigureAwait(false);
-            }
-        }
-    }
-
-    private TimeSpan ComputeRetryDelay(int attempt)
-    {
-        var multiplier = 1L << Math.Min(attempt - 1, 10);
-        var ticks = _options.RetryBaseDelay.Ticks * multiplier;
-        return new TimeSpan(Math.Min(ticks, TimeSpan.FromSeconds(5).Ticks));
     }
 
     private ISecretsManagerClient GetClient(ConfiglueResourceContext context) =>

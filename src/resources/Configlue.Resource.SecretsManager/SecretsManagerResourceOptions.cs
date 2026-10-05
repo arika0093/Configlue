@@ -6,6 +6,10 @@ namespace Configlue.Resource.SecretsManager;
 /// <remarks>
 /// Reads default to the <c>AWSCURRENT</c> staging label. Configuring <see cref="VersionId"/>
 /// pins the resource to one immutable secret version.
+/// <para>Request retry/resilience is owned by the caller-supplied AWS SDK client.
+/// Configlue performs a single SDK call per read, write, or metadata poll and maps
+/// a throttling or transient outcome reported by the client into an unavailable
+/// result. Configure retries on the SDK client itself.</para>
 /// <para>
 /// Least-privilege IAM for read-only mode:
 /// <c>secretsmanager:GetSecretValue</c> and <c>secretsmanager:DescribeSecret</c> on the secret,
@@ -76,12 +80,6 @@ public sealed class SecretsManagerResourceOptions
     /// </summary>
     public bool UseSecretBinary { get; init; }
 
-    /// <summary>The number of retries after the first attempt for throttled or otherwise transient failures.</summary>
-    public int MaxRetryAttempts { get; init; } = 3;
-
-    /// <summary>The base delay for transient-failure retries; the delay doubles after each attempt.</summary>
-    public TimeSpan RetryBaseDelay { get; init; } = TimeSpan.FromMilliseconds(200);
-
     internal void Validate()
     {
         if (VersionId is not null)
@@ -97,7 +95,5 @@ public sealed class SecretsManagerResourceOptions
         }
 
         ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(PollingInterval, TimeSpan.Zero);
-        ArgumentOutOfRangeException.ThrowIfNegative(MaxRetryAttempts);
-        ArgumentOutOfRangeException.ThrowIfLessThan(RetryBaseDelay, TimeSpan.Zero);
     }
 }

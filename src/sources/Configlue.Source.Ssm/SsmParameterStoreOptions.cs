@@ -8,6 +8,10 @@ namespace Configlue.Source.Ssm;
 /// <see cref="IAmazonSimpleSystemsManagement"/> client through the normal AWS
 /// credential and region chain. Configlue stores no credentials, no decrypted
 /// payloads, and no KMS material.
+/// <para>Request retry/resilience is owned by the caller-supplied AWS SDK client.
+/// Configlue performs a single SDK call per page or write and maps a throttling
+/// or transient outcome reported by the client into an unavailable/error result.
+/// Configure retries on the SDK client itself.</para>
 /// </remarks>
 public sealed class SsmParameterStoreOptions
 {
@@ -31,12 +35,6 @@ public sealed class SsmParameterStoreOptions
 
     /// <summary>The minimum polling interval. Values below this are rejected. Defaults to five seconds.</summary>
     public TimeSpan MinPollInterval { get; init; } = TimeSpan.FromSeconds(5);
-
-    /// <summary>The number of throttling retries per AWS call. Defaults to 3.</summary>
-    public int MaxRetryAttempts { get; init; } = 3;
-
-    /// <summary>The base delay for throttling retries (doubled per attempt). Defaults to 200ms.</summary>
-    public TimeSpan RetryBaseDelay { get; init; } = TimeSpan.FromMilliseconds(200);
 
     /// <summary>The default parameter type for writes. Defaults to <see cref="SsmParameterType.String"/>.</summary>
     public SsmParameterType WriteParameterType { get; init; } = SsmParameterType.String;
@@ -92,8 +90,6 @@ public sealed class SsmParameterStoreOptions
         ValidateInterval(MinPollInterval, nameof(MinPollInterval));
         ValidatePollFloor(PollInterval, MinPollInterval, nameof(PollInterval));
 
-        ValidateRetries(MaxRetryAttempts, nameof(MaxRetryAttempts));
-        ValidateDelay(RetryBaseDelay, nameof(RetryBaseDelay));
         ValidateDataType(WriteDataType, nameof(WriteDataType));
     }
 
@@ -137,28 +133,6 @@ public sealed class SsmParameterStoreOptions
             throw new ArgumentOutOfRangeException(
                 parameterName,
                 "PollInterval must not be below MinPollInterval."
-            );
-        }
-    }
-
-    private static void ValidateRetries(int value, string parameterName)
-    {
-        if (value < 0)
-        {
-            throw new ArgumentOutOfRangeException(
-                parameterName,
-                "MaxRetryAttempts must not be negative."
-            );
-        }
-    }
-
-    private static void ValidateDelay(TimeSpan value, string parameterName)
-    {
-        if (value < TimeSpan.Zero)
-        {
-            throw new ArgumentOutOfRangeException(
-                parameterName,
-                "RetryBaseDelay must not be negative."
             );
         }
     }

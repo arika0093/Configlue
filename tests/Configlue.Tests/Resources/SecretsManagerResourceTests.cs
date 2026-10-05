@@ -216,63 +216,33 @@ public sealed class SecretsManagerResourceTests
     }
 
     [Test]
-    public async Task Read_RetriesTransientFailuresThenSucceeds()
-    {
-        var client = new FakeSecretsManagerClient();
-        var attempts = 0;
-        client.GetHandler = (_, _, _, _) =>
-        {
-            attempts++;
-            return attempts switch
-            {
-                1 => ValueTaskCompat.FromException<SecretsManagerSecretValue>(
-                    new LimitExceededException("Rate exceeded.")
-                ),
-                2 => ValueTaskCompat.FromException<SecretsManagerSecretValue>(
-                    new InternalServiceErrorException("Internal error.")
-                ),
-                _ => ValueTaskCompat.FromResult(
-                    new SecretsManagerSecretValue("\"ok\"", null, "v-ok", ["AWSCURRENT"], null, null)
-                ),
-            };
-        };
-        var resource = new SecretsManagerResource(
-            client,
-            "app",
-            new SecretsManagerResourceOptions
-            {
-                MaxRetryAttempts = 3,
-                RetryBaseDelay = TimeSpan.FromMilliseconds(1),
-            }
-        );
-
-        var result = await resource.ReadAsync();
-
-        result.Status.ShouldBe(StateReadStatus.Success);
-        result.Revision.ShouldBe("v-ok");
-        attempts.ShouldBe(3);
-    }
-
-    [Test]
-    public async Task Read_MapsPersistentThrottlingToUnavailable()
+    public async Task Read_MapsTransientFailureToUnavailableWithoutRetrying()
     {
         var client = new FakeSecretsManagerClient();
         client.GetHandler = (_, _, _, _) =>
             ValueTaskCompat.FromException<SecretsManagerSecretValue>(
                 new LimitExceededException("Rate exceeded.")
             );
-        var resource = new SecretsManagerResource(
-            client,
-            "app",
-            new SecretsManagerResourceOptions
-            {
-                MaxRetryAttempts = 2,
-                RetryBaseDelay = TimeSpan.FromMilliseconds(1),
-            }
-        );
+        var resource = new SecretsManagerResource(client, "app");
 
         (await resource.ReadAsync()).Status.ShouldBe(StateReadStatus.Unavailable);
-        client.GetCalls.ShouldBe(3);
+        // Resilience is owned by the SDK client: Configlue issues one call and maps
+        // the throttling outcome instead of retrying on top of SDK retries.
+        client.GetCalls.ShouldBe(1);
+    }
+
+    [Test]
+    public async Task Read_PropagatesPermanentFailureWithoutMapping()
+    {
+        var client = new FakeSecretsManagerClient();
+        client.GetHandler = (_, _, _, _) =>
+            ValueTaskCompat.FromException<SecretsManagerSecretValue>(
+                new InvalidRequestException("The request is malformed.")
+            );
+        var resource = new SecretsManagerResource(client, "app");
+
+        await Should.ThrowAsync<InvalidRequestException>(async () => await resource.ReadAsync());
+        client.GetCalls.ShouldBe(1);
     }
 
     [Test]
@@ -822,13 +792,6 @@ public sealed class SecretsManagerResourceTests
                 new FakeSecretsManagerClient(),
                 "app",
                 new SecretsManagerResourceOptions { PollingInterval = TimeSpan.Zero }
-            )
-        );
-        Should.Throw<ArgumentOutOfRangeException>(() =>
-            new SecretsManagerResource(
-                new FakeSecretsManagerClient(),
-                "app",
-                new SecretsManagerResourceOptions { MaxRetryAttempts = -1 }
             )
         );
     }

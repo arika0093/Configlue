@@ -15,6 +15,9 @@ namespace Configlue.Source.Ssm;
 /// <para>Reads use <c>GetParametersByPath</c> with pagination and optional recursion.
 /// <c>SecureString</c> decryption is an explicit opt-in so callers can apply
 /// least-privilege IAM/KMS policies.</para>
+/// <para>Request resilience is owned by the caller-supplied AWS SDK client: Configlue
+/// issues one SDK call per page or write and maps a throttling outcome reported by
+/// the client into an unavailable/error result. Configure retries on the SDK client.</para>
 /// <para>Parameter Store has no watch stream. Change observation is optional
 /// metadata polling with a configurable minimum interval and
 /// cancellation/disposal support. Polling fetches metadata without decryption
@@ -225,8 +228,8 @@ public sealed class SsmParameterStoreSource<TFragment>
             };
             try
             {
-                await PutWithRetryAsync(
-                        client,
+                await client
+                    .PutParameterAsync(
                         fullName,
                         valueText,
                         ToAwsType(writeType),
@@ -320,12 +323,7 @@ public sealed class SsmParameterStoreSource<TFragment>
         do
         {
             cancellationToken.ThrowIfCancellationRequested();
-            var page = await GetPageWithRetryAsync(
-                    client,
-                    withDecryption,
-                    nextToken,
-                    cancellationToken
-                )
+            var page = await GetPageAsync(client, withDecryption, nextToken, cancellationToken)
                 .ConfigureAwait(false);
             all.AddRange(page.Parameters);
             nextToken = page.NextToken;
@@ -339,102 +337,38 @@ public sealed class SsmParameterStoreSource<TFragment>
         CancellationToken cancellationToken
     ) => FetchAllAsync(client, withDecryption: false, cancellationToken);
 
-    private async Task<SsmParameterPage> GetPageWithRetryAsync(
+    private async Task<SsmParameterPage> GetPageAsync(
         ISsmParameterClient client,
         bool withDecryption,
         string? nextToken,
         CancellationToken cancellationToken
     )
     {
-        var attempt = 0;
-        while (true)
+        cancellationToken.ThrowIfCancellationRequested();
+        try
         {
-            cancellationToken.ThrowIfCancellationRequested();
-            try
-            {
-                return await client
-                    .GetParametersByPathAsync(
-                        _rootPath,
-                        _options.Recursive,
-                        withDecryption,
-                        nextToken,
-                        _options.PageSize,
-                        cancellationToken
-                    )
-                    .ConfigureAwait(false);
-            }
-            catch (Exception exception)
-                when (SsmThrottling.IsThrottling(exception) && attempt < _options.MaxRetryAttempts)
-            {
-                await DelayRetryAsync(attempt, cancellationToken).ConfigureAwait(false);
-                attempt++;
-            }
-            catch (Exception exception) when (SsmThrottling.IsMissing(exception))
-            {
-                return new SsmParameterPage([], NextToken: null);
-            }
-            catch (Exception exception) when (SsmThrottling.IsThrottling(exception))
-            {
-                throw new InvalidOperationException(
-                    $"The Parameter Store hierarchy '{_rootPath}' is temporarily unavailable after retries.",
-                    exception
-                );
-            }
+            return await client
+                .GetParametersByPathAsync(
+                    _rootPath,
+                    _options.Recursive,
+                    withDecryption,
+                    nextToken,
+                    _options.PageSize,
+                    cancellationToken
+                )
+                .ConfigureAwait(false);
         }
-    }
-
-    private async Task PutWithRetryAsync(
-        ISsmParameterClient client,
-        string name,
-        string value,
-        string type,
-        string? keyId,
-        bool overwrite,
-        string? tier,
-        string? dataType,
-        CancellationToken cancellationToken
-    )
-    {
-        var attempt = 0;
-        while (true)
+        catch (Exception exception) when (SsmThrottling.IsMissing(exception))
         {
-            cancellationToken.ThrowIfCancellationRequested();
-            try
-            {
-                await client
-                    .PutParameterAsync(
-                        name,
-                        value,
-                        type,
-                        keyId,
-                        overwrite,
-                        tier,
-                        dataType,
-                        cancellationToken
-                    )
-                    .ConfigureAwait(false);
-                return;
-            }
-            catch (Exception exception)
-                when (SsmThrottling.IsThrottling(exception) && attempt < _options.MaxRetryAttempts)
-            {
-                await DelayRetryAsync(attempt, cancellationToken).ConfigureAwait(false);
-                attempt++;
-            }
+            return new SsmParameterPage([], NextToken: null);
         }
-    }
-
-    private async Task DelayRetryAsync(int attempt, CancellationToken cancellationToken)
-    {
-        var doubling = 1L << Math.Min(attempt, 10);
-        var delayTicks = _options.RetryBaseDelay.Ticks * doubling;
-        if (delayTicks <= 0)
+        catch (Exception exception) when (SsmThrottling.IsThrottling(exception))
         {
-            return;
+            throw new InvalidOperationException(
+                $"The Parameter Store hierarchy '{_rootPath}' is temporarily unavailable.",
+                exception
+            );
         }
-
-        var delay = TimeSpan.FromTicks(Math.Min(delayTicks, TimeSpan.FromSeconds(30).Ticks));
-        await Task.Delay(delay, cancellationToken).ConfigureAwait(false);
     }
 
     private void RememberProvenance(List<SsmParameterData> parameters)

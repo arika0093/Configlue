@@ -340,41 +340,39 @@ public sealed class SsmParameterStoreTests
     }
 
     [Test]
-    public async Task ThrottlingRetriesThenSucceeds()
+    public async Task ThrottlingSurfacesUnavailableErrorWithoutRetrying()
     {
         var fake = new FakeSsmParameterClient();
         fake.Upsert("/myapp/prod/enabled", "true", "String", 1);
         fake.ReadFailures.Enqueue(new ThrottlingException("slow down"));
-        fake.ReadFailures.Enqueue(new ThrottlingException("slow down"));
-        using var source = CreateSource(
-            fake,
-            new SsmParameterStoreOptions { MaxRetryAttempts = 3, RetryBaseDelay = TimeSpan.Zero }
+        using var source = CreateSource(fake, null);
+
+        var failure = await Should.ThrowAsync<InvalidOperationException>(async () =>
+            await source.ReadAsync(ConfiglueResourceContext.Default)
         );
 
-        var read = await source.ReadAsync(ConfiglueResourceContext.Default);
-
-        read.Status.ShouldBe(StateReadStatus.Success);
-        fake.GetCalls.Count.ShouldBe(3);
+        failure.Message.ShouldContain("temporarily unavailable");
+        // Resilience is owned by the SDK client: Configlue issues one call and maps
+        // the throttling outcome instead of retrying on top of SDK retries.
+        fake.GetCalls.Count.ShouldBe(1);
     }
 
     [Test]
-    public async Task ThrottlingExhaustionSurfacesUnavailableFailure()
+    public async Task WriteThrottlingPropagatesWithoutRetrying()
     {
         var fake = new FakeSsmParameterClient();
-        for (var index = 0; index < 4; index++)
-        {
-            fake.ReadFailures.Enqueue(new ThrottlingException("slow down"));
-        }
+        fake.WriteFailures.Enqueue(new ThrottlingException("slow down"));
+        using var source = CreateSource(fake, null, writable: true);
 
-        using var source = CreateSource(
-            fake,
-            new SsmParameterStoreOptions { MaxRetryAttempts = 2, RetryBaseDelay = TimeSpan.Zero }
+        await Should.ThrowAsync<ThrottlingException>(async () =>
+            await source.WriteAsync(
+                ConfiglueResourceContext.Default,
+                new StateWriteRequest<AppSettings.Fragment>(
+                    new AppSettings.Fragment { Enabled = Optional<bool>.Present(true) }
+                )
+            )
         );
-
-        await Should.ThrowAsync<InvalidOperationException>(async () =>
-            await source.ReadAsync(ConfiglueResourceContext.Default)
-        );
-        fake.GetCalls.Count.ShouldBe(3);
+        fake.PutCalls.Count.ShouldBe(1);
     }
 
     [Test]
