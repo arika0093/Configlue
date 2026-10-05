@@ -26,7 +26,7 @@ config.UseCommonSources(sources =>
 });
 ```
 
-環境変数 `APP_Theme=Light` があると、ファイルが `"Dark"` でも `GetValueAsync()` は `Theme = "Light"` を返します。
+環境変数 `APP__Theme=Light` があると、ファイルが `"Dark"` でも `GetValueAsync()` は `Theme = "Light"` を返します。メンバーへの指定は prefix の後にダブルアンダースコア（`APP__` + `Theme`）が続き、ネストしたメンバーは `__` でつなぎます。
 
 **動作。** 読み取りは 1 つの effective value に解決され、環境変数の寄与がローカルファイルに勝ちます。保存は構成された書き込み可能な寄与（ローカルファイル）に向かうため、環境変数を除去するまでファイルへの影は続きます。[概念](../concepts/) の「読み取りと書き込みは非対称」がそのまま現れます。
 
@@ -106,6 +106,7 @@ public partial class AppSettings
 
 ```csharp
 using Configlue.Migrations;
+using Configlue.State;
 
 public sealed class AppSettingsV1ToV2 : IStateSchemaMigration<AppSettings.Fragment>
 {
@@ -124,6 +125,7 @@ public sealed class AppSettingsV1ToV2 : IStateSchemaMigration<AppSettings.Fragme
 ```
 
 ```csharp
+// セットアップのコールバック内で登録します（通常の .NET では ConfiglueApp.Initialize）:
 config.Add<AppSettings>(model =>
 {
     model.AddMigration<AppSettings.Fragment>(new AppSettingsV1ToV2());

@@ -26,7 +26,7 @@ config.UseCommonSources(sources =>
 });
 ```
 
-With `APP_Theme=Light` in the environment, `GetValueAsync()` returns `Theme = "Light"` even when the file says `"Dark"`.
+With `APP__Theme=Light` in the environment, `GetValueAsync()` returns `Theme = "Light"` even when the file says `"Dark"`. Member paths follow the prefix with a double underscore (`APP__` + `Theme`); nested members join with `__`.
 
 **What happens.** Reads resolve to one effective value with environment contributions winning over the local file. Saves still target the configured writable contribution (the local file), so the environment override keeps shadowing the file until it is removed. This is the normal reads-are-not-symmetric behavior from [Concepts](../concepts/).
 
@@ -106,6 +106,7 @@ public partial class AppSettings
 
 ```csharp
 using Configlue.Migrations;
+using Configlue.State;
 
 public sealed class AppSettingsV1ToV2 : IStateSchemaMigration<AppSettings.Fragment>
 {
@@ -124,6 +125,7 @@ public sealed class AppSettingsV1ToV2 : IStateSchemaMigration<AppSettings.Fragme
 ```
 
 ```csharp
+// Inside the setup callback (ConfiglueApp.Initialize in plain .NET):
 config.Add<AppSettings>(model =>
 {
     model.AddMigration<AppSettings.Fragment>(new AppSettingsV1ToV2());
