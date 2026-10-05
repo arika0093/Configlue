@@ -136,9 +136,10 @@ public sealed class EnvironmentStateSourceTests
 
         var read = await source.Reader.ReadAsync();
 
-        // SHA256 of the length-prefixed, upper-cased "12:APP__UNKNOWN7:ignored" payload.
+        // Shared text-assignment binder revision: length-prefixed origin plus
+        // type-qualified rendered raw value ("APP__UNKNOWN" + string payload).
         (read.Revision).ShouldBe(
-            "F93D39285281CD8BC940C179D5FBCCA53F73DF6D26EF6F45428B9C2B2358A498"
+            "70760A1144E68E1318545BFD2C9EC35935DA08583E580977E43CDD2360D6BE4C"
         );
     }
 
