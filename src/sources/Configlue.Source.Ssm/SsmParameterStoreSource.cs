@@ -269,7 +269,12 @@ public sealed class SsmParameterStoreSource<TFragment>
         await _watchShutdown
             .WaitAsync(
                 watchCancellationToken =>
-                    PollForChangeAsync(context, observedRevision, watchCancellationToken),
+                    PollingWatch.WaitForRevisionChangeAsync(
+                        cancellation => ReadMetadataRevisionAsync(context, cancellation),
+                        observedRevision,
+                        _options.PollInterval,
+                        watchCancellationToken
+                    ),
                 cancellationToken
             )
             .ConfigureAwait(false);
@@ -286,29 +291,19 @@ public sealed class SsmParameterStoreSource<TFragment>
         _watchShutdown.Signal();
     }
 
-    private async ValueTask PollForChangeAsync(
+    /// <summary>
+    /// Metadata-only revision read: versions determine change without decrypting
+    /// <c>SecureString</c> payloads.
+    /// </summary>
+    private async ValueTask<string?> ReadMetadataRevisionAsync(
         ConfiglueResourceContext context,
-        string? observedRevision,
         CancellationToken cancellationToken
     )
     {
-        var client = GetClient(context);
-        while (true)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            // Metadata-only poll: versions determine change without decrypting
-            // SecureString payloads.
-            var metadata = await FetchMetadataAsync(client, cancellationToken)
-                .ConfigureAwait(false);
-            RememberProvenance(metadata);
-            var current = SsmParameterPath.CreateRevision(metadata);
-            if (!string.Equals(current, observedRevision, StringComparison.Ordinal))
-            {
-                return;
-            }
-
-            await Task.Delay(_options.PollInterval, cancellationToken).ConfigureAwait(false);
-        }
+        var metadata = await FetchMetadataAsync(GetClient(context), cancellationToken)
+            .ConfigureAwait(false);
+        RememberProvenance(metadata);
+        return SsmParameterPath.CreateRevision(metadata);
     }
 
     private ISsmParameterClient GetClient(ConfiglueResourceContext context) =>

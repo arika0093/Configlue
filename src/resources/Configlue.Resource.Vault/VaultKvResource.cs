@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
+using Configlue.Internal;
 using Configlue.Sources;
 
 namespace Configlue.Resource.Vault;
@@ -35,9 +36,7 @@ public sealed class VaultKvResource
     private readonly IVaultKvClient _client;
     private readonly VaultKvResourceOptions _options;
     private readonly Func<ConfiglueResourceContext, IVaultKvClient>? _clientSelector;
-    private readonly TaskCompletionSource _disposedSignal = new(
-        TaskCreationOptions.RunContinuationsAsynchronously
-    );
+    private readonly WatchShutdown _watchShutdown = new();
     private int _disposed;
 
     /// <summary>Creates a resource for one secret in a Vault KV mount.</summary>
@@ -176,37 +175,21 @@ public sealed class VaultKvResource
     {
         ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) != 0, this);
         var address = ResolveAddress(context);
-        var pollingInterval = _options.PollingInterval;
-        while (true)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            string? current;
-            try
-            {
-                current = await GetCurrentRevisionAsync(address, cancellationToken)
-                    .ConfigureAwait(false);
-            }
-            catch (VaultKvTransientException)
-            {
-                // Retry boundary: a transient Vault failure is "unchanged for this poll".
-                current = observedRevision;
-            }
-
-            if (!string.Equals(current, observedRevision, StringComparison.Ordinal))
-            {
-                return;
-            }
-
-            ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) != 0, this);
-            var delay = Task.Delay(pollingInterval, cancellationToken);
-            var completed = await Task.WhenAny(delay, _disposedSignal.Task).ConfigureAwait(false);
-            if (!ReferenceEquals(completed, delay))
-            {
-                throw new OperationCanceledException(cancellationToken);
-            }
-
-            await delay.ConfigureAwait(false);
-        }
+        await _watchShutdown
+            .WaitAsync(
+                watchCancellationToken =>
+                    PollingWatch.WaitForRevisionChangeAsync(
+                        cancellation => new ValueTask<string?>(
+                            GetCurrentRevisionAsync(address, cancellation)
+                        ),
+                        observedRevision,
+                        _options.PollingInterval,
+                        watchCancellationToken,
+                        static exception => exception is VaultKvTransientException
+                    ),
+                cancellationToken
+            )
+            .ConfigureAwait(false);
     }
 
     /// <inheritdoc />
@@ -217,7 +200,7 @@ public sealed class VaultKvResource
             return;
         }
 
-        _disposedSignal.TrySetResult();
+        _watchShutdown.Signal();
     }
 
     /// <summary>Returns non-sensitive addressing; never secret values or tokens.</summary>

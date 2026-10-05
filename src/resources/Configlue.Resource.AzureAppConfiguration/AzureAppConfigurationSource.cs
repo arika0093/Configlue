@@ -219,7 +219,11 @@ public sealed class AzureAppConfigurationSource<TFragment>
         await _watchShutdown
             .WaitAsync(
                 watchCancellationToken =>
-                    PollForChangeAsync(observedRevision, watchCancellationToken),
+                    PollSelectedOrSentinelAsync(
+                        observedRevision,
+                        NormalizeRefreshInterval(_options.RefreshInterval),
+                        watchCancellationToken
+                    ),
                 cancellationToken
             )
             .ConfigureAwait(false);
@@ -236,103 +240,66 @@ public sealed class AzureAppConfigurationSource<TFragment>
         _watchShutdown.Signal();
     }
 
-    private async ValueTask PollForChangeAsync(
+    /// <summary>
+    /// Pull-based refresh shared with other generic polling watches. Sentinel mode
+    /// compares the sentinel revision captured at watch start; otherwise the
+    /// selection revision is compared against the caller's observed revision.
+    /// </summary>
+    private async ValueTask PollSelectedOrSentinelAsync(
         string? observedRevision,
+        TimeSpan pollInterval,
         CancellationToken cancellationToken
     )
     {
-        string? baselineSentinel = null;
         if (_options.SentinelKey is { } sentinelKey)
         {
-            var sentinel = await _client
+            var baseline = await _client
                 .GetSettingAsync(sentinelKey, _options.SentinelLabel, cancellationToken)
                 .ConfigureAwait(false);
-            baselineSentinel = SentinelRevision(sentinel);
-        }
-        else if (_options.SnapshotName is not null)
-        {
-            var snapshotEntries = await _client
-                .GetSettingsAsync(_options.ToSelection(), cancellationToken)
-                .ConfigureAwait(false);
-            var snapshotRevision = CreateRevision(KeepSelectable(snapshotEntries));
-            if (!string.Equals(snapshotRevision, observedRevision, StringComparison.Ordinal))
-            {
-                return;
-            }
-        }
-        else
-        {
-            var initial = await _client
-                .GetSettingsAsync(_options.ToSelection(), cancellationToken)
-                .ConfigureAwait(false);
-            if (
-                !string.Equals(
-                    CreateRevision(KeepSelectable(initial)),
-                    observedRevision,
-                    StringComparison.Ordinal
+            await PollingWatch
+                .WaitForRevisionChangeAsync(
+                    cancellation => new ValueTask<string?>(
+                        ReadSentinelRevisionAsync(sentinelKey, cancellation)
+                    ),
+                    SentinelRevision(baseline),
+                    pollInterval,
+                    cancellationToken
                 )
+                .ConfigureAwait(false);
+            return;
+        }
+
+        await PollingWatch
+            .WaitForRevisionChangeAsync(
+                cancellation => new ValueTask<string?>(ReadSelectionRevisionAsync(cancellation)),
+                observedRevision,
+                pollInterval,
+                cancellationToken
             )
-            {
-                return;
-            }
-        }
-
-        var delay = _options.RefreshInterval;
-        if (delay < TimeSpan.Zero)
-        {
-            delay = TimeSpan.Zero;
-        }
-
-        while (true)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            await DelayAsync(delay, cancellationToken).ConfigureAwait(false);
-            cancellationToken.ThrowIfCancellationRequested();
-
-            if (_options.SentinelKey is { } watchedSentinel)
-            {
-                var currentSentinel = await _client
-                    .GetSettingAsync(watchedSentinel, _options.SentinelLabel, cancellationToken)
-                    .ConfigureAwait(false);
-                if (
-                    !string.Equals(
-                        SentinelRevision(currentSentinel),
-                        baselineSentinel,
-                        StringComparison.Ordinal
-                    )
-                )
-                {
-                    return;
-                }
-            }
-            else
-            {
-                var current = await _client
-                    .GetSettingsAsync(_options.ToSelection(), cancellationToken)
-                    .ConfigureAwait(false);
-                if (
-                    !string.Equals(
-                        CreateRevision(KeepSelectable(current)),
-                        observedRevision,
-                        StringComparison.Ordinal
-                    )
-                )
-                {
-                    return;
-                }
-            }
-        }
+            .ConfigureAwait(false);
     }
 
-    private static Task DelayAsync(TimeSpan delay, CancellationToken cancellationToken)
+    private async Task<string?> ReadSentinelRevisionAsync(
+        string sentinelKey,
+        CancellationToken cancellationToken
+    )
     {
-        if (delay <= TimeSpan.Zero)
-        {
-            return Task.Delay(1, cancellationToken);
-        }
-
-        return Task.Delay(delay, cancellationToken);
+        var current = await _client
+            .GetSettingAsync(sentinelKey, _options.SentinelLabel, cancellationToken)
+            .ConfigureAwait(false);
+        return SentinelRevision(current);
     }
+
+    private async Task<string?> ReadSelectionRevisionAsync(CancellationToken cancellationToken)
+    {
+        var current = await _client
+            .GetSettingsAsync(_options.ToSelection(), cancellationToken)
+            .ConfigureAwait(false);
+        return CreateRevision(KeepSelectable(current));
+    }
+
+    private static TimeSpan NormalizeRefreshInterval(TimeSpan refreshInterval) =>
+        refreshInterval <= TimeSpan.Zero ? TimeSpan.FromMilliseconds(1) : refreshInterval;
 
     private StateReadResult<TFragment> MapToFragment(
         IReadOnlyList<AppConfigurationEntry> entries,

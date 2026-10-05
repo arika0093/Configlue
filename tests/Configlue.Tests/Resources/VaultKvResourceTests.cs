@@ -439,7 +439,9 @@ public sealed class VaultKvResourceTests
         resource.Dispose();
         resource.Dispose();
 
-        await Should.ThrowAsync<OperationCanceledException>(async () => await wait);
+        // Disposal shares the common polling-watch semantics: active waiters wake
+        // successfully instead of hanging (see PollingWatchTests).
+        await wait.WaitAsync(TimeSpan.FromSeconds(5));
         await Should.ThrowAsync<ObjectDisposedException>(async () =>
             await resource.ReadAsync(ConfiglueResourceContext.Default)
         );

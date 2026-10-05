@@ -4,6 +4,7 @@ using System.Text;
 using Azure;
 using Azure.Storage.Blobs;
 using Azure.Storage.Blobs.Models;
+using Configlue.Internal;
 using Configlue.Sources;
 
 namespace Configlue.Resource.AzureBlob;
@@ -31,9 +32,7 @@ public sealed class AzureBlobResource
     private readonly Func<ConfiglueResourceContext, AzureBlobBinding>? _bindingSelector;
     private readonly string _containerName;
     private readonly string _blobName;
-    private readonly TaskCompletionSource<object?> _disposedSignal = new(
-        TaskCreationOptions.RunContinuationsAsynchronously
-    );
+    private readonly WatchShutdown _watchShutdown = new();
     private int _disposed;
 
     /// <summary>Creates a resource for one blob resolved through a service client.</summary>
@@ -214,6 +213,11 @@ public sealed class AzureBlobResource
     }
 
     /// <inheritdoc />
+    /// <inheritdoc />
+    /// <remarks>
+    /// Polls blob properties (ETag metadata) through the shared polling primitive and
+    /// never downloads the payload merely to detect changes.
+    /// </remarks>
     public async ValueTask WaitForChangeAsync(
         ConfiglueResourceContext context,
         string? observedRevision,
@@ -229,40 +233,20 @@ public sealed class AzureBlobResource
         }
 
         var binding = ResolveBinding(context);
-        if (
-            !string.Equals(
-                await GetCurrentRevisionAsync(binding, cancellationToken).ConfigureAwait(false),
-                observedRevision,
-                StringComparison.Ordinal
+        await _watchShutdown
+            .WaitAsync(
+                watchCancellationToken =>
+                    PollingWatch.WaitForRevisionChangeAsync(
+                        cancellation => new ValueTask<string?>(
+                            GetCurrentRevisionAsync(binding, cancellation)
+                        ),
+                        observedRevision,
+                        _options.WatchPollInterval,
+                        watchCancellationToken
+                    ),
+                cancellationToken
             )
-        )
-        {
-            return;
-        }
-
-        while (true)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            var delayTask = Task.Delay(_options.WatchPollInterval, cancellationToken);
-            var completed = await Task.WhenAny(delayTask, _disposedSignal.Task)
-                .ConfigureAwait(false);
-            if (!ReferenceEquals(completed, delayTask))
-            {
-                throw new OperationCanceledException(cancellationToken);
-            }
-
-            await delayTask.ConfigureAwait(false);
-            if (
-                !string.Equals(
-                    await GetCurrentRevisionAsync(binding, cancellationToken).ConfigureAwait(false),
-                    observedRevision,
-                    StringComparison.Ordinal
-                )
-            )
-            {
-                return;
-            }
-        }
+            .ConfigureAwait(false);
     }
 
     /// <inheritdoc />
@@ -273,7 +257,7 @@ public sealed class AzureBlobResource
             return;
         }
 
-        _disposedSignal.TrySetResult(null);
+        _watchShutdown.Signal();
     }
 
     private AzureBlobBinding ResolveBinding(ConfiglueResourceContext context)

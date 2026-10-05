@@ -208,11 +208,11 @@ public sealed class GcsObjectResource
         ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) != 0, this);
         return _watchShutdown.WaitAsync(
             watchCancellationToken =>
-                PollUntilChangedAsync(
-                    client,
-                    bucketName,
-                    objectName,
+                PollingWatch.WaitForRevisionChangeAsync(
+                    cancellation =>
+                        ReadGenerationRevisionAsync(client, bucketName, objectName, cancellation),
                     observedRevision,
+                    _options.PollInterval,
                     watchCancellationToken
                 ),
             cancellationToken
@@ -264,33 +264,21 @@ public sealed class GcsObjectResource
         );
     }
 
-    private async ValueTask PollUntilChangedAsync(
+    /// <summary>
+    /// Generation-only revision read: observes object metadata and never downloads
+    /// bodies merely to detect changes.
+    /// </summary>
+    private static async ValueTask<string?> ReadGenerationRevisionAsync(
         IGcsObjectClient client,
         string bucketName,
         string objectName,
-        string? observedRevision,
         CancellationToken cancellationToken
     )
     {
-        while (true)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            var metadata = await client
-                .GetMetadataAsync(bucketName, objectName, cancellationToken)
-                .ConfigureAwait(false);
-            if (
-                !string.Equals(
-                    FormatRevision(metadata?.Generation),
-                    observedRevision,
-                    StringComparison.Ordinal
-                )
-            )
-            {
-                return;
-            }
-
-            await Task.Delay(_options.PollInterval, cancellationToken).ConfigureAwait(false);
-        }
+        var metadata = await client
+            .GetMetadataAsync(bucketName, objectName, cancellationToken)
+            .ConfigureAwait(false);
+        return FormatRevision(metadata?.Generation);
     }
 
     private IGcsObjectClient GetClient(ConfiglueResourceContext context) =>

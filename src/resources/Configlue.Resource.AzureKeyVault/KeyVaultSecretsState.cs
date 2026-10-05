@@ -3,6 +3,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using Configlue.CompilerServices;
+using Configlue.Internal;
 
 namespace Configlue.Resource.AzureKeyVault;
 
@@ -30,7 +31,7 @@ public sealed class KeyVaultSecretsState<TFragment>
     private readonly JsonSerializerOptions? _jsonOptions;
     private readonly string _physicalOrigin;
     private readonly Dictionary<ConfiglueModelSchema, KeyVaultSchemaLookup> _lookups;
-    private readonly CancellationTokenSource _disposeSignal = new();
+    private readonly WatchShutdown _watchShutdown = new();
     private int _disposed;
 
     internal KeyVaultSecretsState(
@@ -253,6 +254,7 @@ public sealed class KeyVaultSecretsState<TFragment>
         CancellationToken cancellationToken = default
     )
     {
+        _ = context;
         ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) != 0, this);
         if (_pollInterval is null || IsAllFixedVersion)
         {
@@ -261,53 +263,19 @@ public sealed class KeyVaultSecretsState<TFragment>
             );
         }
 
-        cancellationToken.ThrowIfCancellationRequested();
-        var current = await GetRevisionAsync(cancellationToken).ConfigureAwait(false);
-        if (!string.Equals(current, observedRevision, StringComparison.Ordinal))
-        {
-            return;
-        }
-
-        var interval = _pollInterval.Value;
-        while (true)
-        {
-            try
-            {
-                using var linked = CancellationTokenSource.CreateLinkedTokenSource(
-                    cancellationToken,
-                    _disposeSignal.Token
-                );
-                await Task.Delay(interval, linked.Token).ConfigureAwait(false);
-            }
-            catch (OperationCanceledException)
-            {
-                if (_disposeSignal.IsCancellationRequested)
-                {
-                    ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) != 0, this);
-                    return;
-                }
-
-                throw;
-            }
-
-            ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) != 0, this);
-            cancellationToken.ThrowIfCancellationRequested();
-            try
-            {
-                current = await GetRevisionAsync(cancellationToken).ConfigureAwait(false);
-            }
-            catch (KeyVaultSecretUnavailableException)
-            {
-                continue;
-            }
-
-            if (!string.Equals(current, observedRevision, StringComparison.Ordinal))
-            {
-                return;
-            }
-
-            _ = context;
-        }
+        await _watchShutdown
+            .WaitAsync(
+                watchCancellationToken =>
+                    PollingWatch.WaitForRevisionChangeAsync(
+                        GetRevisionAsync,
+                        observedRevision,
+                        _pollInterval.Value,
+                        watchCancellationToken,
+                        static exception => exception is KeyVaultSecretUnavailableException
+                    ),
+                cancellationToken
+            )
+            .ConfigureAwait(false);
     }
 
     /// <inheritdoc />
@@ -318,8 +286,7 @@ public sealed class KeyVaultSecretsState<TFragment>
             return;
         }
 
-        _disposeSignal.Cancel();
-        _disposeSignal.Dispose();
+        _watchShutdown.Signal();
     }
 
     /// <inheritdoc />

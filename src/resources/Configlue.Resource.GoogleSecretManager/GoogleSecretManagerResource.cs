@@ -1,6 +1,7 @@
 using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 using System.Text;
+using Configlue.Internal;
 using Configlue.Sources;
 
 namespace Configlue.Resource.GoogleSecretManager;
@@ -197,9 +198,7 @@ public sealed class GoogleSecretManagerResource
     private readonly IGoogleSecretManagerClient _client;
     private readonly GoogleSecretManagerResourceOptions _options;
     private readonly Func<ConfiglueResourceContext, IGoogleSecretManagerClient>? _clientSelector;
-    private readonly TaskCompletionSource _disposedSignal = new(
-        TaskCreationOptions.RunContinuationsAsynchronously
-    );
+    private readonly WatchShutdown _watchShutdown = new();
     private int _disposed;
 
     /// <summary>Creates a resource for one secret.</summary>
@@ -344,7 +343,11 @@ public sealed class GoogleSecretManagerResource
     }
 
     /// <inheritdoc />
-    public ValueTask WaitForChangeAsync(
+    /// <remarks>
+    /// Moving aliases poll lightweight version metadata through the shared polling
+    /// primitive; fixed numeric versions are immutable and only wait for shutdown.
+    /// </remarks>
+    public async ValueTask WaitForChangeAsync(
         ConfiglueResourceContext context,
         string? observedRevision,
         CancellationToken cancellationToken = default
@@ -354,10 +357,32 @@ public sealed class GoogleSecretManagerResource
 
         if (IsFixedNumericVersion(ResolveVersion(context)))
         {
-            return WaitForShutdownAsync(cancellationToken);
+            await _watchShutdown
+                .WaitAsync(
+                    watchCancellationToken => new ValueTask(
+                        Task.Delay(Timeout.Infinite, watchCancellationToken)
+                    ),
+                    cancellationToken
+                )
+                .ConfigureAwait(false);
+            return;
         }
 
-        return PollForAliasChangeAsync(context, observedRevision, cancellationToken);
+        var versionedName = BuildVersionedName(context);
+        var client = GetClient(context);
+        await _watchShutdown
+            .WaitAsync(
+                watchCancellationToken =>
+                    PollingWatch.WaitForRevisionChangeAsync(
+                        cancellation => ReadAliasRevisionAsync(client, versionedName, cancellation),
+                        observedRevision,
+                        _options.PollInterval,
+                        watchCancellationToken,
+                        static exception => exception is GoogleSecretUnavailableException
+                    ),
+                cancellationToken
+            )
+            .ConfigureAwait(false);
     }
 
     /// <inheritdoc />
@@ -368,7 +393,7 @@ public sealed class GoogleSecretManagerResource
             return;
         }
 
-        _disposedSignal.TrySetResult();
+        _watchShutdown.Signal();
     }
 
     /// <summary>Whether a version selector addresses one immutable numeric version.</summary>
@@ -402,109 +427,33 @@ public sealed class GoogleSecretManagerResource
         return $"{BuildParentName(projectId, location, secretId)}/versions/{version}";
     }
 
-    private async ValueTask WaitForShutdownAsync(CancellationToken cancellationToken)
-    {
-        var completed = await Task.WhenAny(_disposedSignal.Task, DelayForever(cancellationToken))
-            .ConfigureAwait(false);
-        if (completed != _disposedSignal.Task)
-        {
-            await completed.ConfigureAwait(false);
-            return;
-        }
-
-        cancellationToken.ThrowIfCancellationRequested();
-    }
-
-    private async ValueTask PollForAliasChangeAsync(
-        ConfiglueResourceContext context,
-        string? observedRevision,
+    /// <summary>
+    /// Alias revision read: the resolved numeric version ID when enabled, otherwise
+    /// <c>null</c> (missing, disabled, or destroyed). Unavailable backends are
+    /// transient and handled by the shared polling primitive.
+    /// </summary>
+    private static async ValueTask<string?> ReadAliasRevisionAsync(
+        IGoogleSecretManagerClient client,
+        string versionedName,
         CancellationToken cancellationToken
     )
     {
-        var versionedName = BuildVersionedName(context);
-        var pollInterval = _options.PollInterval;
-        while (true)
+        try
         {
-            cancellationToken.ThrowIfCancellationRequested();
-            if (_disposedSignal.Task.IsCompleted)
-            {
-                cancellationToken.ThrowIfCancellationRequested();
-                return;
-            }
-
-            GoogleSecretVersionMetadata metadata;
-            try
-            {
-                metadata = await GetClient(context)
-                    .GetSecretVersionAsync(versionedName, cancellationToken)
-                    .ConfigureAwait(false);
-            }
-            catch (GoogleSecretNotFoundException) when (!cancellationToken.IsCancellationRequested)
-            {
-                if (observedRevision is not null)
-                {
-                    return;
-                }
-
-                await DelayOrShutdownAsync(pollInterval, cancellationToken).ConfigureAwait(false);
-                continue;
-            }
-            catch (GoogleSecretVersionDisabledException)
-                when (!cancellationToken.IsCancellationRequested)
-            {
-                if (observedRevision is not null)
-                {
-                    return;
-                }
-
-                await DelayOrShutdownAsync(pollInterval, cancellationToken).ConfigureAwait(false);
-                continue;
-            }
-            catch (GoogleSecretUnavailableException)
-                when (!cancellationToken.IsCancellationRequested)
-            {
-                await DelayOrShutdownAsync(pollInterval, cancellationToken).ConfigureAwait(false);
-                continue;
-            }
-
-            if (
-                metadata.State
-                is GoogleSecretVersionState.Disabled
-                    or GoogleSecretVersionState.Destroyed
-            )
-            {
-                if (observedRevision is not null)
-                {
-                    return;
-                }
-            }
-            else if (!string.Equals(metadata.VersionId, observedRevision, StringComparison.Ordinal))
-            {
-                return;
-            }
-
-            await DelayOrShutdownAsync(pollInterval, cancellationToken).ConfigureAwait(false);
+            var metadata = await client
+                .GetSecretVersionAsync(versionedName, cancellationToken)
+                .ConfigureAwait(false);
+            return metadata.State is GoogleSecretVersionState.Enabled ? metadata.VersionId : null;
+        }
+        catch (GoogleSecretNotFoundException)
+        {
+            return null;
+        }
+        catch (GoogleSecretVersionDisabledException)
+        {
+            return null;
         }
     }
-
-    private async Task DelayOrShutdownAsync(TimeSpan delay, CancellationToken cancellationToken)
-    {
-        var completed = await Task.WhenAny(
-                Task.Delay(delay, cancellationToken),
-                _disposedSignal.Task
-            )
-            .ConfigureAwait(false);
-        if (completed == _disposedSignal.Task)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            return;
-        }
-
-        await completed.ConfigureAwait(false);
-    }
-
-    private static Task DelayForever(CancellationToken cancellationToken) =>
-        Task.Delay(Timeout.Infinite, cancellationToken);
 
     private IGoogleSecretManagerClient GetClient(ConfiglueResourceContext context) =>
         _clientSelector?.Invoke(context) ?? _client;

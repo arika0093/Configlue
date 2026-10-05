@@ -1,11 +1,17 @@
+using Configlue.Internal;
+
 namespace Configlue.Resource.AzureKeyVault;
 
 /// <summary>Polls a revision provider until it differs from the observed revision.</summary>
+/// <remarks>
+/// Thin adapter over the shared <see cref="PollingWatch"/> primitive so single-secret
+/// Key Vault documents reuse the common cancellation/disposal/transient semantics.
+/// </remarks>
 internal sealed class KeyVaultPollingWatcher : ISourceWatcher, IDisposable
 {
     private readonly Func<CancellationToken, ValueTask<string?>> _getRevisionAsync;
     private readonly TimeSpan _pollInterval;
-    private readonly CancellationTokenSource _disposeSignal = new();
+    private readonly WatchShutdown _watchShutdown = new();
     private int _disposed;
 
     internal KeyVaultPollingWatcher(
@@ -14,13 +20,7 @@ internal sealed class KeyVaultPollingWatcher : ISourceWatcher, IDisposable
     )
     {
         ArgumentNullException.ThrowIfNull(getRevisionAsync);
-        if (pollInterval <= TimeSpan.Zero)
-        {
-            throw new ArgumentOutOfRangeException(
-                nameof(pollInterval),
-                "The polling interval must be greater than zero."
-            );
-        }
+        PollingWatch.ValidateInterval(pollInterval, nameof(pollInterval));
 
         _getRevisionAsync = getRevisionAsync;
         _pollInterval = pollInterval;
@@ -34,60 +34,20 @@ internal sealed class KeyVaultPollingWatcher : ISourceWatcher, IDisposable
     {
         _ = context;
         ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) != 0, this);
-        cancellationToken.ThrowIfCancellationRequested();
 
-        string? current;
-        try
-        {
-            current = await _getRevisionAsync(cancellationToken).ConfigureAwait(false);
-        }
-        catch (KeyVaultSecretUnavailableException)
-        {
-            current = observedRevision;
-        }
-
-        if (!string.Equals(current, observedRevision, StringComparison.Ordinal))
-        {
-            return;
-        }
-
-        while (true)
-        {
-            try
-            {
-                using var linked = CancellationTokenSource.CreateLinkedTokenSource(
-                    cancellationToken,
-                    _disposeSignal.Token
-                );
-                await Task.Delay(_pollInterval, linked.Token).ConfigureAwait(false);
-            }
-            catch (OperationCanceledException)
-            {
-                if (_disposeSignal.IsCancellationRequested)
-                {
-                    ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) != 0, this);
-                    return;
-                }
-
-                throw;
-            }
-
-            ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) != 0, this);
-            cancellationToken.ThrowIfCancellationRequested();
-            try
-            {
-                current = await _getRevisionAsync(cancellationToken).ConfigureAwait(false);
-            }
-            catch (KeyVaultSecretUnavailableException)
-            {
-                continue;
-            }
-
-            if (!string.Equals(current, observedRevision, StringComparison.Ordinal))
-            {
-                return;
-            }
-        }
+        await _watchShutdown
+            .WaitAsync(
+                watchCancellationToken =>
+                    PollingWatch.WaitForRevisionChangeAsync(
+                        _getRevisionAsync,
+                        observedRevision,
+                        _pollInterval,
+                        watchCancellationToken,
+                        static exception => exception is KeyVaultSecretUnavailableException
+                    ),
+                cancellationToken
+            )
+            .ConfigureAwait(false);
     }
 
     public void Dispose()
@@ -97,8 +57,7 @@ internal sealed class KeyVaultPollingWatcher : ISourceWatcher, IDisposable
             return;
         }
 
-        _disposeSignal.Cancel();
-        _disposeSignal.Dispose();
+        _watchShutdown.Signal();
     }
 
     public override string ToString() => "KeyVaultPollingWatcher(watcher=REDACTED)";

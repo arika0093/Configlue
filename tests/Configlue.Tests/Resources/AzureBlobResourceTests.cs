@@ -547,7 +547,9 @@ public sealed class AzureBlobResourceTests
         await Task.Delay(150);
         resource.Dispose();
 
-        await Should.ThrowAsync<OperationCanceledException>(async () => await waiter);
+        // Disposal shares the common polling-watch semantics: active waiters wake
+        // successfully instead of hanging (see PollingWatchTests).
+        await waiter.WaitAsync(TimeSpan.FromSeconds(5));
         resource.Dispose();
         await Should.ThrowAsync<ObjectDisposedException>(async () => await resource.ReadAsync());
         await Should.ThrowAsync<ObjectDisposedException>(async () =>

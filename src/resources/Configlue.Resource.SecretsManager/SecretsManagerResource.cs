@@ -295,12 +295,18 @@ public sealed class SecretsManagerResource
         await _watchShutdown
             .WaitAsync(
                 watchCancellationToken =>
-                    PollUntilChangedAsync(
-                        GetClient(context),
-                        selection.SecretId,
-                        selection.VersionStage!,
+                    PollingWatch.WaitForRevisionChangeAsync(
+                        cancellation =>
+                            ReadStageRevisionAsync(
+                                GetClient(context),
+                                selection.SecretId,
+                                selection.VersionStage!,
+                                cancellation
+                            ),
                         observedRevision,
-                        watchCancellationToken
+                        _options.PollingInterval,
+                        watchCancellationToken,
+                        IsTransient
                     ),
                 cancellationToken
             )
@@ -318,55 +324,39 @@ public sealed class SecretsManagerResource
         _watchShutdown.Signal();
     }
 
-    private async ValueTask PollUntilChangedAsync(
+    /// <summary>
+    /// Reads the version ID for one staging label without downloading payloads.
+    /// Missing or deleted secrets map to a <c>null</c> revision so the shared
+    /// polling primitive compares revisions only.
+    /// </summary>
+    private async ValueTask<string?> ReadStageRevisionAsync(
         ISecretsManagerClient client,
         string secretId,
         string versionStage,
-        string? observedRevision,
         CancellationToken cancellationToken
     )
     {
-        while (true)
+        try
         {
-            cancellationToken.ThrowIfCancellationRequested();
-            string? currentVersion;
-            try
+            var description = await ExecuteWithRetryAsync(
+                    token => client.DescribeSecretAsync(secretId, token),
+                    cancellationToken
+                )
+                .ConfigureAwait(false);
+            if (description.DeletedDate is not null)
             {
-                var description = await ExecuteWithRetryAsync(
-                        token => client.DescribeSecretAsync(secretId, token),
-                        cancellationToken
-                    )
-                    .ConfigureAwait(false);
-                if (description.DeletedDate is not null)
-                {
-                    return;
-                }
-
-                currentVersion = FindVersionForStage(description, versionStage);
-            }
-            catch (ResourceNotFoundException)
-            {
-                return;
-            }
-            catch (InvalidRequestException exception) when (IsDeletedSecret(exception))
-            {
-                return;
-            }
-            catch (Exception exception) when (IsTransient(exception))
-            {
-                await Task.Delay(_options.PollingInterval, cancellationToken).ConfigureAwait(false);
-                continue;
+                return null;
             }
 
-            if (
-                currentVersion is null
-                || !string.Equals(currentVersion, observedRevision, StringComparison.Ordinal)
-            )
-            {
-                return;
-            }
-
-            await Task.Delay(_options.PollingInterval, cancellationToken).ConfigureAwait(false);
+            return FindVersionForStage(description, versionStage);
+        }
+        catch (ResourceNotFoundException)
+        {
+            return null;
+        }
+        catch (InvalidRequestException exception) when (IsDeletedSecret(exception))
+        {
+            return null;
         }
     }
 
