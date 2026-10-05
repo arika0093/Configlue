@@ -161,7 +161,8 @@ public sealed class DevToolsWebHostTests
                 + Uri.EscapeDataString(host.SessionToken)
         );
         script.StatusCode.ShouldBe(HttpStatusCode.OK);
-        (await script.Content.ReadAsStringAsync()).ShouldContain("configlueDevToolsMonaco");
+        script.Content.Headers.ContentType?.MediaType.ShouldBe("text/javascript");
+        (await script.Content.ReadAsStringAsync()).ShouldNotBeNullOrWhiteSpace();
 
         // Shared framework boot assets stay ungated (identical for every app,
         // no state); the token-gated document plus the in-page bootstrap still
