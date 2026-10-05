@@ -76,7 +76,8 @@ internal static class SparseModelAnalyzer
                 ImmutableArray<SparseMemberModel>.Empty,
                 ImmutableArray<SparsePocoCloneModel>.Empty,
                 ImmutableArray<SparseStructuralModel>.Empty,
-                diagnostics.ToImmutable()
+                diagnostics.ToImmutable(),
+                ImmutableArray<SparsePromotedModel>.Empty
             );
         }
 
@@ -93,13 +94,19 @@ internal static class SparseModelAnalyzer
         var structuralModels = SparseModelDiscovery.CollectStructuralTypes(members, config, cancellationToken)
             .Select(type => SparseModelDiscovery.CreateStructuralModel(type, config, cancellationToken))
             .ToImmutableArray();
+        var promotedModels = SparseModelDiscovery.CreatePromotedModels(
+            members,
+            config,
+            cancellationToken
+        );
 
         return new SparseGenerationAnalysis(
             SparseModelDiscovery.CreateModelInfo(model, hintName, cancellationToken),
             memberModels,
             pocoCloneModels,
             structuralModels,
-            ImmutableArray<SparseGeneratorDiagnostic>.Empty
+            ImmutableArray<SparseGeneratorDiagnostic>.Empty,
+            promotedModels
         );
     }
 
@@ -113,6 +120,7 @@ internal static class SparseModelAnalyzer
             ImmutableArray<SparseMemberModel>.Empty,
             ImmutableArray<SparsePocoCloneModel>.Empty,
             ImmutableArray<SparseStructuralModel>.Empty,
-            ImmutableArray.Create(new SparseGeneratorDiagnostic(descriptorId, location, argument))
+            ImmutableArray.Create(new SparseGeneratorDiagnostic(descriptorId, location, argument)),
+            ImmutableArray<SparsePromotedModel>.Empty
         );
 }

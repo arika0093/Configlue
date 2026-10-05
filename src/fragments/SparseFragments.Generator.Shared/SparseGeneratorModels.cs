@@ -134,12 +134,37 @@ internal sealed record SparsePocoCloneModel(
         );
 }
 
+internal sealed record SparsePromotedModel(
+    SparseModelInfo Model,
+    ImmutableArray<SparseMemberModel> Members,
+    ImmutableArray<SparsePocoCloneModel> PocoCloneModels,
+    ImmutableArray<SparseStructuralModel> StructuralModels
+)
+{
+    public bool Equals(SparsePromotedModel? other) =>
+        other is not null
+        && Model.Equals(other.Model)
+        && SparseSequence.Equal(Members, other.Members)
+        && SparseSequence.Equal(PocoCloneModels, other.PocoCloneModels)
+        && SparseSequence.Equal(StructuralModels, other.StructuralModels);
+
+    public override int GetHashCode() =>
+        unchecked(
+            (
+                (Model.GetHashCode() * 31 + SparseSequence.Hash(Members)) * 31
+                + SparseSequence.Hash(PocoCloneModels)
+            )
+                * 31 + SparseSequence.Hash(StructuralModels)
+        );
+}
+
 internal sealed record SparseGenerationAnalysis(
     SparseModelInfo? Model,
     ImmutableArray<SparseMemberModel> Members,
     ImmutableArray<SparsePocoCloneModel> PocoCloneModels,
     ImmutableArray<SparseStructuralModel> StructuralModels,
-    ImmutableArray<SparseGeneratorDiagnostic> Diagnostics
+    ImmutableArray<SparseGeneratorDiagnostic> Diagnostics,
+    ImmutableArray<SparsePromotedModel> PromotedModels = default
 )
 {
     public bool Equals(SparseGenerationAnalysis? other) =>
@@ -148,7 +173,8 @@ internal sealed record SparseGenerationAnalysis(
         && SparseSequence.Equal(Members, other.Members)
         && SparseSequence.Equal(PocoCloneModels, other.PocoCloneModels)
         && SparseSequence.Equal(StructuralModels, other.StructuralModels)
-        && SparseSequence.Equal(Diagnostics, other.Diagnostics);
+        && SparseSequence.Equal(Diagnostics, other.Diagnostics)
+        && SparseSequence.Equal(PromotedModels, other.PromotedModels);
 
     public override int GetHashCode()
     {
@@ -156,7 +182,8 @@ internal sealed record SparseGenerationAnalysis(
         hash = unchecked(hash * 31 + SparseSequence.Hash(Members));
         hash = unchecked(hash * 31 + SparseSequence.Hash(PocoCloneModels));
         hash = unchecked(hash * 31 + SparseSequence.Hash(StructuralModels));
-        return unchecked(hash * 31 + SparseSequence.Hash(Diagnostics));
+        hash = unchecked(hash * 31 + SparseSequence.Hash(Diagnostics));
+        return unchecked(hash * 31 + SparseSequence.Hash(PromotedModels));
     }
 }
 

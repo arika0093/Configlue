@@ -105,6 +105,33 @@ public sealed partial class ConfiglueGenerator
             static (productionContext, result) => Emit(productionContext, result)
         );
 
+        var promoted = analyzed
+            .Collect()
+            .Combine(providerRegistries)
+            .Select(
+                static (input, cancellationToken) =>
+                    RenderPromoted(
+                        input.Left,
+                        input.Right.Json,
+                        input.Right.MessagePack,
+                        input.Right.JsonPatch,
+                        input.Right.BclSetSupportsReadOnlySet,
+                        input.Right.BclSetSupportsCapacity,
+                        cancellationToken
+                    )
+            )
+            .WithTrackingName("ConfiglueGenerator.Promoted");
+        context.RegisterSourceOutput(
+            promoted,
+            static (productionContext, results) =>
+            {
+                foreach (var result in results)
+                {
+                    Emit(productionContext, result);
+                }
+            }
+        );
+
         var hasModels = analyzed
             .Select(static (analysis, _) => analysis.Model.HasValue)
             .Collect()
@@ -566,6 +593,7 @@ public sealed partial class ConfiglueGenerator
         var structuralModels = CollectStructuralTypes(members, cancellationToken)
             .Select(type => CreateStructuralModel(type, cancellationToken))
             .ToImmutableArray();
+        var promotedModels = CreatePromotedModels(members, cancellationToken);
         return new GenerationAnalysis(
             fileName,
             CreateModelInfo(model, modelId, modelVersion, cancellationToken),
@@ -573,7 +601,8 @@ public sealed partial class ConfiglueGenerator
             previousModelInfos,
             pocoCloneModels,
             structuralModels,
-            ImmutableArray<GeneratorDiagnosticInfo>.Empty
+            ImmutableArray<GeneratorDiagnosticInfo>.Empty,
+            promotedModels
         );
     }
 
@@ -755,7 +784,11 @@ public sealed partial class ConfiglueGenerator
         foreach (var child in members.Select(static member => member.ChildModel))
         {
             cancellationToken.ThrowIfCancellationRequested();
-            if (child is not null && IsStructuralType(child, cancellationToken))
+            if (
+                child is not null
+                && IsStructuralType(child, cancellationToken)
+                && !IsPromotablePartial(child, cancellationToken)
+            )
             {
                 pending.Push(child);
             }
@@ -777,7 +810,11 @@ public sealed partial class ConfiglueGenerator
             )
             {
                 cancellationToken.ThrowIfCancellationRequested();
-                if (nested is not null && IsStructuralType(nested, cancellationToken))
+                if (
+                    nested is not null
+                    && IsStructuralType(nested, cancellationToken)
+                    && !IsPromotablePartial(nested, cancellationToken)
+                )
                 {
                     pending.Push(nested);
                 }

@@ -221,6 +221,15 @@ public sealed partial class ConfiglueGenerator
     )
     {
         if (
+            type is INamedTypeSymbol promotable
+            && IsPromotablePartial(promotable, cancellationToken)
+        )
+        {
+            pocoType = null!;
+            return false;
+        }
+
+        if (
             type is INamedTypeSymbol named
             && ClassifyStructuralType(type, cancellationToken)
                 == StructuralTypeKind.StructuralObject

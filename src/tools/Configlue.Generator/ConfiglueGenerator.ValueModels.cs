@@ -364,7 +364,8 @@ public sealed partial class ConfiglueGenerator
             ImmutableArray<PreviousModelInfo> previousModels,
             ImmutableArray<PocoCloneModel> pocoCloneModels,
             ImmutableArray<StructuralModel> structuralModels,
-            ImmutableArray<GeneratorDiagnosticInfo> diagnostics
+            ImmutableArray<GeneratorDiagnosticInfo> diagnostics,
+            ImmutableArray<PromotedModel> promotedModels = default
         )
         {
             HintName = hintName;
@@ -374,6 +375,9 @@ public sealed partial class ConfiglueGenerator
             PocoCloneModels = pocoCloneModels;
             StructuralModels = structuralModels;
             Diagnostics = diagnostics;
+            PromotedModels = promotedModels.IsDefault
+                ? ImmutableArray<PromotedModel>.Empty
+                : promotedModels;
         }
 
         public string? HintName { get; }
@@ -383,6 +387,7 @@ public sealed partial class ConfiglueGenerator
         public ImmutableArray<PocoCloneModel> PocoCloneModels { get; }
         public ImmutableArray<StructuralModel> StructuralModels { get; }
         public ImmutableArray<GeneratorDiagnosticInfo> Diagnostics { get; }
+        public ImmutableArray<PromotedModel> PromotedModels { get; }
 
         public bool Equals(GenerationAnalysis? other)
         {
@@ -396,6 +401,7 @@ public sealed partial class ConfiglueGenerator
                     && SequenceEqual(PocoCloneModels, other.PocoCloneModels)
                     && SequenceEqual(StructuralModels, other.StructuralModels)
                     && SequenceEqual(Diagnostics, other.Diagnostics)
+                    && SequenceEqual(PromotedModels, other.PromotedModels)
                 );
         }
 
@@ -428,6 +434,10 @@ public sealed partial class ConfiglueGenerator
             {
                 hash = unchecked(hash * 31 + diagnostic.GetHashCode());
             }
+            foreach (var promoted in PromotedModels)
+            {
+                hash = unchecked(hash * 31 + promoted.GetHashCode());
+            }
 
             return hash;
         }
@@ -437,6 +447,15 @@ public sealed partial class ConfiglueGenerator
     {
         cancellationToken.ThrowIfCancellationRequested();
         var isConfiglueModel = IsConfiglueModel(type, cancellationToken);
+        if (
+            !isConfiglueModel
+            && type is INamedTypeSymbol promotable
+            && IsPromotablePartial(promotable, cancellationToken)
+        )
+        {
+            isConfiglueModel = true;
+        }
+
         string? pocoCloneHelperName = null;
         if (!isConfiglueModel && TryGetPocoCloneType(type, cancellationToken, out var pocoType))
         {
@@ -488,7 +507,10 @@ public sealed partial class ConfiglueGenerator
         {
             childModel = CreateTypeModel(member.ChildModel, cancellationToken);
             childIsReferenceType = member.ChildModel.IsReferenceType;
-            if (IsConfiglueModel(member.ChildModel, cancellationToken))
+            if (
+                IsConfiglueModel(member.ChildModel, cancellationToken)
+                || IsPromotablePartial(member.ChildModel, cancellationToken)
+            )
             {
                 var childType = NonNullableTypeName(member.ChildModel);
                 childFragmentType = childType + ".Fragment";

@@ -78,7 +78,6 @@ public partial class Settings
     public IReadOnlyList<string> Plugins { get; set; } = [];
 }
 
-[SparseFragmentModel]
 public partial class Child
 {
     public int Count { get; set; }
@@ -97,7 +96,7 @@ Once you build, the generator adds the following members inside your model type:
 | Fragment builder | Copies a fragment while changing only the members you touch |
 | `DeepClone()` | Returns a fully independent copy of a model or fragment |
 
-Decorate a nested type (like `Child` above) when you want to construct its Fragment/Patch types directly in your code, as this example does. Nested POCOs participate in deep merge, diff, patch, and clone even *without* the attribute — but their generated fragment types get internal names and cannot be written directly.
+Reachable partial model types automatically receive generated Fragment/Patch APIs. Non-partial nested POCOs still participate structurally but do not expose generated nested types.
 
 ### 3. Background: the three states of `Optional<T>`
 

@@ -13,3 +13,4 @@ SPF006 | SparseFragments | Error |
 SPF007 | SparseFragments | Error |
 SPF008 | SparseFragments | Error |
 SPF009 | SparseFragments | Error |
+SPF010 | SparseFragments | Error |

@@ -115,6 +115,15 @@ public sealed class SparseFragmentsGenerator : IIncrementalGenerator
         true
     );
 
+    private static readonly DiagnosticDescriptor IncompatiblePromotedModel = new(
+        SparseDiagnosticIds.IncompatiblePromotedModel,
+        "Incompatible promoted fragment model",
+        "Promoted model '{0}' requires incompatible generated semantics from different roots",
+        "SparseFragments",
+        DiagnosticSeverity.Error,
+        true
+    );
+
     /// <inheritdoc />
     public void Initialize(IncrementalGeneratorInitializationContext context)
     {
@@ -175,6 +184,32 @@ public sealed class SparseFragmentsGenerator : IIncrementalGenerator
         context.RegisterSourceOutput(
             generated,
             static (productionContext, result) => Emit(productionContext, result)
+        );
+
+        var promoted = analyzed
+            .Collect()
+            .Combine(bclSetSupport)
+            .Combine(hasJsonPatch)
+            .Select(
+                static (input, cancellationToken) =>
+                    RenderPromoted(
+                        input.Left.Left,
+                        input.Left.Right.ReadOnlySet,
+                        input.Left.Right.Capacity,
+                        input.Right,
+                        cancellationToken
+                    )
+            )
+            .WithTrackingName("SparseFragmentsGenerator.Promoted");
+        context.RegisterSourceOutput(
+            promoted,
+            static (productionContext, results) =>
+            {
+                foreach (var result in results)
+                {
+                    Emit(productionContext, result);
+                }
+            }
         );
 
         var hasModels = analyzed
@@ -311,6 +346,125 @@ public sealed class SparseFragmentsGenerator : IIncrementalGenerator
             SparseDiagnosticIds.UnsupportedStructural => UnsupportedStructural,
             SparseDiagnosticIds.UnsupportedClone => UnsupportedClone,
             SparseDiagnosticIds.GeneratedNameCollision => GeneratedNameCollision,
+            SparseDiagnosticIds.IncompatiblePromotedModel => IncompatiblePromotedModel,
             _ => throw new global::System.ArgumentOutOfRangeException(nameof(id), id, null),
         };
+
+    private static ImmutableArray<SparseGenerationResult> RenderPromoted(
+        ImmutableArray<SparseGenerationAnalysis> analyses,
+        bool bclHashSetImplementsReadOnlySet,
+        bool bclHashSetSupportsCapacity,
+        bool hasJsonPatch,
+        CancellationToken cancellationToken
+    )
+    {
+        var explicitRoots = new System.Collections.Generic.HashSet<string>(
+            analyses
+                .Where(static analysis => analysis.Model.HasValue)
+                .Select(static analysis => analysis.Model!.Value.ModelTypeName),
+            StringComparer.Ordinal
+        );
+
+        var deduped = new System.Collections.Generic.SortedDictionary<string, SparsePromotedModel>(
+            StringComparer.Ordinal
+        );
+        var diagnostics = ImmutableArray.CreateBuilder<SparseGenerationResult>();
+        var incompatible = new System.Collections.Generic.HashSet<string>(StringComparer.Ordinal);
+        foreach (var analysis in analyses)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            foreach (var promoted in analysis.PromotedModels)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                var key = promoted.Model.ModelTypeName;
+                if (explicitRoots.Contains(key))
+                {
+                    continue;
+                }
+
+                if (deduped.TryGetValue(key, out var existing))
+                {
+                    if (!existing.Equals(promoted) && incompatible.Add(key))
+                    {
+                        diagnostics.Add(
+                            new SparseGenerationResult(
+                                null,
+                                null,
+                                ImmutableArray.Create(
+                                    new SparseGeneratorDiagnostic(
+                                        SparseDiagnosticIds.IncompatiblePromotedModel,
+                                        null,
+                                        promoted.Model.Name
+                                    )
+                                )
+                            )
+                        );
+                    }
+
+                    continue;
+                }
+
+                deduped.Add(key, promoted);
+            }
+        }
+
+        var results = ImmutableArray.CreateBuilder<SparseGenerationResult>();
+        foreach (var diagnostic in diagnostics)
+        {
+            results.Add(diagnostic);
+        }
+
+        foreach (var promoted in deduped.Values)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (incompatible.Contains(promoted.Model.ModelTypeName))
+            {
+                continue;
+            }
+
+            if (
+                hasJsonPatch
+                && promoted.Members.Any(static member =>
+                    member.Property.Name is "JsonConverter" or "FragmentJsonConverter"
+                )
+            )
+            {
+                var colliding = promoted.Members.First(member =>
+                    member.Property.Name is "JsonConverter" or "FragmentJsonConverter"
+                );
+                results.Add(
+                    new SparseGenerationResult(
+                        null,
+                        null,
+                        ImmutableArray.Create(
+                            new SparseGeneratorDiagnostic(
+                                SparseDiagnosticIds.GeneratedNameCollision,
+                                null,
+                                colliding.Property.Name
+                            )
+                        )
+                    )
+                );
+                continue;
+            }
+
+            var hint = SparseFragmentEmitter.GetPromotedHintName(promoted.Model, cancellationToken);
+            var source = SparseFragmentEmitter.BuildPromotedSource(
+                promoted,
+                bclHashSetImplementsReadOnlySet,
+                bclHashSetSupportsCapacity,
+                hasJsonPatch,
+                cancellationToken
+            );
+            results.Add(
+                new SparseGenerationResult(
+                    hint,
+                    source,
+                    ImmutableArray<SparseGeneratorDiagnostic>.Empty
+                )
+            );
+        }
+
+        return results.ToImmutable();
+    }
 }

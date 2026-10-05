@@ -71,6 +71,7 @@ source や provider で動作が異なる場合は境界を明示し、このペ
 ## モデルと schema の契約
 
 - モデルは `[ConfiglueModel("<identity>", Version = N)]` で宣言し、生成のため `partial` にする。
+- 到達可能な partial モデル型は自動的に生成された Fragment/Patch API を受け取る。non-partial の入れ子 POCO は構造的には引き続き参加するが、生成された入れ子型は公開されない。
 - 安定した identity＋version は保存ドキュメント（例: JSON の `$version`）と一緒に運ばれるため、古い schema は誤読されず認識される。
 - schema 移行は生成 fragment 型に対する `AddMigration<TFragment>(IStateSchemaMigration<TFragment>)` を使う（`ToBuilder()` / `Optional<T>.Present(...)` の形）。移行は古いドキュメントを使い続けられるようにし、読み書きコードは変えない。
 - validation: 動的コードが使える環境では DataAnnotations 属性が書き込み前に強制される（既定で有効）。失敗は `ConfiglueValidationException` を throw する。custom validator は `AddValidator(IConfiglueValidator<TModel>)` を使う。

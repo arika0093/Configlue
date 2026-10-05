@@ -295,19 +295,28 @@ internal static class SparseModelDiscovery
     {
         if (
             type is INamedTypeSymbol named
-            && ClassifyStructuralType(type, config, cancellationToken)
-                == StructuralTypeKind.StructuralObject
-            && IsAccessibleForClone(named)
+            && SparsePromotedDiscovery.IsPromotablePartial(named, config, cancellationToken)
         )
         {
-            var members = GetMembers(named, config, cancellationToken).ToArray();
+            pocoType = null!;
+            return false;
+        }
+
+        if (
+            type is INamedTypeSymbol namedType
+            && ClassifyStructuralType(type, config, cancellationToken)
+                == StructuralTypeKind.StructuralObject
+            && IsAccessibleForClone(namedType)
+        )
+        {
+            var members = GetMembers(namedType, config, cancellationToken).ToArray();
             if (members.Length == 0)
             {
                 pocoType = null!;
                 return false;
             }
 
-            pocoType = named;
+            pocoType = namedType;
             return true;
         }
 
@@ -399,7 +408,11 @@ internal static class SparseModelDiscovery
         foreach (var child in members.Select(static member => member.ChildModel))
         {
             cancellationToken.ThrowIfCancellationRequested();
-            if (child is not null && IsStructuralType(child, config, cancellationToken))
+            if (
+                child is not null
+                && IsStructuralType(child, config, cancellationToken)
+                && !SparsePromotedDiscovery.IsPromotablePartial(child, config, cancellationToken)
+            )
             {
                 pending.Push(child);
             }
@@ -421,7 +434,11 @@ internal static class SparseModelDiscovery
             )
             {
                 cancellationToken.ThrowIfCancellationRequested();
-                if (nested is not null && IsStructuralType(nested, config, cancellationToken))
+                if (
+                    nested is not null
+                    && IsStructuralType(nested, config, cancellationToken)
+                    && !SparsePromotedDiscovery.IsPromotablePartial(nested, config, cancellationToken)
+                )
                 {
                     pending.Push(nested);
                 }
@@ -492,7 +509,13 @@ internal static class SparseModelDiscovery
         {
             childModel = CreateTypeModel(member.ChildModel, config, cancellationToken);
             childIsReferenceType = member.ChildModel.IsReferenceType;
-            childIsStructural = !IsFragmentModel(member.ChildModel, config, cancellationToken);
+            var isPromoted = SparsePromotedDiscovery.IsPromotablePartial(
+                member.ChildModel,
+                config,
+                cancellationToken
+            );
+            childIsStructural =
+                !isPromoted && !IsFragmentModel(member.ChildModel, config, cancellationToken);
             var host = childIsStructural
                 ? StructuralHostName(member.ChildModel, cancellationToken)
                 : SparseNaming.NonNullableTypeName(member.ChildModel);
@@ -559,6 +582,15 @@ internal static class SparseModelDiscovery
     {
         cancellationToken.ThrowIfCancellationRequested();
         var isFragmentModel = IsFragmentModel(type, config, cancellationToken);
+        if (
+            !isFragmentModel
+            && type is INamedTypeSymbol promotable
+            && SparsePromotedDiscovery.IsPromotablePartial(promotable, config, cancellationToken)
+        )
+        {
+            isFragmentModel = true;
+        }
+
         string? pocoCloneHelperName = null;
         if (
             !isFragmentModel
@@ -631,4 +663,41 @@ internal static class SparseModelDiscovery
             hintName,
             ModelConstructorBinding.AnalyzeRoot(model, cancellationToken)
         );
+
+    internal static ImmutableArray<SparsePromotedModel> CreatePromotedModels(
+        ImmutableArray<SparseSymbolMemberModel> members,
+        SparseGeneratorConfig config,
+        CancellationToken cancellationToken
+    )
+    {
+        var promotedTypes = SparsePromotedDiscovery.CollectPromotedTypes(
+            members,
+            config,
+            cancellationToken
+        );
+        var result = ImmutableArray.CreateBuilder<SparsePromotedModel>(promotedTypes.Length);
+        foreach (var promoted in promotedTypes)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var promotedMembers = GetMembers(promoted, config, cancellationToken)
+                .ToImmutableArray();
+            var memberModels = CreateMemberModels(promotedMembers, config, cancellationToken);
+            var pocoCloneModels = GetPocoCloneTypes(promotedMembers, config, cancellationToken)
+                .Select(pocoType => CreatePocoCloneModel(pocoType, config, cancellationToken))
+                .ToImmutableArray();
+            var structuralModels = CollectStructuralTypes(promotedMembers, config, cancellationToken)
+                .Select(type => CreateStructuralModel(type, config, cancellationToken))
+                .ToImmutableArray();
+            result.Add(
+                new SparsePromotedModel(
+                    CreateModelInfo(promoted, string.Empty, cancellationToken),
+                    memberModels,
+                    pocoCloneModels,
+                    structuralModels
+                )
+            );
+        }
+
+        return result.ToImmutable();
+    }
 }

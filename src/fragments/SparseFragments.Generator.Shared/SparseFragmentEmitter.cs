@@ -33,6 +33,61 @@ internal static class SparseFragmentEmitter
         CancellationToken cancellationToken
     )
     {
+        return BuildSourceInternal(
+            model,
+            members,
+            pocoCloneModels,
+            structuralModels,
+            bclHashSetImplementsReadOnlySet,
+            bclHashSetSupportsCapacity,
+            hasJsonPatch,
+            cancellationToken
+        );
+    }
+
+    public static string BuildPromotedSource(
+        SparsePromotedModel promoted,
+        bool bclHashSetImplementsReadOnlySet,
+        bool bclHashSetSupportsCapacity,
+        bool hasJsonPatch,
+        CancellationToken cancellationToken
+    )
+    {
+        return BuildSourceInternal(
+            promoted.Model,
+            promoted.Members,
+            promoted.PocoCloneModels,
+            promoted.StructuralModels,
+            bclHashSetImplementsReadOnlySet,
+            bclHashSetSupportsCapacity,
+            hasJsonPatch,
+            cancellationToken
+        );
+    }
+
+    public static string GetPromotedHintName(
+        SparseModelInfo model,
+        CancellationToken cancellationToken
+    )
+    {
+        var fullyQualifiedName = model.ModelTypeName;
+        return SparseNaming.Sanitize(fullyQualifiedName, cancellationToken)
+            + "_"
+            + SparseNaming.GetStableTypeHash(fullyQualifiedName, cancellationToken)
+            + ".SparsePromoted.g.cs";
+    }
+
+    private static string BuildSourceInternal(
+        SparseModelInfo model,
+        ImmutableArray<SparseMemberModel> members,
+        ImmutableArray<SparsePocoCloneModel> pocoCloneModels,
+        ImmutableArray<SparseStructuralModel> structuralModels,
+        bool bclHashSetImplementsReadOnlySet,
+        bool bclHashSetSupportsCapacity,
+        bool hasJsonPatch,
+        CancellationToken cancellationToken
+    )
+    {
         cancellationToken.ThrowIfCancellationRequested();
         var portableSetView = SparseFragmentCoreEmitter.RequiresPortableSetView(
             bclHashSetImplementsReadOnlySet,

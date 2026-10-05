@@ -71,6 +71,7 @@ These are the defaults that matter operationally. Every `UseLocalJson` option be
 ## Model and schema contract
 
 - Models are declared with `[ConfiglueModel("<identity>", Version = N)]` and must be `partial` for generation.
+- Reachable partial model types automatically receive generated Fragment/Patch APIs. Non-partial nested POCOs still participate structurally but do not expose generated nested types.
 - The stable identity plus version travels with the persisted document (for example, `$version` in JSON) so old schemas are recognized rather than misread.
 - Schema evolution uses `AddMigration<TFragment>(IStateSchemaMigration<TFragment>)` over the generated fragment type (`ToBuilder()` / `Optional<T>.Present(...)` shape). Migration keeps old documents usable; it does not change application read/write code.
 - Validation: DataAnnotations attributes are enforced before writes where dynamic code is supported (enabled by default); failures throw `ConfiglueValidationException`. Custom validators use `AddValidator(IConfiglueValidator<TModel>)`.

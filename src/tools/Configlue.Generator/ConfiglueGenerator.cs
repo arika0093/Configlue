@@ -170,6 +170,15 @@ public sealed partial class ConfiglueGenerator : IIncrementalGenerator
         true
     );
 
+    private static readonly DiagnosticDescriptor IncompatiblePromotedModel = new(
+        "CFG017",
+        "Incompatible promoted Configlue model",
+        "Promoted model '{0}' requires incompatible generated semantics from different roots",
+        "Configlue",
+        DiagnosticSeverity.Error,
+        true
+    );
+
     private static bool IsExternalInitEmissionEnabled(AnalyzerConfigOptionsProvider options)
     {
         return !options.GlobalOptions.TryGetValue(EmitIsExternalInitOption, out var value)
