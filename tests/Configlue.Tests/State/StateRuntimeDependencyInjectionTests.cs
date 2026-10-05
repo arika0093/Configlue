@@ -68,6 +68,24 @@ public sealed partial class StateRuntimeTests
         var writable = serviceProvider.GetRequiredService<IWritableState<AppSettings>>();
 
         (ReferenceEquals(readOnly, writable)).ShouldBeTrue();
+        var diagnostics = ((IConfiglueDiagnostics<AppSettings>)readOnly).GetDiagnostics();
+        (diagnostics.Sources.Count).ShouldBe(2);
+        (
+            diagnostics.Sources.Any(static source => source.Id == SourceId.From("user"))
+        ).ShouldBeTrue();
+        (
+            diagnostics.Sources.Any(static source => source.Id == SourceId.From("defaults"))
+        ).ShouldBeTrue();
+        (diagnostics.DefaultWriteSourceId).ShouldBe(SourceId.From("user"));
+        var check = ((IConfiglueDiagnostics<AppSettings>)readOnly).Check();
+        var streamed = new List<ConfiglueSourceCheckResult>();
+        await foreach (var source in check)
+        {
+            streamed.Add(source);
+        }
+        var checkResult = await check.Result;
+        (checkResult.IsResolved).ShouldBeTrue();
+        (streamed.Count(static source => source.Contributed)).ShouldBe(2);
         var currentValue = await readOnly.GetValueAsync();
         var saveResult = await writable.SaveAsync(patch =>
         {
@@ -93,6 +111,43 @@ public sealed partial class StateRuntimeTests
         ((written.Value.Plugins.Value!))
             .OrderBy(static item => item)
             .ShouldBe((new[] { "saved-plugin" }).OrderBy(static item => item));
+    }
+
+    [Test]
+    public async Task DependencyInjection_ProvidesMicrosoftOptionsAdapters()
+    {
+        var store = new InMemoryStateSource<AppSettings.Fragment>(
+            new AppSettings.Fragment { RetryCount = Optional<int>.Present(17) }
+        );
+        var services = new ServiceCollection();
+        services.AddConfiglueMicrosoftOptions<AppSettings>();
+        services.AddConfiglue(builder =>
+        {
+            builder.Add<AppSettings>(model =>
+                model.Sources(sources =>
+                    sources.Add(
+                        new StateSource<AppSettings.Fragment>(
+                            "default",
+                            store,
+                            new StateSourceOptions<AppSettings.Fragment> { Writer = store }
+                        )
+                    )
+                )
+            );
+        });
+        await using var serviceProvider = services.BuildServiceProvider();
+
+        var options = serviceProvider.GetRequiredService<IOptions<AppSettings>>();
+        var monitor = serviceProvider.GetRequiredService<IOptionsMonitor<AppSettings>>();
+        using var scope = serviceProvider.CreateScope();
+        var snapshot = scope.ServiceProvider.GetRequiredService<IOptionsSnapshot<AppSettings>>();
+        var firstSnapshot = snapshot.Value;
+        var secondSnapshot = snapshot.Get(Options.DefaultName);
+
+        (options.Value.RetryCount).ShouldBe(17);
+        (monitor.CurrentValue.RetryCount).ShouldBe(17);
+        (ReferenceEquals(firstSnapshot, secondSnapshot)).ShouldBeTrue();
+        (firstSnapshot.RetryCount).ShouldBe(17);
     }
 
     [Test]
@@ -158,5 +213,270 @@ public sealed partial class StateRuntimeTests
         >();
         (updatedSnapshot.Value.RetryCount).ShouldBe(23);
         (updatedSnapshot.Get("custom").RetryCount).ShouldBe(19);
+    }
+
+    [Test]
+    public async Task OptionsMonitor_ResolvesNamedProfilesAndPublishesTheirChanges()
+    {
+        var defaults = new InMemoryStateSource<AppSettings.Fragment>(
+            new AppSettings.Fragment { RetryCount = Optional<int>.Present(3) }
+        );
+        var custom = new InMemoryStateSource<AppSettings.Fragment>(
+            new AppSettings.Fragment { RetryCount = Optional<int>.Present(8) }
+        );
+        var services = new ServiceCollection();
+        services.AddConfiglueMicrosoftOptions<AppSettings>();
+        services.AddConfiglue(builder =>
+        {
+            builder.Add<AppSettings>(model =>
+            {
+                model.OnChangeDebounce = TimeSpan.Zero;
+                model.Sources(sources =>
+                    sources.Add(
+                        new StateSource<AppSettings.Fragment>(
+                            "default",
+                            defaults,
+                            new StateSourceOptions<AppSettings.Fragment> { Writer = defaults }
+                        )
+                    )
+                );
+            });
+            builder.Add<AppSettings>(model =>
+            {
+                model.StateName = "custom";
+                model.OnChangeDebounce = TimeSpan.Zero;
+                model.Sources(sources =>
+                    sources.Add(
+                        new StateSource<AppSettings.Fragment>(
+                            "custom",
+                            custom,
+                            new StateSourceOptions<AppSettings.Fragment>
+                            {
+                                Writer = custom,
+                                Watcher = custom,
+                            }
+                        )
+                    )
+                );
+            });
+        });
+        await using var serviceProvider = services.BuildServiceProvider();
+        var monitor = serviceProvider.GetRequiredService<IOptionsMonitor<AppSettings>>();
+        var changed = new TaskCompletionSource<int>(
+            TaskCreationOptions.RunContinuationsAsynchronously
+        );
+        var directChanged = new TaskCompletionSource<int>(
+            TaskCreationOptions.RunContinuationsAsynchronously
+        );
+        using var subscription = monitor.OnChange(
+            (value, name) =>
+            {
+                if (name == "custom")
+                {
+                    changed.TrySetResult(value.RetryCount);
+                }
+            }
+        );
+        using var directSubscription = serviceProvider
+            .GetRequiredKeyedService<IReadOnlyState<AppSettings>>("custom")
+            .OnChange(value => directChanged.TrySetResult(value.RetryCount));
+
+        (monitor.Get("custom").RetryCount).ShouldBe(8);
+        custom.Set(new AppSettings.Fragment { RetryCount = Optional<int>.Present(12) });
+        (await directChanged.Task.WaitAsync(TimeSpan.FromSeconds(5))).ShouldBe(12);
+        (await changed.Task.WaitAsync(TimeSpan.FromSeconds(5))).ShouldBe(12);
+    }
+
+    [Test]
+    public async Task OptionsMonitor_FollowsProfilesAddedToRuntimeRegistry()
+    {
+        var stores = new Dictionary<string, InMemoryStateSource<AppSettings.Fragment>>(
+            StringComparer.Ordinal
+        );
+        var services = new ServiceCollection();
+        services.AddConfiglueMicrosoftOptions<AppSettings>();
+        services.AddConfiglue(builder =>
+        {
+            builder.Add<AppSettings>(model =>
+            {
+                model.EnableDynamicStates = true;
+                model.OnChangeDebounce = TimeSpan.Zero;
+                model.ConfigureSources(registration =>
+                {
+                    if (registration.StateName.Length == 0)
+                    {
+                        var defaultStore = new InMemoryStateSource<AppSettings.Fragment>(
+                            new AppSettings.Fragment
+                            {
+                                RetryCount = Optional<int>.Present(4),
+                            }
+                        );
+                        registration.Sources.Add(
+                            new StateSource<AppSettings.Fragment>(
+                                "default",
+                                defaultStore,
+                                new StateSourceOptions<AppSettings.Fragment>
+                                {
+                                    Writer = defaultStore,
+                                    Watcher = defaultStore,
+                                }
+                            )
+                        );
+                        return;
+                    }
+                    var store = new InMemoryStateSource<AppSettings.Fragment>(
+                        new AppSettings.Fragment { RetryCount = Optional<int>.Present(4) }
+                    );
+                    stores[registration.StateName] = store;
+                    registration.Sources.Add(
+                        new StateSource<AppSettings.Fragment>(
+                            registration.StateName,
+                            store,
+                            new StateSourceOptions<AppSettings.Fragment>
+                            {
+                                Writer = store,
+                                Watcher = store,
+                            }
+                        )
+                    );
+                });
+            });
+        });
+        await using var serviceProvider = services.BuildServiceProvider();
+        var registry = serviceProvider.GetRequiredService<IConfiglueStateRegistry<AppSettings>>();
+        var monitor = serviceProvider.GetRequiredService<IOptionsMonitor<AppSettings>>();
+        var changed = new TaskCompletionSource<int>(
+            TaskCreationOptions.RunContinuationsAsynchronously
+        );
+        using var subscription = monitor.OnChange(
+            (value, name) =>
+            {
+                if (name == "runtime")
+                {
+                    changed.TrySetResult(value.RetryCount);
+                }
+            }
+        );
+
+        (await registry.TryAddAsync("runtime")).ShouldBeTrue();
+        (monitor.Get("runtime").RetryCount).ShouldBe(4);
+        stores["runtime"].Set(new AppSettings.Fragment { RetryCount = Optional<int>.Present(14) });
+        (await changed.Task.WaitAsync(TimeSpan.FromSeconds(5))).ShouldBe(14);
+    }
+
+    [Test]
+    public async Task OptionsMonitor_RemainsSubscribedWhenProfileIsReAddedDuringRemoval()
+    {
+        var stores = new Dictionary<string, InMemoryStateSource<AppSettings.Fragment>>(
+            StringComparer.Ordinal
+        );
+        var services = new ServiceCollection();
+        services.AddConfiglueMicrosoftOptions<AppSettings>();
+        services.AddConfiglue(builder =>
+        {
+            builder.Add<AppSettings>(model =>
+            {
+                model.EnableDynamicStates = true;
+                model.OnChangeDebounce = TimeSpan.Zero;
+                model.ConfigureSources(registration =>
+                {
+                    if (registration.StateName.Length == 0)
+                    {
+                        var defaultStore = new InMemoryStateSource<AppSettings.Fragment>(
+                            new AppSettings.Fragment
+                            {
+                                RetryCount = Optional<int>.Present(4),
+                            }
+                        );
+                        registration.Sources.Add(
+                            new StateSource<AppSettings.Fragment>(
+                                "default",
+                                defaultStore,
+                                new StateSourceOptions<AppSettings.Fragment>
+                                {
+                                    Writer = defaultStore,
+                                    Watcher = defaultStore,
+                                }
+                            )
+                        );
+                        return;
+                    }
+                    var store = new InMemoryStateSource<AppSettings.Fragment>(
+                        new AppSettings.Fragment { RetryCount = Optional<int>.Present(4) }
+                    );
+                    stores[registration.StateName] = store;
+                    registration.Sources.Add(
+                        new StateSource<AppSettings.Fragment>(
+                            registration.StateName,
+                            store,
+                            new StateSourceOptions<AppSettings.Fragment>
+                            {
+                                Writer = store,
+                                Watcher = store,
+                            }
+                        )
+                    );
+                });
+            });
+        });
+        await using var serviceProvider = services.BuildServiceProvider();
+        var registry = serviceProvider.GetRequiredService<IConfiglueStateRegistry<AppSettings>>();
+        (await registry.TryAddAsync("runtime")).ShouldBeTrue();
+
+        var removalEntered = new TaskCompletionSource(
+            TaskCreationOptions.RunContinuationsAsynchronously
+        );
+        var continueRemoval = new TaskCompletionSource(
+            TaskCreationOptions.RunContinuationsAsynchronously
+        );
+        // Pause before the monitor's removal handler so the replacement is added first.
+        registry.StateRemoved += name =>
+        {
+            if (name == "runtime")
+            {
+                removalEntered.TrySetResult();
+                continueRemoval.Task.GetAwaiter().GetResult();
+            }
+        };
+
+        var monitor = serviceProvider.GetRequiredService<IOptionsMonitor<AppSettings>>();
+        var replacementChanged = new TaskCompletionSource<int>(
+            TaskCreationOptions.RunContinuationsAsynchronously
+        );
+        using var subscription = monitor.OnChange(
+            (value, name) =>
+            {
+                if (name == "runtime" && value.RetryCount == 18)
+                {
+                    replacementChanged.TrySetResult(value.RetryCount);
+                }
+            }
+        );
+
+        var removal = Task.Run(async () => await registry.TryRemoveAsync("runtime"));
+        Task<bool>? replacementAdd = null;
+        try
+        {
+            await removalEntered.Task.WaitAsync(TimeSpan.FromSeconds(5));
+            replacementAdd = Task.Run(async () => await registry.TryAddAsync("runtime"));
+            (
+                await Task.Run(() =>
+                    SpinWait.SpinUntil(
+                        () => registry.TryGet("runtime", out _),
+                        TimeSpan.FromSeconds(5)
+                    )
+                )
+            ).ShouldBeTrue();
+        }
+        finally
+        {
+            continueRemoval.TrySetResult();
+        }
+
+        (await removal).ShouldBeTrue();
+        (await replacementAdd!).ShouldBeTrue();
+        stores["runtime"].Set(new AppSettings.Fragment { RetryCount = Optional<int>.Present(18) });
+
+        (await replacementChanged.Task.WaitAsync(TimeSpan.FromSeconds(5))).ShouldBe(18);
     }
 }

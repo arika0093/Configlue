@@ -282,4 +282,357 @@ public sealed partial class StateRuntimeTests
         (resolved.Value!.RetryCount).ShouldBe(3);
         (details.RetryCount.Source?.Kind).ShouldBe("model-defaults");
     }
+
+    [Test]
+    public async Task DependencyInjection_ResolvesNamedProfilesByServiceKey()
+    {
+        var primaryStore = new InMemoryStateSource<AppSettings.Fragment>(
+            new AppSettings.Fragment { RetryCount = Optional<int>.Present(5) }
+        );
+        var secondaryStore = new InMemoryStateSource<AppSettings.Fragment>(
+            new AppSettings.Fragment { RetryCount = Optional<int>.Present(8) }
+        );
+        var services = new ServiceCollection();
+        services.AddConfiglueMicrosoftOptions<AppSettings>();
+        services.AddConfiglue(builder =>
+        {
+            builder.Add<AppSettings>(model =>
+            {
+                model.StateName = "primary";
+                model.Sources(sources =>
+                    sources.Add(
+                        new StateSource<AppSettings.Fragment>(
+                            "profile",
+                            primaryStore,
+                            new StateSourceOptions<AppSettings.Fragment>()
+                        )
+                    )
+                );
+            });
+            builder.Add<AppSettings>(model =>
+            {
+                model.StateName = "secondary";
+                model.Sources(sources =>
+                    sources.Add(
+                        new StateSource<AppSettings.Fragment>(
+                            "profile",
+                            secondaryStore,
+                            new StateSourceOptions<AppSettings.Fragment>()
+                        )
+                    )
+                );
+            });
+        });
+        await using var serviceProvider = services.BuildServiceProvider();
+        var primary = serviceProvider.GetRequiredKeyedService<IReadOnlyState<AppSettings>>(
+            "primary"
+        );
+        var secondary = serviceProvider.GetRequiredKeyedService<IReadOnlyState<AppSettings>>(
+            "secondary"
+        );
+
+        var primaryValue = await primary.GetValueAsync();
+        var secondaryValue = await secondary.GetValueAsync();
+
+        (primaryValue.RetryCount).ShouldBe(5);
+        (secondaryValue.RetryCount).ShouldBe(8);
+    }
+
+    [Test]
+    public async Task DependencyInjection_ManagesDynamicProfilesThroughRegistry()
+    {
+        var services = new ServiceCollection();
+        services.AddConfiglueMicrosoftOptions<AppSettings>();
+        var factoryCalls = 0;
+        services.AddConfiglue(builder =>
+        {
+            builder.Add<AppSettings>(model =>
+            {
+                model.EnableDynamicStates = true;
+                model.ConfigureSources(registration =>
+                {
+                    if (registration.StateName.Length == 0)
+                    {
+                        var defaultStore = new InMemoryStateSource<AppSettings.Fragment>();
+                        registration.Sources.Add(
+                            new StateSource<AppSettings.Fragment>(
+                                "default",
+                                defaultStore,
+                                new StateSourceOptions<AppSettings.Fragment>()
+                            )
+                        );
+                        return;
+                    }
+                    Interlocked.Increment(ref factoryCalls);
+                    var store = new InMemoryStateSource<AppSettings.Fragment>(
+                        new AppSettings.Fragment
+                        {
+                            RetryCount = Optional<int>.Present(
+                                registration.StateName == "primary" ? 5 : 8
+                            ),
+                        }
+                    );
+                    registration.Sources.Add(
+                        new StateSource<AppSettings.Fragment>(
+                            "profile",
+                            store,
+                            new StateSourceOptions<AppSettings.Fragment>()
+                        )
+                    );
+                });
+            });
+        });
+        await using var serviceProvider = services.BuildServiceProvider();
+        var registry = serviceProvider.GetRequiredService<IConfiglueStateRegistry<AppSettings>>();
+        var added = new List<string>();
+        var removed = new List<string>();
+        registry.StateAdded += (name, _) => added.Add(name);
+        registry.StateRemoved += name => removed.Add(name);
+
+        var addResults = await Task.WhenAll(
+            Enumerable.Range(0, 16).Select(_ => registry.TryAddAsync("primary").AsTask())
+        );
+        await registry.TryAddAsync("secondary");
+        var primary = await registry.Get("primary").GetValueAsync();
+        var secondary = await registry.Get("secondary").GetValueAsync();
+        var removedPrimary = await registry.TryRemoveAsync("primary");
+        var removedAgain = await registry.TryRemoveAsync("primary");
+
+        (addResults.Count(static result => result)).ShouldBe(1);
+        (factoryCalls).ShouldBe(2);
+        (primary.RetryCount).ShouldBe(5);
+        (secondary.RetryCount).ShouldBe(8);
+        ((registry.StateNames))
+            .OrderBy(static item => item)
+            .ShouldBe((new[] { "secondary" }).OrderBy(static item => item));
+        ((added))
+            .OrderBy(static item => item)
+            .ShouldBe((new[] { "primary", "secondary" }).OrderBy(static item => item));
+        ((removed))
+            .OrderBy(static item => item)
+            .ShouldBe((new[] { "primary" }).OrderBy(static item => item));
+        (removedPrimary).ShouldBeTrue();
+        (removedAgain).ShouldBeFalse();
+    }
+
+    [Test]
+    public async Task RegistryAddClearAndDisposeWaitForQueuedNotifications()
+    {
+        var services = new ServiceCollection();
+        services.AddConfiglueMicrosoftOptions<AppSettings>();
+        services.AddConfiglue(builder =>
+        {
+            builder.Add<AppSettings>(model =>
+            {
+                model.EnableDynamicStates = true;
+                model.ConfigureSources(registration =>
+                {
+                    var sourceId =
+                        registration.StateName.Length == 0 ? "default" : registration.StateName;
+                    var store = new InMemoryStateSource<AppSettings.Fragment>();
+                    registration.Sources.Add(
+                        new StateSource<AppSettings.Fragment>(
+                            sourceId,
+                            store,
+                            new StateSourceOptions<AppSettings.Fragment>
+                            {
+                                Writer = store,
+                                Watcher = store,
+                            }
+                        )
+                    );
+                });
+            });
+        });
+        await using var serviceProvider = services.BuildServiceProvider();
+        var registry = serviceProvider.GetRequiredService<IConfiglueStateRegistry<AppSettings>>();
+        var firstAdded = new TaskCompletionSource(
+            TaskCreationOptions.RunContinuationsAsynchronously
+        );
+        var releaseFirstAdded = new TaskCompletionSource(
+            TaskCreationOptions.RunContinuationsAsynchronously
+        );
+        var addOrder = new List<string>();
+        registry.StateAdded += (name, _) =>
+        {
+            if (name == "first")
+            {
+                firstAdded.TrySetResult();
+                releaseFirstAdded.Task.GetAwaiter().GetResult();
+            }
+            addOrder.Add(name);
+        };
+
+        var firstAdd = Task.Run(async () => await registry.TryAddAsync("first"));
+        await firstAdded.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        var secondAdd = Task.Run(async () => await registry.TryAddAsync("second"));
+        try
+        {
+            (
+                await Task.Run(() =>
+                    SpinWait.SpinUntil(
+                        () => registry.TryGet("second", out _),
+                        TimeSpan.FromSeconds(5)
+                    )
+                )
+            ).ShouldBeTrue();
+            await Task.Delay(TimeSpan.FromMilliseconds(50));
+            (secondAdd.IsCompleted).ShouldBeFalse();
+        }
+        finally
+        {
+            releaseFirstAdded.TrySetResult();
+        }
+
+        (await Task.WhenAll(firstAdd, secondAdd)).ShouldBe(new[] { true, true });
+        (addOrder).ShouldBe(new[] { "first", "second" });
+
+        var firstRemoved = new TaskCompletionSource(
+            TaskCreationOptions.RunContinuationsAsynchronously
+        );
+        var releaseFirstRemoved = new TaskCompletionSource(
+            TaskCreationOptions.RunContinuationsAsynchronously
+        );
+        var removedNames = new List<string>();
+        registry.StateRemoved += name =>
+        {
+            if (name == "first")
+            {
+                firstRemoved.TrySetResult();
+                releaseFirstRemoved.Task.GetAwaiter().GetResult();
+            }
+            removedNames.Add(name);
+        };
+
+        var removeFirst = Task.Run(async () => await registry.TryRemoveAsync("first"));
+        await firstRemoved.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        var clear = Task.Run(async () => await registry.ClearAsync());
+        try
+        {
+            (
+                await Task.Run(() =>
+                    SpinWait.SpinUntil(
+                        () => registry.StateNames.Count == 0,
+                        TimeSpan.FromSeconds(5)
+                    )
+                )
+            ).ShouldBeTrue();
+            await Task.Delay(TimeSpan.FromMilliseconds(50));
+            (clear.IsCompleted).ShouldBeFalse();
+        }
+        finally
+        {
+            releaseFirstRemoved.TrySetResult();
+        }
+
+        await Task.WhenAll(removeFirst, clear);
+        (removedNames).ShouldBe(new[] { "first", "second" });
+
+        (await registry.TryAddAsync("dispose")).ShouldBeTrue();
+        var disposedNameRemoved = new TaskCompletionSource(
+            TaskCreationOptions.RunContinuationsAsynchronously
+        );
+        var releaseDisposeNotification = new TaskCompletionSource(
+            TaskCreationOptions.RunContinuationsAsynchronously
+        );
+        registry.StateRemoved += name =>
+        {
+            if (name == "dispose")
+            {
+                disposedNameRemoved.TrySetResult();
+                releaseDisposeNotification.Task.GetAwaiter().GetResult();
+            }
+        };
+
+        var dispose = Task.Run(async () => await registry.DisposeAsync());
+        try
+        {
+            await disposedNameRemoved.Task.WaitAsync(TimeSpan.FromSeconds(5));
+            await Task.Delay(TimeSpan.FromMilliseconds(50));
+            (dispose.IsCompleted).ShouldBeFalse();
+        }
+        finally
+        {
+            releaseDisposeNotification.TrySetResult();
+        }
+
+        await dispose;
+    }
+
+    [Test]
+    public async Task RegistryNotificationsCanReenterClearAndDispose()
+    {
+        var services = new ServiceCollection();
+        services.AddConfiglueMicrosoftOptions<AppSettings>();
+        services.AddConfiglue(builder =>
+        {
+            builder.Add<AppSettings>(model =>
+            {
+                model.EnableDynamicStates = true;
+                model.ConfigureSources(registration =>
+                {
+                    var sourceId =
+                        registration.StateName.Length == 0 ? "default" : registration.StateName;
+                    var store = new InMemoryStateSource<AppSettings.Fragment>();
+                    registration.Sources.Add(
+                        new StateSource<AppSettings.Fragment>(
+                            sourceId,
+                            store,
+                            new StateSourceOptions<AppSettings.Fragment>
+                            {
+                                Writer = store,
+                                Watcher = store,
+                            }
+                        )
+                    );
+                });
+            });
+        });
+        await using var serviceProvider = services.BuildServiceProvider();
+        var registry = serviceProvider.GetRequiredService<IConfiglueStateRegistry<AppSettings>>();
+        (await registry.TryAddAsync("clear")).ShouldBeTrue();
+        registry.StateRemoved += name =>
+        {
+            if (name == "clear")
+            {
+                _ = registry.ClearAsync();
+            }
+        };
+
+        (
+            await Task.Run(async () => await registry.TryRemoveAsync("clear")).WaitAsync(TimeSpan.FromSeconds(5))
+        ).ShouldBeTrue();
+
+        var listenerAfterFailureWasCalled = false;
+        registry.StateAdded += (name, _) =>
+        {
+            if (name == "listener-error")
+            {
+                throw new InvalidOperationException("listener failure");
+            }
+        };
+        registry.StateAdded += (name, _) =>
+        {
+            if (name == "listener-error")
+            {
+                listenerAfterFailureWasCalled = true;
+            }
+        };
+        (await registry.TryAddAsync("listener-error")).ShouldBeTrue();
+        (listenerAfterFailureWasCalled).ShouldBeTrue();
+        (await registry.TryRemoveAsync("listener-error")).ShouldBeTrue();
+
+        (await registry.TryAddAsync("dispose")).ShouldBeTrue();
+        registry.StateRemoved += name =>
+        {
+            if (name == "dispose")
+            {
+                _ = registry.DisposeAsync();
+            }
+        };
+
+        (
+            await Task.Run(async () => await registry.TryRemoveAsync("dispose")).WaitAsync(TimeSpan.FromSeconds(5))
+        ).ShouldBeTrue();
+    }
 }

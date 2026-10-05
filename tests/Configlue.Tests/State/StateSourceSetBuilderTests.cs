@@ -122,6 +122,23 @@ public sealed class StateSourceSetBuilderTests
         using var serviceProvider = services.BuildServiceProvider();
 
         var options = serviceProvider.GetRequiredService<IWritableState<AppSettings>>();
+        var diagnostics = ((IConfiglueDiagnostics<AppSettings>)options).GetDiagnostics();
+        (diagnostics.Sources.Count).ShouldBe(2);
+        (
+            diagnostics.Sources.Any(static source => source.Id == SourceId.From("user"))
+        ).ShouldBeTrue();
+        (
+            diagnostics.Sources.Any(static source => source.Id == SourceId.From("defaults"))
+        ).ShouldBeTrue();
+        (diagnostics.DefaultWriteSourceId).ShouldBe(SourceId.From("user"));
+        var check = ((IConfiglueDiagnostics<AppSettings>)options).Check();
+        var streamed = new List<ConfiglueSourceCheckResult>();
+        await foreach (var source in check)
+        {
+            streamed.Add(source);
+        }
+        (await check.Result).IsResolved.ShouldBeTrue();
+        (streamed.Count).ShouldBe(2);
         var initial = await options.GetValueAsync();
         var changed = new TaskCompletionSource<int>(
             TaskCreationOptions.RunContinuationsAsynchronously
@@ -135,6 +152,44 @@ public sealed class StateSourceSetBuilderTests
         (savedUserState.Value!.RetryCount.Value).ShouldBe(9);
         (changedRetryCount).ShouldBe(9);
         (configureCount).ShouldBe(1);
+    }
+
+    [Test]
+    public async Task DependencyInjectionBuilder_RegistersKeyedProfiles()
+    {
+        var profile = new InMemoryStateSource<AppSettings.Fragment>(
+            new AppSettings.Fragment { RetryCount = Optional<int>.Present(12) }
+        );
+        var services = new ServiceCollection();
+        services.AddKeyedSingleton("profile-source", profile);
+        services.AddConfiglue(builder =>
+        {
+            builder.Add<AppSettings>(model =>
+            {
+                model.StateName = "profile";
+                model.ConfigureSources(registration =>
+                {
+                    var resolved = registration.Services!.GetRequiredKeyedService<
+                        InMemoryStateSource<AppSettings.Fragment>
+                    >("profile-source");
+                    registration.Sources.Add(
+                        new StateSource<AppSettings.Fragment>(
+                            "profile-source",
+                            resolved,
+                            new StateSourceOptions<AppSettings.Fragment> { Writer = resolved }
+                        )
+                    );
+                });
+            });
+        });
+        using var serviceProvider = services.BuildServiceProvider();
+
+        var options = serviceProvider.GetRequiredKeyedService<IReadOnlyState<AppSettings>>(
+            "profile"
+        );
+        var value = await options.GetValueAsync();
+
+        (value.RetryCount).ShouldBe(12);
     }
 
     private sealed class ReaderOnly<T>(T value) : ISourceReader<T>
