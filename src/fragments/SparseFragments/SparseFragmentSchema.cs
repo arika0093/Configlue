@@ -1,6 +1,10 @@
+using System.ComponentModel;
+
 namespace SparseFragments;
 
 /// <summary>Describes one member of a generated sparse fragment schema.</summary>
+/// <remarks>Advanced tooling vocabulary: describes generated fragment metadata.</remarks>
+[EditorBrowsable(EditorBrowsableState.Advanced)]
 public readonly record struct SparseFragmentMemberSchema
 {
     /// <summary>Initializes a new instance of this record.</summary>
@@ -68,6 +72,11 @@ public readonly record struct SparseFragmentMemberSchema
 }
 
 /// <summary>Describes the generated sparse fragment for one model.</summary>
+/// <remarks>
+/// Advanced tooling vocabulary: describes generated fragment metadata.
+/// Member IDs are schema-local ordinals, not persistent identifiers.
+/// </remarks>
+[EditorBrowsable(EditorBrowsableState.Advanced)]
 public sealed class SparseFragmentSchema
 {
     private readonly Type _modelType;

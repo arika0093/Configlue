@@ -1,6 +1,12 @@
+using System.ComponentModel;
+
 namespace SparseFragments;
 
 /// <summary>Structural equality for sparse fragments that preserves presence and nesting without a host model.</summary>
+/// <remarks>
+/// Intentional advanced API: the same semantics back generated diff and patch rebase.
+/// </remarks>
+[EditorBrowsable(EditorBrowsableState.Advanced)]
 public static class SparseFragmentComparer
 {
     /// <summary>Compares two presence-aware fragment states.</summary>

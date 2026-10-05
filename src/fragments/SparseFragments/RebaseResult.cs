@@ -1,6 +1,10 @@
+using System.ComponentModel;
+
 namespace SparseFragments;
 
 /// <summary>The reason a rebased patch could not be reconciled with a concurrent change.</summary>
+/// <remarks>Advanced vocabulary: patch rebase outcomes.</remarks>
+[EditorBrowsable(EditorBrowsableState.Advanced)]
 public enum SparsePatchConflictKind
 {
     /// <summary>The whole contribution was changed concurrently.</summary>
@@ -23,6 +27,8 @@ public enum SparsePatchConflictKind
 }
 
 /// <summary>Structured, domain-neutral information about one rebase conflict.</summary>
+/// <remarks>Advanced vocabulary: patch rebase outcomes.</remarks>
+[EditorBrowsable(EditorBrowsableState.Advanced)]
 public sealed class SparsePatchConflict
 {
     /// <summary>Initializes a new conflict.</summary>
@@ -88,6 +94,8 @@ public sealed class SparsePatchConflict
 
 /// <summary>The result of rebasing a patch onto a newer sparse state.</summary>
 /// <typeparam name="TPatch">The generated patch type.</typeparam>
+/// <remarks>Advanced vocabulary: patch rebase outcomes.</remarks>
+[EditorBrowsable(EditorBrowsableState.Advanced)]
 public sealed class RebaseResult<TPatch>
 {
     /// <summary>Initializes a rebase result.</summary>

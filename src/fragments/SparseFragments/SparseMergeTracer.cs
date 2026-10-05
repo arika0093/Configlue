@@ -1,8 +1,11 @@
 using System.Collections;
+using System.ComponentModel;
 
 namespace SparseFragments;
 
 /// <summary>Explains which contributions determined one effective fragment member.</summary>
+/// <remarks>Advanced diagnostics vocabulary: returned by <see cref="SparseMergeTracer"/>.</remarks>
+[EditorBrowsable(EditorBrowsableState.Advanced)]
 public sealed class SparseMergeMemberProvenance
 {
     /// <summary>Initializes member provenance.</summary>
@@ -51,6 +54,11 @@ public sealed class SparseMergeMemberProvenance
 }
 
 /// <summary>Computes contribution provenance for a merged sparse fragment without any host metadata.</summary>
+/// <remarks>
+/// Advanced opt-in diagnostics: request provenance explicitly where the merge mode gives it clear meaning.
+/// Normal fragment reads never retain contribution data for this API.
+/// </remarks>
+[EditorBrowsable(EditorBrowsableState.Advanced)]
 public static class SparseMergeTracer
 {
     /// <summary>Explains the effective members of one fragment level.</summary>
@@ -214,10 +222,12 @@ public static class SparseMergeTracer
                 );
             }
 
-            return member.CollectionMergeStrategy.ExplainElements(
-                effectiveValue.Value,
-                typedContributions
-            );
+            if (member.CollectionMergeStrategy is ISparseMergeElementProvenanceProvider provider)
+            {
+                return provider.ExplainElementsObject(effectiveValue.Value, typedContributions);
+            }
+
+            return [];
         }
 
         var contributions = contributionsLowToHigh

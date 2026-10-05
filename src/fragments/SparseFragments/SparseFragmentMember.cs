@@ -1,6 +1,10 @@
+using System.ComponentModel;
+
 namespace SparseFragments;
 
 /// <summary>Describes one present value in a generated sparse fragment.</summary>
+/// <remarks>Advanced tooling vocabulary: enumerated from <see cref="ISparseFragment"/>.</remarks>
+[EditorBrowsable(EditorBrowsableState.Advanced)]
 public readonly record struct SparseFragmentMember
 {
     /// <summary>Gets or initializes the member ordinal within this fragment's schema version.</summary>

@@ -1,10 +1,14 @@
+using System.ComponentModel;
+
 namespace SparseFragments;
 
 /// <summary>Identifies one source contribution by its priority index and presence-aware value.</summary>
 /// <remarks>
 /// A contribution index is a purely positional identity ordered from lowest to highest priority. It deliberately
 /// carries no source, resource or revision metadata so the standalone algebra stays domain-neutral.
+/// Advanced vocabulary: contribution planning and merge provenance.
 /// </remarks>
+[EditorBrowsable(EditorBrowsableState.Advanced)]
 public readonly record struct SparseContribution
 {
     /// <summary>Initializes a new contribution.</summary>
@@ -25,6 +29,8 @@ public readonly record struct SparseContribution
 
 /// <summary>A typed source contribution identified by its priority index.</summary>
 /// <typeparam name="T">The contribution value type.</typeparam>
+/// <remarks>Advanced vocabulary: custom merge strategies and provenance.</remarks>
+[EditorBrowsable(EditorBrowsableState.Advanced)]
 public readonly record struct SparseContribution<T>
 {
     /// <summary>Initializes a new typed contribution.</summary>
@@ -44,6 +50,8 @@ public readonly record struct SparseContribution<T>
 }
 
 /// <summary>Identifies the contributions that determined one effective collection element.</summary>
+/// <remarks>Advanced diagnostics vocabulary: returned by merge provenance.</remarks>
+[EditorBrowsable(EditorBrowsableState.Advanced)]
 public sealed class SparseMergeElementProvenance
 {
     /// <summary>Initializes element provenance.</summary>

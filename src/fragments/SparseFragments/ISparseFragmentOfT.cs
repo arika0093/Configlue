@@ -1,7 +1,11 @@
+using System.ComponentModel;
+
 namespace SparseFragments;
 
 /// <summary>A generated fragment that can be combined with another contribution.</summary>
 /// <typeparam name="TSelf">The generated fragment type.</typeparam>
+/// <remarks>Advanced contract: implemented by generated fragments.</remarks>
+[EditorBrowsable(EditorBrowsableState.Advanced)]
 public interface ISparseFragment<TSelf> : ISparseFragment
     where TSelf : class, ISparseFragment<TSelf>
 {

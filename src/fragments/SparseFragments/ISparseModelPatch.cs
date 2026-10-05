@@ -1,6 +1,10 @@
+using System.ComponentModel;
+
 namespace SparseFragments;
 
 /// <summary>Typed whole-model and nested mutation operations for a generated patch.</summary>
+/// <remarks>Advanced contract: implemented by generated patches.</remarks>
+[EditorBrowsable(EditorBrowsableState.Advanced)]
 public interface ISparseModelPatch<in TModel, TFragment>
     where TFragment : class
 {

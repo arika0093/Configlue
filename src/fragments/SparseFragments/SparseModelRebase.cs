@@ -23,7 +23,7 @@ using RebaseConflict = SparseFragments.SparsePatchConflict;
 using ConflictKind = SparseFragments.SparsePatchConflictKind;
 using CollectionRebase = SparseFragments.SparseCollectionRebase;
 using MergeStrategy = SparseFragments.ISparseMergeStrategy;
-using MergeRebaseStrategy = SparseFragments.ISparseMergeStrategy;
+using MergeRebaseStrategy = SparseFragments.ISparseMergeRebaseStrategy;
 
 namespace SparseFragments;
 
@@ -175,7 +175,7 @@ public static class SparseModelRebase
 #if CONFIGLUE_FRAGMENT_RUNTIME
                         rebaseStrategy.TryRebaseObject(
 #else
-                        rebaseStrategy.TryRebase(
+                        rebaseStrategy.TryRebaseObject(
 #endif
                             beforeValue,
                             desiredValue,

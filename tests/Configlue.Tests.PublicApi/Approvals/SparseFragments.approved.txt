@@ -1,14 +1,17 @@
 [assembly: System.Reflection.AssemblyMetadata("RepositoryUrl", "https://github.com/arika0093/Configlue")]
 namespace SparseFragments
 {
-    public abstract class FragmentMergeStrategy<T> : SparseFragments.ISparseMergeStrategy
+    public abstract class FragmentMergeStrategy<T> : SparseFragments.ISparseMergeContributionPlanner, SparseFragments.ISparseMergeElementProvenanceProvider, SparseFragments.ISparseMergeRebaseStrategy, SparseFragments.ISparseMergeStrategy
     {
         protected FragmentMergeStrategy() { }
         public abstract bool AreEqual(T? left, T? right);
         public virtual System.Collections.Generic.IReadOnlyList<SparseFragments.SparseMergeElementProvenance> ExplainElements(T? effective, System.Collections.Generic.IReadOnlyList<SparseFragments.SparseContribution<T>> contributionsLowToHigh) { }
+        public System.Collections.Generic.IReadOnlyList<SparseFragments.SparseMergeElementProvenance> ExplainElementsObject(object? effective, System.Collections.Generic.IReadOnlyList<SparseFragments.SparseContribution> contributionsLowToHigh) { }
         public abstract SparseFragments.Optional<T> Merge(SparseFragments.Optional<T> lowerPriority, SparseFragments.Optional<T> higherPriority);
         public virtual bool TryPlanContribution(System.Collections.Generic.IReadOnlyList<SparseFragments.SparseContribution<T>> contributionsLowToHigh, int targetContributionIndex, T? desiredEffective, out SparseFragments.Optional<T> targetContribution, out string? reason) { }
+        public bool TryPlanContributionObject(System.Collections.Generic.IReadOnlyList<SparseFragments.SparseContribution> contributionsLowToHigh, int targetContributionIndex, object? desiredEffective, out SparseFragments.Optional<object?> targetContribution, out string? reason) { }
         public virtual bool TryRebase(T? editBase, T? desired, T? current, out T? rebased, out string? reason) { }
+        public bool TryRebaseObject(object? editBase, object? desired, object? current, out object? rebased, out string? reason) { }
     }
     public enum FragmentOperationKind
     {
@@ -43,14 +46,23 @@ namespace SparseFragments
         TSelf ApplyChanges(TSelf changes);
         TSelf Merge(TSelf higher);
     }
+    public interface ISparseMergeContributionPlanner
+    {
+        bool TryPlanContributionObject(System.Collections.Generic.IReadOnlyList<SparseFragments.SparseContribution> contributionsLowToHigh, int targetContributionIndex, object? desiredEffective, out SparseFragments.Optional<object?> targetContribution, out string? reason);
+    }
+    public interface ISparseMergeElementProvenanceProvider
+    {
+        System.Collections.Generic.IReadOnlyList<SparseFragments.SparseMergeElementProvenance> ExplainElementsObject(object? effective, System.Collections.Generic.IReadOnlyList<SparseFragments.SparseContribution> contributionsLowToHigh);
+    }
+    public interface ISparseMergeRebaseStrategy
+    {
+        bool TryRebaseObject(object? editBase, object? desired, object? current, out object? rebased, out string? reason);
+    }
     public interface ISparseMergeStrategy
     {
         System.Type ValueType { get; }
         bool AreEqual(object? left, object? right);
-        System.Collections.Generic.IReadOnlyList<SparseFragments.SparseMergeElementProvenance> ExplainElements(object? effective, System.Collections.Generic.IReadOnlyList<SparseFragments.SparseContribution> contributionsLowToHigh);
         SparseFragments.Optional<object?> Merge(SparseFragments.Optional<object?> lowerPriority, SparseFragments.Optional<object?> higherPriority);
-        bool TryPlanContribution(System.Collections.Generic.IReadOnlyList<SparseFragments.SparseContribution> contributionsLowToHigh, int targetContributionIndex, object? desiredEffective, out SparseFragments.Optional<object?> targetContribution, out string? reason);
-        bool TryRebase(object? editBase, object? desired, object? current, out object? rebased, out string? reason);
     }
     public interface ISparseModelPatch<in TModel, TFragment>
         where TFragment :  class
