@@ -389,11 +389,16 @@ public static class ConfiglueStateEndpointRouteBuilderExtensions
         where TModel : IConfiglueFacadeModel<TModel>
     {
         var descriptor = ConfiglueModelDescriptor<TModel>.Current;
-        var services = await StateEndpointWrite
-            .ResolveServicesAsync<TModel>(context)
-            .ConfigureAwait(false);
-        if (services is null)
+        IReadOnlyState<TModel> readState;
+        try
         {
+            readState = context.RequestServices.GetRequiredService<IReadOnlyState<TModel>>();
+        }
+        catch (InvalidOperationException exception)
+        {
+            await StateEndpointProblems
+                .WriteServicesProblemAsync(context, exception)
+                .ConfigureAwait(false);
             return;
         }
 
@@ -412,7 +417,7 @@ public static class ConfiglueStateEndpointRouteBuilderExtensions
 
         var cancellation = context.RequestAborted;
         using var channel = StateEndpointSse.ChangeChannel<TModel>.Subscribe(
-            services.ReadState,
+            readState,
             descriptor,
             options,
             currentEtag
@@ -420,7 +425,7 @@ public static class ConfiglueStateEndpointRouteBuilderExtensions
         try
         {
             await channel
-                .ConvergeAsync(services.ReadState, descriptor, options, cancellation)
+                .ConvergeAsync(readState, descriptor, options, cancellation)
                 .ConfigureAwait(false);
             await channel.PumpAsync(context, cancellation).ConfigureAwait(false);
         }
