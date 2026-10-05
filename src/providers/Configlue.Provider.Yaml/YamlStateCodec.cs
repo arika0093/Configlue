@@ -422,7 +422,7 @@ internal static class YamlStateCodecOperations
             return versionKey;
         }
 
-        var fallbacks = layout?.FallbackVersionProperties ?? ["Version"];
+        var fallbacks = layout?.FallbackVersionProperties ?? [];
         foreach (var fallback in fallbacks)
         {
             if (FindKey(mapping, fallback, namingPolicy) is { } fallbackKey)

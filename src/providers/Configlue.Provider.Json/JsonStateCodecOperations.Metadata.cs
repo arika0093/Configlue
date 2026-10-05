@@ -334,7 +334,7 @@ internal static partial class JsonStateCodecOperations
     {
         var candidates = new List<string>();
         AddVersionPropertyCandidates(layout?.VersionProperty ?? DefaultVersionProperty);
-        foreach (var fallback in layout?.FallbackVersionProperties ?? ["Version"])
+        foreach (var fallback in layout?.FallbackVersionProperties ?? [])
         {
             AddVersionPropertyCandidates(fallback);
         }

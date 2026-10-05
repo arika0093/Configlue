@@ -21,10 +21,12 @@ public sealed class DocumentLayoutOptions
     public DocumentLayout Layout { get; init; } = DocumentLayout.Simple;
 
     /// <summary>The property that carries the schema version in the simple layout.</summary>
+    /// <remarks>Canonical schema metadata. Only this name is recognized unless <see cref="FallbackVersionProperties"/> opts into legacy names.</remarks>
     public string VersionProperty { get; init; } = "$version";
 
-    /// <summary>Legacy version property names accepted when reading simple documents.</summary>
-    public IReadOnlyList<string> FallbackVersionProperties { get; init; } = ["Version"];
+    /// <summary>Additional version property names accepted when reading simple documents.</summary>
+    /// <remarks>Empty by default. Configure explicitly to adopt legacy payloads that store the schema version under a different name, such as <c>Version</c>. Ordinary model members with those names are otherwise treated as payload data.</remarks>
+    public IReadOnlyList<string> FallbackVersionProperties { get; init; } = [];
 
     /// <summary>An optional model ID attributed to versions read from simple documents, which store no ID.</summary>
     /// <remarks>Used for historical schema dispatch when adopting payloads written by other serializers. Never written.</remarks>

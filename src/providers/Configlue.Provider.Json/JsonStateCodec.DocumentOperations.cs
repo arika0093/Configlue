@@ -387,7 +387,7 @@ internal static partial class JsonStateCodecOperations
             return versionName;
         }
 
-        var fallbacks = layout?.FallbackVersionProperties ?? ["Version"];
+        var fallbacks = layout?.FallbackVersionProperties ?? [];
         foreach (var fallback in fallbacks)
         {
             if (FindProperty(root, fallback, serializerOptions) is { } fallbackName)

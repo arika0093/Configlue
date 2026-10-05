@@ -194,17 +194,130 @@ public sealed class LegacySettingsAdoptionTests
         (fragment.RetryCount.Value).ShouldBe(3);
         Encoding.UTF8.GetString(content).ShouldBe(json);
 
+        var legacyLayout = new DocumentLayoutOptions
+        {
+            ModelId = "historical-settings",
+            FallbackVersionProperties = ["Version"],
+        };
+        var legacyCodec = new JsonStateCodec<HistoricalSettingsV1.Fragment>(
+            new JsonSerializerOptions
+            {
+                UnmappedMemberHandling = System
+                    .Text
+                    .Json
+                    .Serialization
+                    .JsonUnmappedMemberHandling
+                    .Disallow,
+            },
+            legacyLayout
+        );
         var fallbackContent = new ReadOnlySequence<byte>(
             Encoding.UTF8.GetBytes("{\"Version\":2,\"RetryCount\":4}")
         );
-        (codec.ReadSchemaMetadata(in fallbackContent)).ShouldBe(
+        (legacyCodec.ReadSchemaMetadata(in fallbackContent)).ShouldBe(
             new StateSchemaMetadata("historical-settings", 2)
         );
-        (codec.Deserialize(in fallbackContent, default)!.RetryCount.Value).ShouldBe(4);
+        (legacyCodec.Deserialize(in fallbackContent, default)!.RetryCount.Value).ShouldBe(4);
     }
 
     [Test]
-    public async Task LegacyYamlCodecReadsVersionFallbackAndSparsePresence()
+    public void VersionMemberIsPayloadByDefaultJson()
+    {
+        var codec = new JsonStateCodec<VersionedSettings>();
+        var sequence = new ReadOnlySequence<byte>(
+            Encoding.UTF8.GetBytes("{\"Version\":2,\"Label\":\"a\"}")
+        );
+
+        (codec.ReadSchemaMetadata(in sequence)).ShouldBeNull();
+        var value = codec.Deserialize(in sequence, default)!;
+        (value.Version).ShouldBe(2);
+        (value.Label).ShouldBe("a");
+    }
+
+    [Test]
+    public void VersionMemberIsPayloadByDefaultJsonWithModelId()
+    {
+        var codec = new JsonStateCodec<VersionedSettings>(
+            documentLayout: new DocumentLayoutOptions { ModelId = "versioned-settings" }
+        );
+        var sequence = new ReadOnlySequence<byte>(
+            Encoding.UTF8.GetBytes("{\"Version\":2,\"Label\":\"a\"}")
+        );
+
+        // The model ID opts the reader into version 1 attribution, but the
+        // ordinary "Version" member must not be reinterpreted as metadata.
+        (codec.ReadSchemaMetadata(in sequence)).ShouldBe(
+            new StateSchemaMetadata("versioned-settings", 1)
+        );
+        var value = codec.Deserialize(in sequence, default)!;
+        (value.Version).ShouldBe(2);
+        (value.Label).ShouldBe("a");
+    }
+
+    [Test]
+    public void VersionMemberIsPayloadByDefaultJsonCaseInsensitive()
+    {
+        var codec = new JsonStateCodec<VersionedSettings>(
+            new JsonSerializerOptions { PropertyNameCaseInsensitive = true }
+        );
+        var sequence = new ReadOnlySequence<byte>(
+            Encoding.UTF8.GetBytes("{\"Version\":2,\"Label\":\"a\"}")
+        );
+
+        (codec.ReadSchemaMetadata(in sequence)).ShouldBeNull();
+        var value = codec.Deserialize(in sequence, default)!;
+        (value.Version).ShouldBe(2);
+        (value.Label).ShouldBe("a");
+    }
+
+    [Test]
+    public void VersionMemberIsPayloadByDefaultJsonCamelCase()
+    {
+        var codec = new JsonStateCodec<VersionedSettings>(
+            new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase }
+        );
+        var sequence = new ReadOnlySequence<byte>(
+            Encoding.UTF8.GetBytes("{\"version\":2,\"label\":\"a\"}")
+        );
+
+        (codec.ReadSchemaMetadata(in sequence)).ShouldBeNull();
+        var value = codec.Deserialize(in sequence, default)!;
+        (value.Version).ShouldBe(2);
+        (value.Label).ShouldBe("a");
+    }
+
+    [Test]
+    public void CanonicalVersionMetadataCoexistsWithVersionMemberJson()
+    {
+        var codec = new JsonStateCodec<VersionedSettings>();
+        var sequence = new ReadOnlySequence<byte>(
+            Encoding.UTF8.GetBytes("{\"$version\":3,\"Version\":2,\"Label\":\"a\"}")
+        );
+
+        (codec.ReadSchemaMetadata(in sequence)).ShouldBe(new StateSchemaMetadata(null, 3));
+        var value = codec.Deserialize(in sequence, default)!;
+        (value.Version).ShouldBe(2);
+        (value.Label).ShouldBe("a");
+    }
+
+    [Test]
+    public void DetailedEnvelopeMetadataCoexistsWithVersionMemberJson()
+    {
+        var codec = new JsonStateCodec<VersionedSettings>();
+        var sequence = new ReadOnlySequence<byte>(
+            Encoding.UTF8.GetBytes(
+                "{\"$configlue\":{\"version\":2},\"$value\":{\"Version\":7,\"Label\":\"a\"}}"
+            )
+        );
+
+        (codec.ReadSchemaMetadata(in sequence)).ShouldBe(new StateSchemaMetadata(null, 2));
+        var value = codec.Deserialize(in sequence, default)!;
+        (value.Version).ShouldBe(7);
+        (value.Label).ShouldBe("a");
+    }
+
+    [Test]
+    public async Task LegacyYamlCodecReadsExplicitVersionFallback()
     {
         var content = Encoding.UTF8.GetBytes(
             "Version: 1\nretryCount: 0\nnullableLabel: null\n$schema: legacy.yaml\n"
@@ -212,7 +325,11 @@ public sealed class LegacySettingsAdoptionTests
         var codec = new YamlStateCodec<HistoricalSettingsV1.Fragment>(
             namingPolicy: JsonNamingPolicy.CamelCase,
             modelSchema: HistoricalSettingsV1.FragmentSchema,
-            documentLayout: new DocumentLayoutOptions { ModelId = "historical-settings" }
+            documentLayout: new DocumentLayoutOptions
+            {
+                ModelId = "historical-settings",
+                FallbackVersionProperties = ["Version"],
+            }
         );
         var sequence = new ReadOnlySequence<byte>(content);
         var fragment = codec.Deserialize(in sequence, default)!;
@@ -234,6 +351,109 @@ public sealed class LegacySettingsAdoptionTests
         var written = Encoding.UTF8.GetString(destination.WrittenMemory.ToArray());
         (written.Contains("$version: 1", StringComparison.Ordinal)).ShouldBeTrue();
         (written.Contains("$configlue", StringComparison.Ordinal)).ShouldBeFalse();
+    }
+
+    [Test]
+    public void VersionMemberIsPayloadByDefaultYaml()
+    {
+        var codec = new YamlStateCodec<VersionedSettings>();
+        var sequence = new ReadOnlySequence<byte>(
+            Encoding.UTF8.GetBytes("Version: 2\nLabel: a\n")
+        );
+
+        (codec.ReadSchemaMetadata(in sequence)).ShouldBeNull();
+        var value = codec.Deserialize(in sequence, default)!;
+        (value.Version).ShouldBe(2);
+        (value.Label).ShouldBe("a");
+    }
+
+    [Test]
+    public void VersionMemberIsPayloadByDefaultYamlWithModelId()
+    {
+        var codec = new YamlStateCodec<VersionedSettings>(
+            documentLayout: new DocumentLayoutOptions { ModelId = "versioned-settings" }
+        );
+        var sequence = new ReadOnlySequence<byte>(
+            Encoding.UTF8.GetBytes("Version: 2\nLabel: a\n")
+        );
+
+        // The model ID opts the reader into version 1 attribution, but the
+        // ordinary "Version" member must not be reinterpreted as metadata.
+        (codec.ReadSchemaMetadata(in sequence)).ShouldBe(
+            new StateSchemaMetadata("versioned-settings", 1)
+        );
+        var value = codec.Deserialize(in sequence, default)!;
+        (value.Version).ShouldBe(2);
+        (value.Label).ShouldBe("a");
+    }
+
+    [Test]
+    public void VersionMemberIsPayloadByDefaultYamlCamelCase()
+    {
+        var codec = new YamlStateCodec<VersionedSettings>(
+            namingPolicy: JsonNamingPolicy.CamelCase
+        );
+        var sequence = new ReadOnlySequence<byte>(
+            Encoding.UTF8.GetBytes("version: 2\nlabel: a\n")
+        );
+
+        (codec.ReadSchemaMetadata(in sequence)).ShouldBeNull();
+        var value = codec.Deserialize(in sequence, default)!;
+        (value.Version).ShouldBe(2);
+        (value.Label).ShouldBe("a");
+    }
+
+    [Test]
+    public void CanonicalVersionMetadataCoexistsWithVersionMemberYaml()
+    {
+        var codec = new YamlStateCodec<VersionedSettings>();
+        var sequence = new ReadOnlySequence<byte>(
+            Encoding.UTF8.GetBytes("$version: 3\nVersion: 2\nLabel: a\n")
+        );
+
+        (codec.ReadSchemaMetadata(in sequence)).ShouldBe(new StateSchemaMetadata(null, 3));
+        var value = codec.Deserialize(in sequence, default)!;
+        (value.Version).ShouldBe(2);
+        (value.Label).ShouldBe("a");
+    }
+
+    [Test]
+    public void DetailedEnvelopeMetadataCoexistsWithVersionMemberYaml()
+    {
+        var codec = new YamlStateCodec<VersionedSettings>();
+        var sequence = new ReadOnlySequence<byte>(
+            Encoding.UTF8.GetBytes(
+                "$configlue:\n  version: 2\n$value:\n  Version: 7\n  Label: a\n"
+            )
+        );
+
+        (codec.ReadSchemaMetadata(in sequence)).ShouldBe(new StateSchemaMetadata(null, 2));
+        var value = codec.Deserialize(in sequence, default)!;
+        (value.Version).ShouldBe(7);
+        (value.Label).ShouldBe("a");
+    }
+
+    [Test]
+    public void ExplicitVersionFallbackStillWorksYaml()
+    {
+        var codec = new YamlStateCodec<HistoricalSettingsV1.Fragment>(
+            namingPolicy: JsonNamingPolicy.CamelCase,
+            modelSchema: HistoricalSettingsV1.FragmentSchema,
+            documentLayout: new DocumentLayoutOptions
+            {
+                ModelId = "historical-settings",
+                FallbackVersionProperties = ["Version"],
+            }
+        );
+        var sequence = new ReadOnlySequence<byte>(
+            Encoding.UTF8.GetBytes("Version: 2\nretryCount: 4\n")
+        );
+
+        (codec.ReadSchemaMetadata(in sequence)).ShouldBe(
+            new StateSchemaMetadata("historical-settings", 2)
+        );
+        var fragment = codec.Deserialize(in sequence, default)!;
+        (fragment.RetryCount.Value).ShouldBe(4);
     }
 
     [Test]
@@ -476,5 +696,12 @@ public sealed class LegacySettingsAdoptionTests
             Next = next;
             return next;
         }
+    }
+
+    private sealed class VersionedSettings
+    {
+        public int Version { get; set; }
+
+        public string? Label { get; set; }
     }
 }
