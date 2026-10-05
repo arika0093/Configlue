@@ -34,6 +34,27 @@ public class TextAssignmentBindingBenchmarks
                 "Text binding fixture did not resolve all assignments."
             );
         }
+
+        var expectedRevision = TextAssignmentRevisionReference.Create(
+            _schema
+                .Members.Take(MemberCount)
+                .OrderBy(member => member.Name, StringComparer.Ordinal)
+                .Select(member => new KeyValuePair<string, object?>(
+                    member.Name,
+                    member.GetValue!(model)
+                ))
+        );
+        var reordered = TextAssignmentBinder.Bind(
+            _schema,
+            _assignments.Reverse().ToArray(),
+            _options
+        );
+        if (result.Revision != expectedRevision || reordered.Revision != expectedRevision)
+        {
+            throw new InvalidOperationException(
+                "Matched revision fixture changed its hash contract."
+            );
+        }
     }
 
     [Benchmark]

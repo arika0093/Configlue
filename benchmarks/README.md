@@ -9,6 +9,11 @@ buffer changes are measured for zero-byte inputs as well as 100 B, 4 KiB, and 64
 a reused schema and with a newly constructed schema on each operation. Setup
 checks that every assignment resolves; cold measurements include schema creation.
 
+`TextAssignmentRevisionBenchmarks` covers 0, 1, 16, and 256 ignored assignments
+with distinct or repeated Unicode origins. Setup checks the exact revision against
+a separate whole-input SHA256 calculation, including the first-value behavior for
+repeated origins. Matched binding fixtures also check the revision and input reordering.
+
 `CollectionCloneBenchmarks` isolates generated fragment deep cloning for lists, sets,
 dictionaries, and a combined collection model at 0, 16, and 4,096 elements. It checks
 structural equality in setup and measures allocations without storage or resolver costs.
