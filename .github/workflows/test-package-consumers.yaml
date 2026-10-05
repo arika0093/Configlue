@@ -19,6 +19,7 @@ on:
       - '**/*.props'
       - '**/*.targets'
       - 'tests/fixtures/consumers/**'
+      - 'src/fragments/SparseFragments/README.md'
       - '.github/workflows/test-package-consumers.yaml'
       - '.github/workflows/scripts/verify-*.sh'
       - '.github/workflows/scripts/assert-supported-aot-diagnostics.sh'
@@ -73,6 +74,9 @@ jobs:
 
       - name: Verify README Quick Start sample
         run: bash ./.github/workflows/scripts/verify-readme-quickstart.sh artifacts/packages
+
+      - name: Verify SparseFragments README samples
+        run: bash ./.github/workflows/scripts/verify-sparsefragments-readme.sh artifacts/packages src/fragments/SparseFragments/README.md
 
       - name: Build and run basic consumer (net10.0)
         run: |

@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFrameworks>net10.0;net8.0</TargetFrameworks>
+    <IsTestProject>false</IsTestProject>
+    <IsPackable>false</IsPackable>
+    <AssemblyName>PackageSparse.Readme.Consumer</AssemblyName>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Remove="TUnit;Shouldly" />
+    <Using Remove="Shouldly;Configlue.Codecs;Configlue.Migrations;Configlue.Resources;Configlue.Sources;Configlue.Extensibility;Configlue.State;Configlue.Transformers" />
+  </ItemGroup>
+  <ItemGroup Condition="'$(ConfigluePackageVersion)' == ''">
+    <ProjectReference Include="../../../../src/fragments/SparseFragments/SparseFragments.csproj" />
+    <ProjectReference Include="../../../../src/fragments/SparseFragments.JsonPatch/SparseFragments.JsonPatch.csproj" />
+    <ProjectReference
+      Include="../../../../src/fragments/SparseFragments.Generator/SparseFragments.Generator.csproj"
+      OutputItemType="Analyzer"
+      ReferenceOutputAssembly="false"
+    />
+  </ItemGroup>
+  <ItemGroup Condition="'$(ConfigluePackageVersion)' != ''">
+    <PackageReference Include="SparseFragments" Version="$(ConfigluePackageVersion)" />
+    <PackageReference Include="SparseFragments.JsonPatch" Version="$(ConfigluePackageVersion)" />
+  </ItemGroup>
+</Project>

@@ -56,6 +56,7 @@ public partial class Settings
     public IReadOnlyList<string> Plugins { get; set; } = [];
 }
 
+[SparseFragmentModel]
 public partial class Child
 {
     public int Count { get; set; }
