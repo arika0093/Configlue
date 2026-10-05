@@ -25,7 +25,11 @@ internal static partial class XmlStateCodecOperations
 
     [RequiresUnreferencedCode("XmlSerializer requires reflected model metadata.")]
     [RequiresDynamicCode("XmlSerializer may generate code at runtime.")]
-    public static byte[] Serialize(Type type, object? value, StateSchemaMetadata? schema)
+    public static ArraySegment<byte> Serialize(
+        Type type,
+        object? value,
+        StateSchemaMetadata? schema
+    )
     {
         using var output = new MemoryStream();
         var settings = new XmlWriterSettings
@@ -71,7 +75,9 @@ internal static partial class XmlStateCodecOperations
             writer.WriteEndDocument();
         }
 
-        return output.ToArray();
+        // The managed staging buffer stays alive through this returned slice.
+        // Publication still occurs only after the complete document is serialized.
+        return new ArraySegment<byte>(output.GetBuffer(), 0, checked((int)output.Length));
     }
 
     [RequiresUnreferencedCode("XmlSerializer requires reflected model metadata.")]

@@ -49,8 +49,8 @@ public sealed class XmlStateCodec
         ArgumentNullException.ThrowIfNull(type);
         ArgumentNullException.ThrowIfNull(destination);
         var bytes = XmlStateCodecOperations.Serialize(type, value, context.Schema);
-        bytes.CopyTo(destination.GetSpan(bytes.Length));
-        destination.Advance(bytes.Length);
+        bytes.AsSpan().CopyTo(destination.GetSpan(bytes.Count));
+        destination.Advance(bytes.Count);
     }
 
     /// <inheritdoc />
@@ -82,8 +82,8 @@ public sealed class XmlStateCodec<T>
     {
         ArgumentNullException.ThrowIfNull(destination);
         var bytes = XmlStateCodecOperations.Serialize(typeof(T), value, context.Schema);
-        bytes.CopyTo(destination.GetSpan(bytes.Length));
-        destination.Advance(bytes.Length);
+        bytes.AsSpan().CopyTo(destination.GetSpan(bytes.Count));
+        destination.Advance(bytes.Count);
     }
 
     /// <inheritdoc />

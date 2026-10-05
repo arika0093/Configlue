@@ -628,6 +628,50 @@ are retained in artifacts/xml-metadata-*; behavioral evidence is the completed
 independent benchmark fixture guards. The goal remains active: XML serialization
 still creates a final byte-array copy after staging the complete document.
 
+## Round 19: publish XML staging slices without a final array copy (2026-10-05)
+
+XML serialization still completes in its private MemoryStream before publishing
+any output. The internal operation now returns an ArraySegment over that managed
+staging buffer instead of ToArray. Public typed/untyped codecs copy only the
+written range into the destination and advance by its count. Disposing the local
+MemoryStream leaves its managed byte array valid through the returned segment.
+Public signatures, XML writer settings, and serialization failure publication
+behavior are preserved. The remaining staging/growth buffers are still necessary
+for this implementation and can be audited separately.
+
+Reports: [confirmed baseline](reports/xml-write/before-confirm.md),
+[rejected publication in core](reports/xml-write/rejected-publish-in-core.md),
+and [final slice](reports/xml-write/after-slice.md). All three use five warmups
+and ten measurements. Earlier baselines are round 17's write-control reports.
+
+| Unicode text characters | Before mean | Final mean | Before allocation | Final allocation |
+| --- | ---: | ---: | ---: | ---: |
+| 0 | 1.433 us | 1.322 us | 9.71 KiB | 9.46 KiB |
+| 4,096 | 12.669 us | 11.872 us | 40.19 KiB | 27.93 KiB |
+| 65,536 | 251.529 us | 234.134 us | 589.54 KiB | 396.83 KiB |
+
+Large allocation falls 33%, and Gen2 collections per 1,000 operations fall
+153.32 to 90.82. Zero-text mean falls 8% with separated intervals. Large mean
+falls 7% with narrowly separated intervals; this smaller timing gain should be
+treated cautiously across machines. The 4,096-character timing intervals overlap.
+Its Gen1 count rises from 0.1068 to 0.1373 per 1,000 operations despite less
+allocation; no improvement in every generation is claimed.
+
+The first candidate copied into the destination inside the core operation,
+changing the call boundary and returning void. It saved the same allocation,
+but zero-text mean rose to 1.603 us and large mean to 271.452 us. That candidate
+was rejected. Returning the staging slice retains publication in the public
+wrapper and removes the extra complete-document array without that observed
+small-input regression. Original code was restored for the matched-settings
+baseline confirmation, then the final candidate was restored from saved files.
+
+All three final benchmark cases complete with sparse-value round-trip guards.
+Final Release provider/dependency builds pass netstandard2.0, netstandard2.1,
+and net10.0 with zero warnings/errors. CSharpier/whitespace checks pass. Logs
+are retained in artifacts/xml-write-*; behavioral evidence is benchmark setup
+and unchanged writer/serialization bodies. The goal remains active; YAML decode,
+other codecs, and the broader remaining audit still require measurement.
+
 ## Remaining audit
 
 
