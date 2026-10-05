@@ -72,12 +72,9 @@ public sealed class ProfiledStateTests
                     .ShouldBe((new[] { "default", "Work" }).OrderBy(static item => item));
                 (await profiles.GetActiveProfileNameAsync()).ShouldBe("Work");
                 ((await profiles.GetActiveValueAsync()).Label).ShouldBe("Dark");
-                (
-                    restartedProvider
-                        .GetRequiredService<IOptionsMonitor<AppSettings>>()
-                        .Get("Work")
-                        .Label
-                ).ShouldBe("Dark");
+                ((await (await profiles.GetProfileAsync("Work")).GetValueAsync()).Label).ShouldBe(
+                    "Dark"
+                );
 
                 var activeChanged = new TaskCompletionSource<string>(
                     TaskCreationOptions.RunContinuationsAsynchronously
