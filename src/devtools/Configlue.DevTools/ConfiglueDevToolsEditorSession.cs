@@ -1,4 +1,3 @@
-using System.Text.Json;
 using System.Text.Json.Nodes;
 using Configlue.CompilerServices;
 
@@ -29,22 +28,20 @@ namespace Configlue.DevTools;
 /// Value mapping is explicit, never guessed: absent members reset to the model
 /// default, explicit JSON null maps to null, present members map to their value.
 /// </para>
+/// <para>
+/// The session owns user-visible state and lifecycle and delegates each
+/// implementation concern to a focused internal collaborator: the draft pipeline
+/// (parse/normalize/diff/merge), the editability guard (schema/editability
+/// validation), the secret flow (explicit secret mutations), the upstream
+/// tracker (baseline/rebase state), and the failure classifier (commit/discard
+/// failure mapping). Core rebase/conflict semantics stay in
+/// <see cref="EditSession{T}"/> and are reused, never duplicated.
+/// </para>
 /// </remarks>
 /// <typeparam name="TModel">The generated configuration model.</typeparam>
-[System.Diagnostics.CodeAnalysis.SuppressMessage(
-    "SonarAnalyzer.CSharp",
-    "S2743",
-    Justification = "The options instance is stateless configuration shared across all closed model types by design."
-)]
 public sealed class ConfiglueDevToolsEditorSession<TModel> : IDisposable
     where TModel : IConfiglueFacadeModel<TModel>
 {
-    private static readonly JsonSerializerOptions StrictModelOptions = new()
-    {
-        PropertyNameCaseInsensitive = true,
-        UnmappedMemberHandling = System.Text.Json.Serialization.JsonUnmappedMemberHandling.Disallow,
-    };
-
     private readonly IWritableState<TModel> _state;
     private readonly EditSession<TModel> _session;
     private readonly ConfiglueModelSchema _schema;
@@ -53,9 +50,12 @@ public sealed class ConfiglueDevToolsEditorSession<TModel> : IDisposable
     private readonly object _gate = new();
     private readonly Action _upstreamHandler;
     private readonly HashSet<string> _secretOverrides = new(StringComparer.Ordinal);
+    private readonly ConfiglueDevToolsEditorDraftPipeline<TModel> _drafts;
+    private readonly ConfiglueDevToolsEditorEditabilityGuard _guards;
+    private readonly ConfiglueDevToolsEditorSecretFlow<TModel> _secrets;
+    private readonly ConfiglueDevToolsEditorUpstream<TModel> _upstream;
     private ConfiglueViewerDocument _current;
     private List<ConfiglueEditorChangedPath> _modifiedPaths = [];
-    private long _documentVersion;
     private int _disposed;
 
     private ConfiglueDevToolsEditorSession(
@@ -73,7 +73,16 @@ public sealed class ConfiglueDevToolsEditorSession<TModel> : IDisposable
         _options = options;
         _stateName = stateName;
         _current = current;
-        _documentVersion = current.DocumentVersion;
+        _drafts = new ConfiglueDevToolsEditorDraftPipeline<TModel>(schema, options.NamingPolicy);
+        _guards = new ConfiglueDevToolsEditorEditabilityGuard(schema);
+        _secrets = new ConfiglueDevToolsEditorSecretFlow<TModel>(schema, options.NamingPolicy);
+        _upstream = new ConfiglueDevToolsEditorUpstream<TModel>(
+            state,
+            session,
+            schema,
+            options,
+            current.DocumentVersion
+        );
         _upstreamHandler = OnUpstreamChanged;
         _session.UpstreamChanged += _upstreamHandler;
     }
@@ -190,7 +199,8 @@ public sealed class ConfiglueDevToolsEditorSession<TModel> : IDisposable
         {
             session = await sessions.OpenEditSessionAsync(cancellationToken).ConfigureAwait(false);
         }
-        catch (InvalidOperationException exception) when (IsNoWriter(exception))
+        catch (InvalidOperationException exception)
+            when (ConfiglueDevToolsEditorFailures.IsNoWriter(exception))
         {
             throw new InvalidOperationException(
                 $"State '{typeof(TModel).FullName}' has no writable source; DevTools editing is unavailable.",
@@ -234,25 +244,8 @@ public sealed class ConfiglueDevToolsEditorSession<TModel> : IDisposable
     /// <summary>
     /// Classifies an exception without hiding its semantic category.
     /// </summary>
-    public static ConfiglueEditorFailureCategory Classify(Exception exception)
-    {
-        ArgumentNullException.ThrowIfNull(exception);
-        return exception switch
-        {
-            StateMultiWriteException => ConfiglueEditorFailureCategory.PartialWrite,
-            Configlue.State.StateConflictException => ConfiglueEditorFailureCategory.Conflict,
-            ConfiglueValidationException => ConfiglueEditorFailureCategory.Validation,
-            ObjectDisposedException => ConfiglueEditorFailureCategory.Invalidated,
-            InvalidOperationException invalid
-                when invalid.Message.Contains(
-                    "saving, rebasing, or disposed",
-                    StringComparison.Ordinal
-                ) => ConfiglueEditorFailureCategory.Invalidated,
-            InvalidOperationException => ConfiglueEditorFailureCategory.Routing,
-            System.Text.Json.JsonException => ConfiglueEditorFailureCategory.Parse,
-            _ => ConfiglueEditorFailureCategory.Routing,
-        };
-    }
+    public static ConfiglueEditorFailureCategory Classify(Exception exception) =>
+        ConfiglueDevToolsEditorFailures.Classify(exception);
 
     /// <summary>
     /// Synchronizes one Monaco draft into the owned edit session.
@@ -284,27 +277,16 @@ public sealed class ConfiglueDevToolsEditorSession<TModel> : IDisposable
 
         cancellationToken.ThrowIfCancellationRequested();
 
-        JsonNode? draftNode;
-        try
+        if (
+            !_drafts.TryParseRoot(
+                draftJson,
+                out var draftObject,
+                out var parseCategory,
+                out var parseError
+            ) || draftObject is null
+        )
         {
-            draftNode = JsonNode.Parse(draftJson);
-        }
-        catch (JsonException exception)
-        {
-            return ConfiglueEditorSyncResult.Fail(
-                ConfiglueEditorFailureCategory.Parse,
-                [$"The draft is not well-formed JSON: {TrimMessage(exception.Message)}"],
-                HasUpstreamChanges
-            );
-        }
-
-        if (draftNode is not JsonObject draftObject)
-        {
-            return ConfiglueEditorSyncResult.Fail(
-                ConfiglueEditorFailureCategory.Schema,
-                ["The draft root must be a JSON object matching the effective state."],
-                HasUpstreamChanges
-            );
+            return ConfiglueEditorSyncResult.Fail(parseCategory, [parseError], HasUpstreamChanges);
         }
 
         TModel before;
@@ -313,15 +295,17 @@ public sealed class ConfiglueDevToolsEditorSession<TModel> : IDisposable
             before = _session.Value;
         }
 
-        var baselineJson = BuildRedactedJson(before, details: null);
-        var baselineNode = JsonNode.Parse(baselineJson) as JsonObject;
-        var normalizedDraft =
-            ConfiglueEditorSemanticJson.NormalizeKeys(draftObject, _schema, _options.NamingPolicy)
-            as JsonObject;
-        var normalizedBaseline =
-            ConfiglueEditorSemanticJson.NormalizeKeys(baselineNode, _schema, _options.NamingPolicy)
-            as JsonObject;
-        if (normalizedDraft is null || normalizedBaseline is null)
+        var baselineJson = _upstream.BuildRedactedJson(before);
+        if (
+            !_drafts.TryNormalize(
+                draftObject,
+                baselineJson,
+                out var normalizedDraft,
+                out var normalizedBaseline
+            )
+            || normalizedDraft is null
+            || normalizedBaseline is null
+        )
         {
             return ConfiglueEditorSyncResult.Fail(
                 ConfiglueEditorFailureCategory.Schema,
@@ -330,152 +314,38 @@ public sealed class ConfiglueDevToolsEditorSession<TModel> : IDisposable
             );
         }
 
-        if (ConfiglueEditorSemanticJson.SemanticEquals(normalizedBaseline, normalizedDraft))
+        if (
+            ConfiglueDevToolsEditorDraftPipeline<TModel>.IsNoOp(normalizedBaseline, normalizedDraft)
+        )
         {
-            // Formatting, ordering, or spelling-only differences: no patch.
-            // Previously staged changes (if any) are preserved and reported.
-            List<ConfiglueEditorChangedPath> staged;
-            bool dirty;
-            bool upstream;
-            lock (_gate)
-            {
-                staged = _modifiedPaths;
-                dirty = Volatile.Read(ref _disposed) == 0 && _session.HasLocalChanges;
-                upstream = Volatile.Read(ref _disposed) == 0 && _session.HasUpstreamChanges;
-            }
-
-            return ConfiglueEditorSyncResult.Ok(staged.AsReadOnly(), dirty, upstream);
+            return DescribeStaged();
         }
 
-        var plaintextSecrets = new List<string>();
-        var deletedPlaceholders = new List<string>();
-        ConfiglueEditorSemanticJson.ValidateDraftSecrets(
-            _schema,
-            normalizedDraft,
-            normalizedBaseline,
-            prefix: string.Empty,
-            ancestorSecret: false,
-            plaintextSecrets,
-            deletedPlaceholders
-        );
-        if (plaintextSecrets.Count > 0)
+        var secretGuard = GuardDraftSecrets(normalizedDraft, normalizedBaseline);
+        if (secretGuard is not null)
         {
-            plaintextSecrets.Sort(StringComparer.Ordinal);
-            return ConfiglueEditorSyncResult.Fail(
-                ConfiglueEditorFailureCategory.Secret,
-                plaintextSecrets
-                    .Select(static path =>
-                        $"Secret '{path}' must stay '{ConfiglueSecrets.RedactedText}' in the editor; use Change secret instead."
-                    )
-                    .ToArray(),
-                HasUpstreamChanges
-            );
+            return secretGuard;
         }
 
-        if (deletedPlaceholders.Count > 0)
+        var rawPaths = _drafts.CollectChanges(normalizedBaseline, normalizedDraft);
+
+        var details = await _upstream.ReadDetailsAsync(cancellationToken).ConfigureAwait(false);
+        var editabilityGuard = GuardEditability(rawPaths, details);
+        if (editabilityGuard is not null)
         {
-            deletedPlaceholders.Sort(StringComparer.Ordinal);
-            return ConfiglueEditorSyncResult.Fail(
-                ConfiglueEditorFailureCategory.NonEditable,
-                deletedPlaceholders
-                    .Select(static path =>
-                        $"Secret placeholder '{path}' is a protected read-only range; restore the '{ConfiglueSecrets.RedactedText}' line or discard the draft."
-                    )
-                    .ToArray(),
-                HasUpstreamChanges
-            );
+            return editabilityGuard;
         }
 
-        var rawPaths = new List<string>();
-        ConfiglueEditorSemanticJson.CollectChangedPaths(
-            normalizedBaseline,
-            normalizedDraft,
-            _schema,
-            prefix: string.Empty,
-            rawPaths
-        );
-
-        var details = await ReadDetailsAsync(cancellationToken).ConfigureAwait(false);
-        if (details is not null)
-        {
-            var blocked = FindBlockedPaths(rawPaths, details);
-            blocked.Sort(
-                static (left, right) =>
-                    string.Compare(left.Path, right.Path, StringComparison.Ordinal)
-            );
-            if (blocked.Count > 0)
-            {
-                return ConfiglueEditorSyncResult.Fail(
-                    ConfiglueEditorFailureCategory.NonEditable,
-                    blocked
-                        .Select(static item =>
-                            $"Member '{item.Path}' is not editable ({item.Editability}); the normal save path cannot change its effective value."
-                        )
-                        .ToArray(),
-                    HasUpstreamChanges
-                );
-            }
-        }
-
-        string mergedJson;
-        try
-        {
-            var currentNode = JsonSerializer.SerializeToNode(before) as JsonObject;
-            var merged = ConfiglueEditorSemanticJson.MergeDraft(
-                currentNode,
-                draftObject,
-                _schema,
-                _options.NamingPolicy
-            );
-            mergedJson = merged.ToJsonString();
-        }
-        catch (Exception exception)
-            when (exception is InvalidOperationException || exception is JsonException)
+        if (!_drafts.TryMerge(before, draftObject, out var desired, out var mergeError))
         {
             return ConfiglueEditorSyncResult.Fail(
                 ConfiglueEditorFailureCategory.Schema,
-                [
-                    $"The draft could not be merged over the current value: {TrimMessage(exception.Message)}",
-                ],
+                [mergeError],
                 HasUpstreamChanges
             );
         }
 
-        TModel desired;
-        try
-        {
-            desired =
-                JsonSerializer.Deserialize<TModel>(mergedJson, StrictModelOptions)
-                ?? throw new InvalidOperationException(
-                    "The DevTools draft did not contain a model value."
-                );
-        }
-        catch (JsonException exception)
-        {
-            return ConfiglueEditorSyncResult.Fail(
-                ConfiglueEditorFailureCategory.Schema,
-                [$"The draft does not match the model shape: {TrimMessage(exception.Message)}"],
-                HasUpstreamChanges
-            );
-        }
-        catch (InvalidOperationException exception)
-        {
-            return ConfiglueEditorSyncResult.Fail(
-                ConfiglueEditorFailureCategory.Schema,
-                [$"The draft does not match the model shape: {TrimMessage(exception.Message)}"],
-                HasUpstreamChanges
-            );
-        }
-
-        var secretDiffers = ConfiglueEditorSemanticJson.SecretSubtreeDiffers(
-            _schema,
-            before,
-            desired,
-            string.Empty,
-            false,
-            out var secretDiff
-        );
-        if (secretDiffers && !IsSecretOverride(secretDiff))
+        if (_secrets.IsSmuggled(before, desired, IsSecretOverride, out var secretDiff))
         {
             return ConfiglueEditorSyncResult.Fail(
                 ConfiglueEditorFailureCategory.Secret,
@@ -486,26 +356,7 @@ public sealed class ConfiglueDevToolsEditorSession<TModel> : IDisposable
             );
         }
 
-        var changed = DescribeChanges(rawPaths, details);
-        lock (_gate)
-        {
-            if (Volatile.Read(ref _disposed) != 0)
-            {
-                return ConfiglueEditorSyncResult.Fail(
-                    ConfiglueEditorFailureCategory.Invalidated,
-                    ["The editing session was closed while syncing."],
-                    hasUpstreamChanges: false
-                );
-            }
-
-            _session.Value = desired;
-            _modifiedPaths = changed;
-            return ConfiglueEditorSyncResult.Ok(
-                _modifiedPaths.AsReadOnly(),
-                _session.HasLocalChanges,
-                _session.HasUpstreamChanges
-            );
-        }
+        return PublishDraft(desired, rawPaths, details);
     }
 
     /// <summary>
@@ -557,11 +408,11 @@ public sealed class ConfiglueDevToolsEditorSession<TModel> : IDisposable
                 planned.IsEmpty
             );
         }
-        catch (Exception exception) when (IsMappable(exception))
+        catch (Exception exception) when (ConfiglueDevToolsEditorFailures.IsMappable(exception))
         {
             return ConfiglueEditorPreviewResult.Fail(
-                Classify(exception),
-                [DescribeFailure(exception)]
+                ConfiglueDevToolsEditorFailures.Classify(exception),
+                [ConfiglueDevToolsEditorFailures.DescribeFailure(exception)]
             );
         }
     }
@@ -597,8 +448,11 @@ public sealed class ConfiglueDevToolsEditorSession<TModel> : IDisposable
 
         if (!hasChanges)
         {
-            var empty = new ConfiglueEditorWriteReceipt([], 0, true, _stateName, Revision: null);
-            return ConfiglueEditorSaveResult.Ok(empty, [], HasUpstreamChanges);
+            return ConfiglueEditorSaveResult.Ok(
+                ConfiglueDevToolsEditorFailures.EmptyReceipt(_stateName),
+                [],
+                HasUpstreamChanges
+            );
         }
 
         try
@@ -614,37 +468,25 @@ public sealed class ConfiglueDevToolsEditorSession<TModel> : IDisposable
 
             await RebuildCurrentAsync(cancellationToken).ConfigureAwait(false);
             return ConfiglueEditorSaveResult.Ok(
-                new ConfiglueEditorWriteReceipt(
-                    receipt
-                        .Sources.Select(static source => new ConfiglueEditorSourceWrite(
-                            source.SourceId.ToString(),
-                            source.ResourceId?.ToString(),
-                            source.Revision
-                        ))
-                        .ToArray(),
-                    receipt.PhysicalWriteCount,
-                    receipt.PhysicalWriteCount <= 1,
-                    receipt.StateName,
-                    receipt.Revision
-                ),
+                ConfiglueDevToolsEditorFailures.ToWriteReceipt(receipt, _stateName),
                 saved.Select(static path => path.MemberPath).ToArray(),
                 HasUpstreamChanges
             );
         }
-        catch (Exception exception) when (IsMappable(exception))
+        catch (Exception exception) when (ConfiglueDevToolsEditorFailures.IsMappable(exception))
         {
             if (exception is StateMultiWriteException partial)
             {
                 return ConfiglueEditorSaveResult.Fail(
                     ConfiglueEditorFailureCategory.PartialWrite,
-                    [DescribePartialWrite(partial)],
+                    [ConfiglueDevToolsEditorFailures.DescribePartialWrite(partial)],
                     HasUpstreamChanges
                 );
             }
 
             return ConfiglueEditorSaveResult.Fail(
-                Classify(exception),
-                [DescribeFailure(exception)],
+                ConfiglueDevToolsEditorFailures.Classify(exception),
+                [ConfiglueDevToolsEditorFailures.DescribeFailure(exception)],
                 HasUpstreamChanges
             );
         }
@@ -670,6 +512,7 @@ public sealed class ConfiglueDevToolsEditorSession<TModel> : IDisposable
     /// <remarks>
     /// Conflicts surface as a <see cref="ConfiglueEditorFailureCategory.Conflict"/>
     /// result; the draft is preserved so the user can choose rebase or discard.
+    /// Core rebase semantics stay in <see cref="EditSession{T}"/>.
     /// </remarks>
     public async ValueTask<ConfiglueEditorSyncResult> RebaseAsync(
         CancellationToken cancellationToken = default
@@ -688,11 +531,11 @@ public sealed class ConfiglueDevToolsEditorSession<TModel> : IDisposable
         {
             await _session.RebaseAsync(cancellationToken).ConfigureAwait(false);
         }
-        catch (Exception exception) when (IsMappable(exception))
+        catch (Exception exception) when (ConfiglueDevToolsEditorFailures.IsMappable(exception))
         {
             return ConfiglueEditorSyncResult.Fail(
-                Classify(exception),
-                [DescribeFailure(exception)],
+                ConfiglueDevToolsEditorFailures.Classify(exception),
+                [ConfiglueDevToolsEditorFailures.DescribeFailure(exception)],
                 HasUpstreamChanges
             );
         }
@@ -777,41 +620,12 @@ public sealed class ConfiglueDevToolsEditorSession<TModel> : IDisposable
 
         cancellationToken.ThrowIfCancellationRequested();
 
-        ConfiglueMemberPath path;
-        try
-        {
-            path = ConfiglueMemberPath.FromNames(_schema, memberPath);
-        }
-        catch (ArgumentException exception)
+        if (!_secrets.TryResolvePath(memberPath, out _, out var pathError))
         {
             return new ValueTask<ConfiglueEditorSyncResult>(
                 ConfiglueEditorSyncResult.Fail(
                     ConfiglueEditorFailureCategory.Schema,
-                    [$"Unknown member path '{memberPath}': {TrimMessage(exception.Message)}"],
-                    HasUpstreamChanges
-                )
-            );
-        }
-
-        if (!path.IsSecret())
-        {
-            return new ValueTask<ConfiglueEditorSyncResult>(
-                ConfiglueEditorSyncResult.Fail(
-                    ConfiglueEditorFailureCategory.Schema,
-                    [
-                        $"Member '{memberPath}' is not a secret; edit it in the Monaco draft instead.",
-                    ],
-                    HasUpstreamChanges
-                )
-            );
-        }
-
-        if (string.Equals(secretText, ConfiglueSecrets.RedactedText, StringComparison.Ordinal))
-        {
-            return new ValueTask<ConfiglueEditorSyncResult>(
-                ConfiglueEditorSyncResult.Fail(
-                    ConfiglueEditorFailureCategory.Secret,
-                    ["The redacted placeholder is never a valid secret value."],
+                    [pathError],
                     HasUpstreamChanges
                 )
             );
@@ -823,44 +637,24 @@ public sealed class ConfiglueDevToolsEditorSession<TModel> : IDisposable
             before = _session.Value;
         }
 
-        TModel desired;
-        try
-        {
-            desired = SetSecretValue(before, memberPath, secretText);
-        }
-        catch (Exception exception)
-            when (exception is InvalidOperationException
-                || exception is JsonException
-                || exception is ArgumentException
+        if (
+            !_secrets.TrySetValue(
+                before,
+                memberPath,
+                secretText,
+                out var desired,
+                out var setCategory,
+                out var setError
             )
+        )
         {
-            var category =
-                exception is ArgumentException
-                    ? ConfiglueEditorFailureCategory.Schema
-                    : ConfiglueEditorFailureCategory.Secret;
             return new ValueTask<ConfiglueEditorSyncResult>(
-                ConfiglueEditorSyncResult.Fail(
-                    category,
-                    [TrimMessage(exception.Message)],
-                    HasUpstreamChanges
-                )
+                ConfiglueEditorSyncResult.Fail(setCategory, [setError], HasUpstreamChanges)
             );
         }
 
-        var introducesSecretDiff = ConfiglueEditorSemanticJson.SecretSubtreeDiffers(
-            _schema,
-            before,
-            desired,
-            string.Empty,
-            false,
-            out _
-        );
-        if (introducesSecretDiff)
-        {
-            // The only sanctioned secret difference: record the override so the
-            // next draft sync recognizes it as explicit rather than smuggled.
-        }
-
+        // The only sanctioned secret difference: the override below lets the
+        // next draft sync recognize it as explicit rather than smuggled.
         List<ConfiglueEditorChangedPath> changed;
         lock (_gate)
         {
@@ -878,7 +672,7 @@ public sealed class ConfiglueDevToolsEditorSession<TModel> : IDisposable
             _session.Value = desired;
             _secretOverrides.Add(memberPath);
             var details = _session.SessionStart.Details;
-            var editability = ResolveEditability(details, memberPath);
+            var editability = _guards.ResolveEditability(details, memberPath);
             changed = _modifiedPaths
                 .Where(existing =>
                     !string.Equals(existing.MemberPath, memberPath, StringComparison.Ordinal)
@@ -909,7 +703,7 @@ public sealed class ConfiglueDevToolsEditorSession<TModel> : IDisposable
             value = _session.Value;
         }
 
-        return BuildRedactedJson(value, details: null);
+        return _upstream.BuildRedactedJson(value);
     }
 
     /// <inheritdoc />
@@ -935,337 +729,113 @@ public sealed class ConfiglueDevToolsEditorSession<TModel> : IDisposable
         Changed?.Invoke();
     }
 
-    private string BuildRedactedJson(TModel value, ConfiglueDetailsSnapshot? details)
+    private ConfiglueEditorSyncResult DescribeStaged()
     {
-        var version = Interlocked.Read(ref _documentVersion);
-        return ConfiglueDevToolsViewerProjection
-            .BuildDocument(value, details, _schema, _options, version)
-            .Json;
+        // Formatting, ordering, or spelling-only differences: no patch.
+        // Previously staged changes (if any) are preserved and reported.
+        List<ConfiglueEditorChangedPath> staged;
+        bool dirty;
+        bool upstream;
+        lock (_gate)
+        {
+            staged = _modifiedPaths;
+            dirty = Volatile.Read(ref _disposed) == 0 && _session.HasLocalChanges;
+            upstream = Volatile.Read(ref _disposed) == 0 && _session.HasUpstreamChanges;
+        }
+
+        return ConfiglueEditorSyncResult.Ok(staged.AsReadOnly(), dirty, upstream);
     }
 
-    private async ValueTask<ConfiglueDetailsSnapshot?> ReadDetailsAsync(
-        CancellationToken cancellationToken
+    private ConfiglueEditorSyncResult? GuardDraftSecrets(
+        JsonObject normalizedDraft,
+        JsonObject normalizedBaseline
     )
     {
-        if (_state is IConfiglueDetailsRuntime detailsRuntime)
+        _secrets.CheckDraft(
+            normalizedDraft,
+            normalizedBaseline,
+            out var plaintextSecrets,
+            out var deletedPlaceholders
+        );
+        if (plaintextSecrets.Count > 0)
         {
-            try
-            {
-                return await detailsRuntime
-                    .GetDetailsSnapshotAsync(cancellationToken)
-                    .ConfigureAwait(false);
-            }
-            catch (Exception)
-            {
-                // A failing details read must not block editing; fall back to the
-                // session-start transport and let commit enforce routing.
-            }
+            return ConfiglueEditorSyncResult.Fail(
+                ConfiglueEditorFailureCategory.Secret,
+                ConfiglueDevToolsEditorSecretFlow<TModel>.DraftPlaintextErrors(plaintextSecrets),
+                HasUpstreamChanges
+            );
         }
 
-        try
+        if (deletedPlaceholders.Count > 0)
         {
-            return _session.SessionStart.Details;
+            return ConfiglueEditorSyncResult.Fail(
+                ConfiglueEditorFailureCategory.NonEditable,
+                ConfiglueDevToolsEditorSecretFlow<TModel>.DeletedPlaceholderErrors(
+                    deletedPlaceholders
+                ),
+                HasUpstreamChanges
+            );
         }
-        catch (Exception)
-        {
-            return null;
-        }
+
+        return null;
     }
 
-    private List<(string Path, string Editability)> FindBlockedPaths(
-        IReadOnlyList<string> changedPaths,
-        ConfiglueDetailsSnapshot details
-    )
-    {
-        var blocked = new List<(string Path, string Editability)>();
-        foreach (var changed in changedPaths)
-        {
-            foreach (var candidate in Prefixes(changed))
-            {
-                var truncated = TruncateAtCollection(candidate);
-                ConfiglueMemberPath path;
-                try
-                {
-                    path = ConfiglueMemberPath.FromNames(_schema, truncated);
-                }
-                catch (ArgumentException)
-                {
-                    // Unknown members are reported by strict model binding instead.
-                    continue;
-                }
-
-                ConfiglueEditability editability;
-                try
-                {
-                    editability = details.Editability(path);
-                }
-                catch (Exception)
-                {
-                    continue;
-                }
-
-                if (editability != ConfiglueEditability.Editable)
-                {
-                    blocked.Add((candidate, editability.ToString()));
-                    break;
-                }
-            }
-        }
-
-        return blocked;
-    }
-
-    private List<ConfiglueEditorChangedPath> DescribeChanges(
-        IReadOnlyList<string> changedPaths,
+    private ConfiglueEditorSyncResult? GuardEditability(
+        IReadOnlyList<string> rawPaths,
         ConfiglueDetailsSnapshot? details
     )
     {
-        var described = new List<ConfiglueEditorChangedPath>(changedPaths.Count);
-        foreach (
-            var changed in changedPaths
-                .Distinct(StringComparer.Ordinal)
-                .OrderBy(static path => path, StringComparer.Ordinal)
-        )
-        {
-            described.Add(
-                new ConfiglueEditorChangedPath(changed, ResolveEditability(details, changed))
-            );
-        }
-
-        return described;
-    }
-
-    private string ResolveEditability(ConfiglueDetailsSnapshot? details, string memberPath)
-    {
         if (details is null)
         {
-            return ConfiglueEditability.Editable.ToString();
+            return null;
         }
 
-        try
+        var blocked = _guards.FindBlockedPaths(rawPaths, details);
+        blocked.Sort(
+            static (left, right) => string.Compare(left.Path, right.Path, StringComparison.Ordinal)
+        );
+        if (blocked.Count == 0)
         {
-            var truncated = TruncateAtCollection(memberPath);
-            return details
-                .Editability(ConfiglueMemberPath.FromNames(_schema, truncated))
-                .ToString();
-        }
-        catch (Exception)
-        {
-            return ConfiglueEditability.Editable.ToString();
-        }
-    }
-
-    private static IEnumerable<string> Prefixes(string dottedPath)
-    {
-        var parts = dottedPath.Split('.');
-        for (var length = 1; length <= parts.Length; length++)
-        {
-            yield return string.Join(".", parts.Take(length));
-        }
-    }
-
-    private string TruncateAtCollection(string dottedPath)
-    {
-        // Collection elements (Tags[0]) and their descendants resolve editability
-        // at the owning collection member; index segments never reach FromNames.
-        var cleaned = StripIndices(dottedPath);
-        var parts = cleaned.Split('.');
-        var current = _schema;
-        var kept = new List<string>(parts.Length);
-        foreach (var part in parts)
-        {
-            ConfiglueMemberSchema? found = null;
-            foreach (var member in current.Members)
-            {
-                if (!member.IsDefault && string.Equals(member.Name, part, StringComparison.Ordinal))
-                {
-                    found = member;
-                    break;
-                }
-            }
-
-            if (found is null)
-            {
-                break;
-            }
-
-            kept.Add(part);
-            if (IsCollection(found.Value))
-            {
-                break;
-            }
-
-            try
-            {
-                current = found.Value.NestedSchemaFactory?.Invoke() ?? current;
-            }
-            catch (Exception)
-            {
-                break;
-            }
-
-            if (found.Value.NestedSchemaFactory is null)
-            {
-                // Leaf reached; remaining parts (if any) belong to strict binding.
-                break;
-            }
+            return null;
         }
 
-        return kept.Count == 0 ? StripIndices(dottedPath) : string.Join(".", kept);
-    }
-
-    private static string StripIndices(string path)
-    {
-        var builder = new System.Text.StringBuilder(path.Length);
-        var depth = 0;
-        foreach (var ch in path)
-        {
-            if (ch == '[')
-            {
-                depth++;
-                continue;
-            }
-
-            if (ch == ']')
-            {
-                depth = Math.Max(0, depth - 1);
-                continue;
-            }
-
-            if (depth == 0)
-            {
-                builder.Append(ch);
-            }
-        }
-
-        return builder.ToString().Trim('.');
-    }
-
-    private static bool IsCollection(ConfiglueMemberSchema member)
-    {
-        try
-        {
-            var type = Nullable.GetUnderlyingType(member.ValueType) ?? member.ValueType;
-            return type != typeof(string)
-                && typeof(System.Collections.IEnumerable).IsAssignableFrom(type);
-        }
-        catch (Exception)
-        {
-            return false;
-        }
-    }
-
-    private TModel SetSecretValue(TModel current, string memberPath, string plaintext)
-    {
-        var node =
-            JsonSerializer.SerializeToNode(current) as JsonObject
-            ?? throw new InvalidOperationException(
-                $"Secret '{memberPath}' cannot be addressed on a non-object model value."
-            );
-        var parts = memberPath.Split('.');
-        var schema = _schema;
-        var target = node;
-        for (var index = 0; index < parts.Length; index++)
-        {
-            ConfiglueMemberSchema? found = null;
-            foreach (var member in schema.Members)
-            {
-                if (
-                    !member.IsDefault
-                    && string.Equals(member.Name, parts[index], StringComparison.Ordinal)
+        return ConfiglueEditorSyncResult.Fail(
+            ConfiglueEditorFailureCategory.NonEditable,
+            blocked
+                .Select(static item =>
+                    $"Member '{item.Path}' is not editable ({item.Editability}); the normal save path cannot change its effective value."
                 )
-                {
-                    found = member;
-                    break;
-                }
-            }
-
-            if (found is null)
-            {
-                throw new ArgumentException(
-                    $"Property path '{memberPath}' contains unknown member '{parts[index]}'.",
-                    nameof(memberPath)
-                );
-            }
-
-            var key = ResolveNodeKey(target, found.Value, _options.NamingPolicy);
-            if (index == parts.Length - 1)
-            {
-                if (IsCollection(found.Value))
-                {
-                    throw new InvalidOperationException(
-                        $"Secret '{memberPath}' is a collection; replace it through the Monaco draft's normal merge semantics instead."
-                    );
-                }
-
-                target[key] = plaintext;
-                break;
-            }
-
-            if (target[key] is not JsonObject child)
-            {
-                throw new InvalidOperationException(
-                    $"Secret '{memberPath}' traverses non-object member '{found.Value.Name}'."
-                );
-            }
-
-            target = child;
-            schema =
-                found.Value.NestedSchemaFactory?.Invoke()
-                ?? throw new InvalidOperationException(
-                    $"Secret '{memberPath}' continues through non-nested member '{found.Value.Name}'."
-                );
-        }
-
-        return JsonSerializer.Deserialize<TModel>(node.ToJsonString(), StrictModelOptions)
-            ?? throw new InvalidOperationException(
-                "The secret change did not produce a model value."
-            );
+                .ToArray(),
+            HasUpstreamChanges
+        );
     }
 
-    private static string ResolveNodeKey(
-        JsonObject node,
-        ConfiglueMemberSchema member,
-        JsonNamingPolicy? namingPolicy
+    private ConfiglueEditorSyncResult PublishDraft(
+        TModel desired,
+        IReadOnlyList<string> rawPaths,
+        ConfiglueDetailsSnapshot? details
     )
     {
-        if (node.ContainsKey(member.Name))
+        var changed = _guards.DescribeChanges(rawPaths, details);
+        lock (_gate)
         {
-            return member.Name;
-        }
-
-        string? converted = null;
-        try
-        {
-            converted = namingPolicy?.ConvertName(member.Name);
-        }
-        catch (Exception)
-        {
-            converted = null;
-        }
-
-        if (converted is not null && node.ContainsKey(converted))
-        {
-            return converted;
-        }
-
-        foreach (var (candidate, _) in node)
-        {
-            if (string.Equals(candidate, member.Name, StringComparison.OrdinalIgnoreCase))
+            if (Volatile.Read(ref _disposed) != 0)
             {
-                return candidate;
+                return ConfiglueEditorSyncResult.Fail(
+                    ConfiglueEditorFailureCategory.Invalidated,
+                    ["The editing session was closed while syncing."],
+                    hasUpstreamChanges: false
+                );
             }
 
-            if (
-                converted is not null
-                && string.Equals(candidate, converted, StringComparison.OrdinalIgnoreCase)
-            )
-            {
-                return candidate;
-            }
+            _session.Value = desired;
+            _modifiedPaths = changed;
+            return ConfiglueEditorSyncResult.Ok(
+                _modifiedPaths.AsReadOnly(),
+                _session.HasLocalChanges,
+                _session.HasUpstreamChanges
+            );
         }
-
-        return member.Name;
     }
 
     private bool IsSecretOverride(string diffPath)
@@ -1283,73 +853,19 @@ public sealed class ConfiglueDevToolsEditorSession<TModel> : IDisposable
             return;
         }
 
-        try
+        var document = await _upstream
+            .RebuildBaselineAsync(cancellationToken)
+            .ConfigureAwait(false);
+        if (document is null)
         {
-            var snapshot = await DevToolsSnapshotReader
-                .ReadAsync(_state, cancellationToken)
-                .ConfigureAwait(false);
-            var version = Interlocked.Increment(ref _documentVersion);
-            var document = ConfiglueDevToolsViewerProjection.BuildDocument(
-                snapshot.Value,
-                snapshot.Details,
-                _schema,
-                _options,
-                version
-            );
-            lock (_gate)
-            {
-                _current = document;
-            }
-
-            Changed?.Invoke();
-        }
-        catch (Exception)
-        {
-            // Baseline refresh is best-effort; the committed draft stays valid and
-            // the next refresh retries.
-        }
-    }
-
-    private static bool IsMappable(Exception exception) =>
-        exception
-            is StateMultiWriteException
-                or Configlue.State.StateConflictException
-                or ConfiglueValidationException
-                or ObjectDisposedException
-                or InvalidOperationException;
-
-    private static bool IsNoWriter(InvalidOperationException exception) =>
-        exception.Message.Contains("No writable", StringComparison.Ordinal);
-
-    private static string DescribeFailure(Exception exception)
-    {
-        var message = TrimMessage(exception.Message);
-        if (exception is ConfiglueValidationException validation)
-        {
-            return $"Validation failed: {string.Join("; ", validation.Failures)}";
+            return;
         }
 
-        if (exception is StateMultiWriteException partial)
+        lock (_gate)
         {
-            return DescribePartialWrite(partial);
+            _current = document;
         }
 
-        return message;
-    }
-
-    private static string DescribePartialWrite(StateMultiWriteException exception)
-    {
-        string Sources(IReadOnlyList<SourceId> sources) =>
-            sources.Count == 0
-                ? "—"
-                : string.Join(", ", sources.Select(static source => source.ToString()));
-        return $"A multi-source write failed after partial completion. Completed {exception.Completed.Sources.Count} source(s); failed: {Sources(exception.FailedSourceIds)}; unattempted: {Sources(exception.UnattemptedSourceIds)}. Cause: {TrimMessage(exception.InnerException?.Message ?? exception.Message)}";
-    }
-
-    private static string TrimMessage(string message)
-    {
-        message = message.Trim();
-        const int maxLength = 500;
-        return message.Length <= maxLength ? message : message.Substring(0, maxLength) + "…";
+        Changed?.Invoke();
     }
 }

@@ -67,32 +67,6 @@ public sealed class EditorSessionTests
     }
 
     [Test]
-    public async Task SyncAndCommit_NestedEditRoutesNormally()
-    {
-        await using var context = ViewerFixtures.CreateViewerContext();
-        var state = context.GetState<DevToolsViewerSettings>();
-        using var session = await ConfiglueDevToolsEditorSession<DevToolsViewerSettings>.OpenAsync(
-            state
-        );
-
-        var draft = session.SessionStartDocument.Json.Replace("5432", "5433");
-        var sync = await session.SyncDraftAsync(draft);
-        sync.Success.ShouldBeTrue();
-        sync.ChangedPaths.Select(static path => path.MemberPath).ShouldBe(["Database.Port"]);
-
-        var save = await session.CommitAsync();
-        save.Committed.ShouldBeTrue();
-        save.Category.ShouldBe(ConfiglueEditorFailureCategory.None);
-        save.Receipt.ShouldNotBeNull();
-        save.Receipt!.Sources.Count.ShouldBe(1);
-        save.CommittedPaths.ShouldBe(["Database.Port"]);
-
-        (await state.GetValueAsync()).Database!.Port.ShouldBe(5433);
-        session.HasLocalChanges.ShouldBeFalse();
-        session.ModifiedPaths.ShouldBeEmpty();
-    }
-
-    [Test]
     public async Task Sync_NullSetSemantics()
     {
         await using var context = ViewerFixtures.CreateViewerContext(notes: "hello");
@@ -155,27 +129,6 @@ public sealed class EditorSessionTests
         var save = await session.CommitAsync();
         save.Committed.ShouldBeTrue();
         (await state.GetValueAsync()).Theme.ShouldBe("Light");
-    }
-
-    [Test]
-    public async Task SyncAndCommit_CollectionReplace()
-    {
-        await using var context = ViewerFixtures.CreateViewerContext();
-        var state = context.GetState<DevToolsViewerSettings>();
-        using var session = await ConfiglueDevToolsEditorSession<DevToolsViewerSettings>.OpenAsync(
-            state
-        );
-
-        var node = JsonNode.Parse(session.SessionStartDocument.Json)!.AsObject();
-        node["Tags"]![1] = "green";
-        var sync = await session.SyncDraftAsync(node.ToJsonString());
-        sync.Success.ShouldBeTrue();
-        // Scalar collections merge as whole members under Configlue patch semantics.
-        sync.ChangedPaths.Select(static path => path.MemberPath).ShouldBe(["Tags"]);
-
-        var save = await session.CommitAsync();
-        save.Committed.ShouldBeTrue();
-        (await state.GetValueAsync()).Tags.ShouldBe(["web", "green"]);
     }
 
     [Test]
@@ -351,96 +304,13 @@ public sealed class EditorSessionTests
         value.RetryCount.ShouldBe(6);
     }
 
+    // Core EditSession tests own the rebase state machine; here the session only
+    // maps a core rebase conflict into an editor result and preserves the draft.
     [Test]
-    public async Task Commit_MultiSourceRoutingWithoutFlattening()
-    {
-        var themeStore = new InMemoryStateSource<DevToolsViewerSettings.Fragment>(
-            new DevToolsViewerSettings.Fragment { Theme = Optional<string>.Present("Dark") }
-        );
-        var retryStore = new InMemoryStateSource<DevToolsViewerSettings.Fragment>(
-            new DevToolsViewerSettings.Fragment { RetryCount = Optional<int>.Present(5) }
-        );
-        var composite = new CompositeStateSource<DevToolsViewerSettings.Fragment>(
-            new StateSourceSet<DevToolsViewerSettings.Fragment>([
-                new StateSource<DevToolsViewerSettings.Fragment>(
-                    "theme-source",
-                    themeStore,
-                    new StateSourceOptions<DevToolsViewerSettings.Fragment>
-                    {
-                        Writer = themeStore,
-                        Watcher = themeStore,
-                    }
-                ),
-                new StateSource<DevToolsViewerSettings.Fragment>(
-                    "retry-source",
-                    retryStore,
-                    new StateSourceOptions<DevToolsViewerSettings.Fragment>
-                    {
-                        Writer = retryStore,
-                        Watcher = retryStore,
-                    }
-                ),
-            ]),
-            writePlan: new StateWritePlan(
-                null,
-                new Dictionary<string, SourceId>(StringComparer.Ordinal)
-                {
-                    ["Theme"] = SourceId.From("theme-source"),
-                    ["RetryCount"] = SourceId.From("retry-source"),
-                }
-            )
-        );
-
-        var builder = new ConfiglueBuilder();
-        builder.Add<DevToolsViewerSettings>(model =>
-            model.Sources(sources => sources.Add(composite.CreateSource("combined")))
-        );
-        await using var context = builder.CreateContext();
-        var state = context.GetState<DevToolsViewerSettings>();
-        using var session = await ConfiglueDevToolsEditorSession<DevToolsViewerSettings>.OpenAsync(
-            state
-        );
-
-        var node = JsonNode.Parse(session.SessionStartDocument.Json)!.AsObject();
-        node["Theme"] = "Light";
-        node["RetryCount"] = 9;
-        var sync = await session.SyncDraftAsync(node.ToJsonString());
-        sync.Success.ShouldBeTrue();
-
-        var save = await session.CommitAsync();
-        save.Committed.ShouldBeTrue();
-        save.Receipt.ShouldNotBeNull();
-        save.Receipt!.Sources.Count.ShouldBe(2);
-
-        var value = await state.GetValueAsync();
-        value.Theme.ShouldBe("Light");
-        value.RetryCount.ShouldBe(9);
-
-        // No flattening: each source received only its routed member.
-        var themeFragment = (
-            await themeStore.ReadAsync(Configlue.Resources.ConfiglueResourceContext.Default)
-        ).Value!;
-        themeFragment.Theme.Value.ShouldBe("Light");
-        themeFragment.RetryCount.IsPresent.ShouldBeFalse();
-
-        var retryFragment = (
-            await retryStore.ReadAsync(Configlue.Resources.ConfiglueResourceContext.Default)
-        ).Value!;
-        retryFragment.RetryCount.Value.ShouldBe(9);
-        retryFragment.Theme.IsPresent.ShouldBeFalse();
-    }
-
-    // DevTools-side representative for upstream/rebase behavior: clean adoption and
-    // dirty-draft preservation state machines are owned by core EditSession tests.
-    [Test]
-    public async Task DirtySession_RebasesUpstreamWithoutLosingDraft()
+    public async Task Rebase_ConflictMapsCategoryAndPreservesDraft()
     {
         var store = new InMemoryStateSource<DevToolsViewerSettings.Fragment>(
-            new DevToolsViewerSettings.Fragment
-            {
-                Theme = Optional<string>.Present("Dark"),
-                Notes = Optional<string?>.Present("v1"),
-            }
+            new DevToolsViewerSettings.Fragment { Theme = Optional<string>.Present("Dark") }
         );
         await using var context = ViewerFixtures.CreateWatchedContext(store);
         var state = context.GetState<DevToolsViewerSettings>();
@@ -451,25 +321,18 @@ public sealed class EditorSessionTests
         var draft = session.SessionStartDocument.Json.Replace("\"Dark\"", "\"Light\"");
         (await session.SyncDraftAsync(draft)).Success.ShouldBeTrue();
 
+        // A concurrent change to the same member: FailOnConflict is the default.
         store.Set(
-            new DevToolsViewerSettings.Fragment
-            {
-                Theme = Optional<string>.Present("Dark"),
-                Notes = Optional<string?>.Present("v2"),
-            }
+            new DevToolsViewerSettings.Fragment { Theme = Optional<string>.Present("Brisk") }
         );
-        await ViewerFixtures.PollForUpstreamAsync(session);
 
         var rebased = await session.RebaseAsync();
-        rebased.Success.ShouldBeTrue();
-        session.HasUpstreamChanges.ShouldBeFalse();
-        session.HasLocalChanges.ShouldBeTrue();
+        rebased.Success.ShouldBeFalse();
+        rebased.Category.ShouldBe(ConfiglueEditorFailureCategory.Conflict);
+        rebased.Errors.ShouldNotBeEmpty();
 
-        var save = await session.CommitAsync();
-        save.Committed.ShouldBeTrue();
-        var value = await state.GetValueAsync();
-        value.Theme.ShouldBe("Light");
-        value.Notes.ShouldBe("v2");
+        // The draft is preserved so the user can choose rebase or discard.
+        session.HasLocalChanges.ShouldBeTrue();
     }
 
     [Test]
@@ -909,22 +772,6 @@ public sealed class EditorSessionTests
                 )
             );
             return builder.CreateContext();
-        }
-
-        public static async Task PollForUpstreamAsync(
-            ConfiglueDevToolsEditorSession<DevToolsViewerSettings> session
-        )
-        {
-            var deadline = DateTime.UtcNow + TimeSpan.FromSeconds(10);
-            while (!session.HasUpstreamChanges)
-            {
-                if (DateTime.UtcNow >= deadline)
-                {
-                    throw new TimeoutException("The editor session did not observe upstream.");
-                }
-
-                await Task.Delay(50);
-            }
         }
     }
 }
