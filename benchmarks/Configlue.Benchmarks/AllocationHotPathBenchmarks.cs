@@ -92,7 +92,7 @@ public class TransformerPipelineAllocationBenchmarks
     private TransformingResource _twoStageReader = null!;
     private TransformingResource _threeStageReader = null!;
 
-    [Params(100, 4096, 65536)]
+    [Params(0, 100, 4096, 65536)]
     public int PayloadSize { get; set; }
 
     [GlobalSetup]
@@ -125,10 +125,7 @@ public class TransformerPipelineAllocationBenchmarks
             [_aes]
         );
         _twoStageReader = new TransformingResource(
-            new InMemoryResource
-            {
-                Stored = _aes.TransformWrite(_zstd.TransformWrite(_payload)),
-            },
+            new InMemoryResource { Stored = _aes.TransformWrite(_zstd.TransformWrite(_payload)) },
             [_aes, _zstd]
         );
         _threeStageReader = new TransformingResource(
@@ -184,7 +181,8 @@ public class TransformerPipelineAllocationBenchmarks
     // Read benchmarks: stored bytes -> production read pipeline -> plaintext (length consumed).
 
     [Benchmark]
-    public int ZeroRead() => _zeroReader.ReadAsync(_context).GetAwaiter().GetResult().Content.Length;
+    public int ZeroRead() =>
+        _zeroReader.ReadAsync(_context).GetAwaiter().GetResult().Content.Length;
 
     [Benchmark]
     public int OneStageAesRead() =>
@@ -198,11 +196,7 @@ public class TransformerPipelineAllocationBenchmarks
     public int ThreeStageRead() =>
         _threeStageReader.ReadAsync(_context).GetAwaiter().GetResult().Content.Length;
 
-    private void ValidateRoundTrip(
-        IResourceWriter writer,
-        TransformingResource reader,
-        string name
-    )
+    private void ValidateRoundTrip(IResourceWriter writer, TransformingResource reader, string name)
     {
         writer.WriteAsync(_context, _writeRequest).GetAwaiter().GetResult();
         var result = reader.ReadAsync(_context).GetAwaiter().GetResult();
@@ -362,9 +356,7 @@ public sealed class JsonCodecMetadataBenchmarks
             Name = Optional<string>.Present("allocation benchmark"),
             Enabled = Optional<bool>.Present(true),
         };
-        _context = new StateCodecContext(
-            new StateSchemaMetadata("bench-optimization-settings", 1)
-        );
+        _context = new StateCodecContext(new StateSchemaMetadata("bench-optimization-settings", 1));
         var buffer = new ArrayBufferWriter<byte>();
         _codec.Serialize(_value, buffer, in _context);
         _serialized = new ReadOnlySequence<byte>(buffer.WrittenMemory.ToArray());
@@ -415,8 +407,9 @@ public sealed class MetadataSinglePassReaderBenchmarks
     }
 
     [Benchmark]
-    public ValueTask<StateReadResult<AllocationMessagePackSettings.Fragment>> ReadSinglePassAsync() =>
-        _reader.ReadAsync(ConfiglueResourceContext.Default);
+    public ValueTask<
+        StateReadResult<AllocationMessagePackSettings.Fragment>
+    > ReadSinglePassAsync() => _reader.ReadAsync(ConfiglueResourceContext.Default);
 
     private sealed class FixedBytesResource(byte[] payload) : IResourceReader
     {

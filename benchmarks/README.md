@@ -2,6 +2,9 @@
 
 The ongoing measurement and optimization audit is recorded in [performance-audit.md](performance-audit.md), including same-machine results, validation, and outstanding coverage.
 
+`TransformerPipelineAllocationBenchmarks` also includes an empty payload so destination
+buffer changes are measured for zero-byte inputs as well as 100 B, 4 KiB, and 64 KiB.
+
 `CollectionCloneBenchmarks` isolates generated fragment deep cloning for lists, sets,
 dictionaries, and a combined collection model at 0, 16, and 4,096 elements. It checks
 structural equality in setup and measures allocations without storage or resolver costs.
