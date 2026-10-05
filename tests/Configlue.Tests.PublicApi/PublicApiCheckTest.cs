@@ -346,6 +346,10 @@ public sealed class PublicApiCheckTest
     public void AzureKeyVault() => PublicApiCheck.Check<KeyVaultSecretSourceOptions>();
 
     [Test]
+    public void AzureAppConfiguration() =>
+        PublicApiCheck.Check<Configlue.Resource.AzureAppConfiguration.AzureAppConfigurationSourceOptions>();
+
+    [Test]
     public void Gcs() => PublicApiCheck.Check<GcsObjectSourceOptions>();
 
     [Test]
@@ -364,10 +368,18 @@ public sealed class PublicApiCheckTest
     public void Consul() => PublicApiCheck.Check<ConsulKvPrefixSourceOptions>();
 
     [Test]
+    public void Ssm() =>
+        PublicApiCheck.Check<Configlue.Source.Ssm.SsmParameterStoreSourceOptions>();
+
+    [Test]
     public void Etcd() => PublicApiCheck.Check<EtcdStateSourceOptions>();
 
     [Test]
     public void GoogleSecretManager() => PublicApiCheck.Check<GoogleSecretManagerSourceOptions>();
+
+    [Test]
+    public void SecretsManager() =>
+        PublicApiCheck.Check<Configlue.Resource.SecretsManager.SecretsManagerSourceOptions>();
 
     [Test]
     public void Kubernetes() => PublicApiCheck.Check<KubernetesSourceOptions>();

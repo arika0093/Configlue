@@ -1,0 +1,68 @@
+[assembly: System.Reflection.AssemblyMetadata("RepositoryUrl", "https://github.com/arika0093/Configlue")]
+namespace Configlue.Resource.AzureAppConfiguration
+{
+    public sealed class AppConfigurationEntry
+    {
+        public AppConfigurationEntry(string key, string? label, string? value, string? contentType, string? eTag, System.DateTimeOffset? lastModified = default) { }
+        public string? ContentType { get; }
+        public string? ETag { get; }
+        public string Key { get; }
+        public string? Label { get; }
+        public System.DateTimeOffset? LastModified { get; }
+        public string? Value { get; }
+    }
+    public static class AzureAppConfigurationKeyMapper
+    {
+        public const string FeatureFlagContentType = "application/vnd.microsoft.appconfig.ff+json;charset=utf-8";
+        public const string FeatureFlagKeyPrefix = ".appconfig.featureflag/";
+        public const string KeyVaultReferenceContentType = "application/vnd.microsoft.appconfig.keyvaultref+json";
+        public static bool IsFeatureFlag(Configlue.Resource.AzureAppConfiguration.AppConfigurationEntry entry) { }
+        public static bool IsFeatureFlagContentType(string? contentType) { }
+        public static bool IsFeatureFlagKey(string key) { }
+        public static bool IsKeyVaultReference(string? contentType) { }
+        public static bool MatchesKeyFilter(string key, string? keyFilter) { }
+        public static string ToConfigurationKey(string[] memberPath, string? trimPrefix) { }
+        public static bool TryMapToMemberPath(string key, string? trimPrefix, out string[] memberPath) { }
+    }
+    public sealed class AzureAppConfigurationSourceOptions
+    {
+        public AzureAppConfigurationSourceOptions() { }
+        public Azure.Data.AppConfiguration.ConfigurationClient? Client { get; init; }
+        public System.Func<System.IServiceProvider?, Azure.Data.AppConfiguration.ConfigurationClient>? ClientFactory { get; init; }
+        public string? ConnectionString { get; init; }
+        public Azure.Core.TokenCredential? Credential { get; init; }
+        public System.Func<System.IServiceProvider?, Azure.Core.TokenCredential>? CredentialFactory { get; init; }
+        public System.Uri? Endpoint { get; init; }
+        public Configlue.Sources.StateFallbackCondition FallbackCondition { get; init; }
+        public Configlue.Resources.ResourceId? FixedResourceId { get; init; }
+        public string? Id { get; init; }
+        public System.Text.Json.JsonSerializerOptions? JsonSerializerOptions { get; init; }
+        public string KeyFilter { get; init; }
+        public string? LabelFilter { get; init; }
+        public int Priority { get; init; }
+        public System.TimeSpan RefreshInterval { get; init; }
+        public string? SentinelKey { get; init; }
+        public string? SentinelLabel { get; init; }
+        public string? SnapshotName { get; init; }
+        public string? TrimKeyPrefix { get; init; }
+        public System.Func<string, System.Type, object?>? ValueParser { get; init; }
+        public bool Writable { get; init; }
+    }
+    public static class AzureAppConfigurationSourceRegistration
+    {
+        public static Configlue.Extensibility.ConfiglueSourceRegistration FromAzureAppConfiguration(this Configlue.ConfiglueSourceSetBuilder sources, Configlue.Resource.AzureAppConfiguration.AzureAppConfigurationSourceOptions options) { }
+    }
+    public sealed class AzureAppConfigurationSource<TFragment> : Configlue.Resources.IResourceIdentity, Configlue.Sources.ISourceCapabilities<TFragment>, Configlue.Sources.ISourceReader<TFragment>, Configlue.Sources.ISourceWatcher, Configlue.Sources.ISourceWriter<TFragment>, System.IDisposable
+        where TFragment :  class, Configlue.IConfiglueFragment<TFragment>
+    {
+        public AzureAppConfigurationSource(Azure.Data.AppConfiguration.ConfigurationClient client, Configlue.ConfiglueModelSchema schema, Configlue.Resource.AzureAppConfiguration.AzureAppConfigurationSourceOptions? options = null) { }
+        public AzureAppConfigurationSource(System.Uri endpoint, Azure.Core.TokenCredential credential, Configlue.ConfiglueModelSchema schema, Configlue.Resource.AzureAppConfiguration.AzureAppConfigurationSourceOptions? options = null) { }
+        public Configlue.Sources.ISourceWatcher? Watcher { get; }
+        public Configlue.Sources.ISourceWriter<TFragment>? Writer { get; }
+        public void Dispose() { }
+        public Configlue.Resources.ResourceId GetResourceId(Configlue.Resources.ConfiglueResourceContext context) { }
+        public System.Threading.Tasks.ValueTask<Configlue.State.StateReadResult<TFragment>> ReadAsync(Configlue.Resources.ConfiglueResourceContext context, System.Threading.CancellationToken cancellationToken = default) { }
+        public System.Threading.Tasks.ValueTask WaitForChangeAsync(Configlue.Resources.ConfiglueResourceContext context, string? observedRevision, System.Threading.CancellationToken cancellationToken = default) { }
+        public System.Threading.Tasks.ValueTask<Configlue.State.StateWriteResult> WriteAsync(Configlue.Resources.ConfiglueResourceContext context, Configlue.State.StateWriteRequest<TFragment> request, System.Threading.CancellationToken cancellationToken = default) { }
+    }
+}

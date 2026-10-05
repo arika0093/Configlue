@@ -1,0 +1,81 @@
+[assembly: System.Reflection.AssemblyMetadata("RepositoryUrl", "https://github.com/arika0093/Configlue")]
+namespace Configlue.Source.Ssm
+{
+    public sealed class SsmParameterProvenance : System.IEquatable<Configlue.Source.Ssm.SsmParameterProvenance>
+    {
+        public SsmParameterProvenance() { }
+        public string? Arn { get; init; }
+        public string? DataType { get; init; }
+        public required string Name { get; init; }
+        public string? Tier { get; init; }
+        public required string Type { get; init; }
+        public required long Version { get; init; }
+    }
+    public sealed class SsmParameterStoreOptions
+    {
+        public SsmParameterStoreOptions() { }
+        public bool AllowOverwrite { get; init; }
+        public System.Func<Configlue.Resources.ConfiglueResourceContext, Amazon.SimpleSystemsManagement.IAmazonSimpleSystemsManagement>? ClientSelector { get; init; }
+        public Configlue.Resources.ResourceId? FixedResourceId { get; init; }
+        public System.Text.Json.JsonSerializerOptions? JsonSerializerOptions { get; init; }
+        public System.TimeSpan MinPollInterval { get; init; }
+        public int PageSize { get; init; }
+        public System.TimeSpan PollInterval { get; init; }
+        public bool Recursive { get; init; }
+        public System.Func<string, System.Type, object?>? ValueParser { get; init; }
+        public bool WatchChanges { get; init; }
+        public bool WithDecryption { get; init; }
+        public string? WriteDataType { get; init; }
+        public string? WriteKeyId { get; init; }
+        public System.Func<string, string?>? WriteKeyIdSelector { get; init; }
+        public Configlue.Source.Ssm.SsmParameterType WriteParameterType { get; init; }
+        public Configlue.Source.Ssm.SsmParameterTier? WriteTier { get; init; }
+        public System.Func<string, Configlue.Source.Ssm.SsmParameterType>? WriteTypeSelector { get; init; }
+    }
+    public sealed class SsmParameterStoreSourceOptions
+    {
+        public SsmParameterStoreSourceOptions() { }
+        public Amazon.SimpleSystemsManagement.IAmazonSimpleSystemsManagement? Client { get; init; }
+        public System.Func<System.IServiceProvider?, Amazon.SimpleSystemsManagement.IAmazonSimpleSystemsManagement>? ClientFactory { get; init; }
+        public System.Func<System.IServiceProvider?, Configlue.RouteKey, Amazon.SimpleSystemsManagement.IAmazonSimpleSystemsManagement>? ClientResolver { get; init; }
+        public Configlue.Sources.StateFallbackCondition FallbackCondition { get; init; }
+        public string? Id { get; init; }
+        public int Priority { get; init; }
+        public Configlue.Source.Ssm.SsmParameterStoreOptions? ResourceOptions { get; init; }
+        public required string RootPath { get; init; }
+        public bool WatchChanges { get; init; }
+        public bool Writable { get; init; }
+    }
+    public static class SsmParameterStoreSourceRegistration
+    {
+        public static Configlue.Extensibility.ConfiglueSourceRegistration FromSsmParameterStore(this Configlue.ConfiglueSourceSetBuilder sources, Configlue.Source.Ssm.SsmParameterStoreSourceOptions options) { }
+    }
+    public sealed class SsmParameterStoreSource<TFragment> : Configlue.Resources.IResourceIdentity, Configlue.Sources.ISourceCapabilities<TFragment>, Configlue.Sources.ISourceReader<TFragment>, Configlue.Sources.ISourceWatcher, Configlue.Sources.ISourceWriter<TFragment>, System.IDisposable
+        where TFragment :  class, Configlue.IConfiglueFragment<TFragment>
+    {
+        public SsmParameterStoreSource(Amazon.SimpleSystemsManagement.IAmazonSimpleSystemsManagement client, string rootPath, Configlue.ConfiglueModelSchema schema, Configlue.Source.Ssm.SsmParameterStoreOptions? options = null, bool writable = false, bool? watchChanges = default) { }
+        public System.Collections.Generic.IReadOnlyList<Configlue.Source.Ssm.SsmParameterProvenance> LastProvenance { get; }
+        public string RootPath { get; }
+        public Configlue.Sources.ISourceWatcher? Watcher { get; }
+        public Configlue.Sources.ISourceWriter<TFragment>? Writer { get; }
+        public string Describe() { }
+        public void Dispose() { }
+        public Configlue.Resources.ResourceId GetResourceId(Configlue.Resources.ConfiglueResourceContext context) { }
+        public System.Threading.Tasks.ValueTask<Configlue.State.StateReadResult<TFragment>> ReadAsync(Configlue.Resources.ConfiglueResourceContext context, System.Threading.CancellationToken cancellationToken = default) { }
+        public override string ToString() { }
+        public System.Threading.Tasks.ValueTask WaitForChangeAsync(Configlue.Resources.ConfiglueResourceContext context, string? observedRevision, System.Threading.CancellationToken cancellationToken = default) { }
+        public System.Threading.Tasks.ValueTask<Configlue.State.StateWriteResult> WriteAsync(Configlue.Resources.ConfiglueResourceContext context, Configlue.State.StateWriteRequest<TFragment> request, System.Threading.CancellationToken cancellationToken = default) { }
+    }
+    public enum SsmParameterTier
+    {
+        Standard = 0,
+        Advanced = 1,
+        IntelligentTiering = 2,
+    }
+    public enum SsmParameterType
+    {
+        String = 0,
+        StringList = 1,
+        SecureString = 2,
+    }
+}
