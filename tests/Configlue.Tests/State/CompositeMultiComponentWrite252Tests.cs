@@ -44,8 +44,24 @@ public sealed class CompositeMultiComponentWrite252Tests
         var rightStore = new InMemoryStateSource<AppSettings.Fragment>(rightSeed);
         var composite = new CompositeStateSource<AppSettings.Fragment>(
             new StateSourceSet<AppSettings.Fragment>([
-                new StateSource<AppSettings.Fragment>("left", leftStore, new StateSourceOptions<AppSettings.Fragment> { Writer = leftStore, Watcher = leftStore }),
-                new StateSource<AppSettings.Fragment>("right", rightStore, new StateSourceOptions<AppSettings.Fragment> { Writer = rightStore, Watcher = rightStore }),
+                new StateSource<AppSettings.Fragment>(
+                    "left",
+                    leftStore,
+                    new StateSourceOptions<AppSettings.Fragment>
+                    {
+                        Writer = leftStore,
+                        Watcher = leftStore,
+                    }
+                ),
+                new StateSource<AppSettings.Fragment>(
+                    "right",
+                    rightStore,
+                    new StateSourceOptions<AppSettings.Fragment>
+                    {
+                        Writer = rightStore,
+                        Watcher = rightStore,
+                    }
+                ),
             ]),
             writePlan: new StateWritePlan(
                 null,
@@ -128,8 +144,24 @@ public sealed class CompositeMultiComponentWrite252Tests
         );
         var composite = new CompositeStateSource<AppSettings.Fragment>(
             new StateSourceSet<AppSettings.Fragment>([
-                new StateSource<AppSettings.Fragment>("database", databaseStore, new StateSourceOptions<AppSettings.Fragment> { Writer = databaseStore, Watcher = databaseStore }),
-                new StateSource<AppSettings.Fragment>("port", portStore, new StateSourceOptions<AppSettings.Fragment> { Writer = portStore, Watcher = portStore }),
+                new StateSource<AppSettings.Fragment>(
+                    "database",
+                    databaseStore,
+                    new StateSourceOptions<AppSettings.Fragment>
+                    {
+                        Writer = databaseStore,
+                        Watcher = databaseStore,
+                    }
+                ),
+                new StateSource<AppSettings.Fragment>(
+                    "port",
+                    portStore,
+                    new StateSourceOptions<AppSettings.Fragment>
+                    {
+                        Writer = portStore,
+                        Watcher = portStore,
+                    }
+                ),
             ]),
             writePlan: new StateWritePlan(
                 null,
@@ -262,8 +294,24 @@ public sealed class CompositeMultiComponentWrite252Tests
         );
         var composite = new CompositeStateSource<AppSettings.Fragment>(
             new StateSourceSet<AppSettings.Fragment>([
-                new StateSource<AppSettings.Fragment>("default", defaultStore, new StateSourceOptions<AppSettings.Fragment> { Writer = defaultStore, Watcher = defaultStore }),
-                new StateSource<AppSettings.Fragment>("routed", routedStore, new StateSourceOptions<AppSettings.Fragment> { Writer = routedStore, Watcher = routedStore }),
+                new StateSource<AppSettings.Fragment>(
+                    "default",
+                    defaultStore,
+                    new StateSourceOptions<AppSettings.Fragment>
+                    {
+                        Writer = defaultStore,
+                        Watcher = defaultStore,
+                    }
+                ),
+                new StateSource<AppSettings.Fragment>(
+                    "routed",
+                    routedStore,
+                    new StateSourceOptions<AppSettings.Fragment>
+                    {
+                        Writer = routedStore,
+                        Watcher = routedStore,
+                    }
+                ),
             ]),
             writePlan: new StateWritePlan(
                 SourceId.From("default"),
@@ -354,93 +402,6 @@ public sealed class CompositeMultiComponentWrite252Tests
         receipt.PhysicalWriteCount.ShouldBe(2);
         (await leftStore.ReadAsync()).Value!.RetryCount.Value.ShouldBe(21);
         (await rightStore.ReadAsync()).Value!.Label.Value.ShouldBe("atomic");
-    }
-
-    [Test]
-    public async Task NestedComponentVector_PreservesNestedSemantics()
-    {
-        var nestedStore = new NestedRevisionStore(
-            new AppSettings.Fragment { RetryCount = Optional<int>.Present(1) }
-        );
-        var rightStore = new InMemoryStateSource<AppSettings.Fragment>(
-            new AppSettings.Fragment { Label = Optional<string?>.Present("before") }
-        );
-        var composite = new CompositeStateSource<AppSettings.Fragment>(
-            new StateSourceSet<AppSettings.Fragment>([
-                new StateSource<AppSettings.Fragment>("nested", nestedStore, new StateSourceOptions<AppSettings.Fragment> { Writer = nestedStore, Watcher = nestedStore }),
-                new StateSource<AppSettings.Fragment>("right", rightStore, new StateSourceOptions<AppSettings.Fragment> { Writer = rightStore, Watcher = rightStore }),
-            ]),
-            writePlan: new StateWritePlan(
-                null,
-                new Dictionary<string, SourceId>(StringComparer.Ordinal)
-                {
-                    ["RetryCount"] = SourceId.From("nested"),
-                    ["Label"] = SourceId.From("right"),
-                }
-            )
-        );
-
-        await using var context = ConfiglueApp.CreateContext(builder =>
-        {
-            builder.Add<AppSettings>(model =>
-                model.Sources(sources => sources.Add(composite.CreateSource("combined")))
-            );
-        });
-
-        var state = context.GetRuntimeState<AppSettings>();
-        await state.SaveAsync(patch =>
-        {
-            patch.RetryCount = 8;
-            patch.Label = "nested-ok";
-        });
-
-        (await nestedStore.InnerReadAsync()).Value!.RetryCount.Value.ShouldBe(8);
-        (await rightStore.ReadAsync()).Value!.Label.Value.ShouldBe("nested-ok");
-    }
-
-    [Test]
-    public async Task NestedComponentVector_StaleNested_ConflictsBeforeAnyWrite()
-    {
-        var nestedStore = new StaleNestedRevisionStore(
-            new AppSettings.Fragment { RetryCount = Optional<int>.Present(1) }
-        );
-        var rightStore = new InMemoryStateSource<AppSettings.Fragment>(
-            new AppSettings.Fragment { Label = Optional<string?>.Present("before") }
-        );
-        var composite = new CompositeStateSource<AppSettings.Fragment>(
-            new StateSourceSet<AppSettings.Fragment>([
-                new StateSource<AppSettings.Fragment>("nested", nestedStore, new StateSourceOptions<AppSettings.Fragment> { Writer = nestedStore, Watcher = nestedStore }),
-                new StateSource<AppSettings.Fragment>("right", rightStore, new StateSourceOptions<AppSettings.Fragment> { Writer = rightStore, Watcher = rightStore }),
-            ]),
-            writePlan: new StateWritePlan(
-                null,
-                new Dictionary<string, SourceId>(StringComparer.Ordinal)
-                {
-                    ["RetryCount"] = SourceId.From("nested"),
-                    ["Label"] = SourceId.From("right"),
-                }
-            )
-        );
-
-        await using var context = ConfiglueApp.CreateContext(builder =>
-        {
-            builder.Add<AppSettings>(model =>
-                model.Sources(sources => sources.Add(composite.CreateSource("combined")))
-            );
-        });
-
-        var state = context.GetRuntimeState<AppSettings>();
-        await Should.ThrowAsync<StateConflictException>(async () =>
-            await state.SaveAsync(patch =>
-            {
-                patch.RetryCount = 9;
-                patch.Label = "nested-stale";
-            })
-        );
-
-        nestedStore.WriteCount.ShouldBe(0);
-        (await nestedStore.InnerReadAsync()).Value!.RetryCount.Value.ShouldBe(1);
-        (await rightStore.ReadAsync()).Value!.Label.Value.ShouldBe("before");
     }
 
     [Test]
@@ -541,8 +502,24 @@ public sealed class CompositeMultiComponentWrite252Tests
     ) =>
         new(
             new StateSourceSet<AppSettings.Fragment>([
-                new StateSource<AppSettings.Fragment>("left", leftStore, new StateSourceOptions<AppSettings.Fragment> { Writer = leftStore, Watcher = leftStore }),
-                new StateSource<AppSettings.Fragment>("right", rightStore, new StateSourceOptions<AppSettings.Fragment> { Writer = rightStore, Watcher = rightStore }),
+                new StateSource<AppSettings.Fragment>(
+                    "left",
+                    leftStore,
+                    new StateSourceOptions<AppSettings.Fragment>
+                    {
+                        Writer = leftStore,
+                        Watcher = leftStore,
+                    }
+                ),
+                new StateSource<AppSettings.Fragment>(
+                    "right",
+                    rightStore,
+                    new StateSourceOptions<AppSettings.Fragment>
+                    {
+                        Writer = rightStore,
+                        Watcher = rightStore,
+                    }
+                ),
             ]),
             writePlan: new StateWritePlan(
                 null,
@@ -577,105 +554,6 @@ public sealed class CompositeMultiComponentWrite252Tests
             }
 
             return result;
-        }
-
-        public async ValueTask<StateWriteResult> WriteAsync(
-            ConfiglueResourceContext context,
-            StateWriteRequest<AppSettings.Fragment> request,
-            CancellationToken cancellationToken = default
-        )
-        {
-            WriteCount++;
-            return await _inner
-                .WriteAsync(context, request, cancellationToken)
-                .ConfigureAwait(false);
-        }
-
-        public ValueTask WaitForChangeAsync(
-            ConfiglueResourceContext context,
-            string? observedRevision,
-            CancellationToken cancellationToken = default
-        ) => _inner.WaitForChangeAsync(context, observedRevision, cancellationToken);
-
-        public ValueTask<StateReadResult<AppSettings.Fragment>> InnerReadAsync() =>
-            _inner.ReadAsync();
-    }
-
-    private sealed class NestedRevisionStore(AppSettings.Fragment seed)
-        : ISourceReader<AppSettings.Fragment>,
-            ISourceWriter<AppSettings.Fragment>,
-            ISourceWatcher
-    {
-        private readonly InMemoryStateSource<AppSettings.Fragment> _inner = new(seed);
-
-        public async ValueTask<StateReadResult<AppSettings.Fragment>> ReadAsync(
-            ConfiglueResourceContext context,
-            CancellationToken cancellationToken = default
-        )
-        {
-            var result = await _inner.ReadAsync(context, cancellationToken).ConfigureAwait(false);
-            return result with
-            {
-                Revisions = new StateRevisionVector(
-                    [new StateRevision(SourceId.From("nested"), result.Revision)],
-                    [
-                        new KeyValuePair<SourceId, StateRevisionVector>(
-                            SourceId.From("sub"),
-                            new StateRevisionVector([new StateRevision(SourceId.From("sub"), "s1")])
-                        ),
-                    ]
-                ),
-            };
-        }
-
-        public ValueTask<StateWriteResult> WriteAsync(
-            ConfiglueResourceContext context,
-            StateWriteRequest<AppSettings.Fragment> request,
-            CancellationToken cancellationToken = default
-        ) => _inner.WriteAsync(context, request, cancellationToken);
-
-        public ValueTask WaitForChangeAsync(
-            ConfiglueResourceContext context,
-            string? observedRevision,
-            CancellationToken cancellationToken = default
-        ) => _inner.WaitForChangeAsync(context, observedRevision, cancellationToken);
-
-        public ValueTask<StateReadResult<AppSettings.Fragment>> InnerReadAsync() =>
-            _inner.ReadAsync();
-    }
-
-    private sealed class StaleNestedRevisionStore(AppSettings.Fragment seed)
-        : ISourceReader<AppSettings.Fragment>,
-            ISourceWriter<AppSettings.Fragment>,
-            ISourceWatcher
-    {
-        private readonly InMemoryStateSource<AppSettings.Fragment> _inner = new(seed);
-        private int _reads;
-
-        public int WriteCount { get; private set; }
-
-        public async ValueTask<StateReadResult<AppSettings.Fragment>> ReadAsync(
-            ConfiglueResourceContext context,
-            CancellationToken cancellationToken = default
-        )
-        {
-            var result = await _inner.ReadAsync(context, cancellationToken).ConfigureAwait(false);
-            _reads++;
-            var subRevision = _reads >= 2 ? "s2-external" : "s1";
-            return result with
-            {
-                Revisions = new StateRevisionVector(
-                    [new StateRevision(SourceId.From("nested"), result.Revision)],
-                    [
-                        new KeyValuePair<SourceId, StateRevisionVector>(
-                            SourceId.From("sub"),
-                            new StateRevisionVector([
-                                new StateRevision(SourceId.From("sub"), subRevision),
-                            ])
-                        ),
-                    ]
-                ),
-            };
         }
 
         public async ValueTask<StateWriteResult> WriteAsync(

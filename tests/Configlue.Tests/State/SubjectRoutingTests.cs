@@ -12,7 +12,15 @@ public sealed class SubjectRoutingTests
         var subject = new RoutingSubject("tenant-a", true);
         var resourceKey = ResourceKey.From("provider-record-7");
         var route = RouteKey.From("jp");
-        var source = new StateSource<AppSettings.Fragment>("tenant-settings", new InMemoryStateSource<AppSettings.Fragment>(), new StateSourceOptions<AppSettings.Fragment> { ResourceKeySelector = _ => resourceKey, RouteSelector = _ => route });
+        var source = new StateSource<AppSettings.Fragment>(
+            "tenant-settings",
+            new InMemoryStateSource<AppSettings.Fragment>(),
+            new StateSourceOptions<AppSettings.Fragment>
+            {
+                ResourceKeySelector = _ => resourceKey,
+                RouteSelector = _ => route,
+            }
+        );
 
         var context = source.GetResourceContext(subject);
 
@@ -199,7 +207,13 @@ public sealed class SubjectRoutingTests
                                 : RouteKey.Default;
                         });
                     sources.Add(first.Build().Sources[0]);
-                    sources.Add(new StateSource<AppSettings.Fragment>("second", store, new StateSourceOptions<AppSettings.Fragment>()));
+                    sources.Add(
+                        new StateSource<AppSettings.Fragment>(
+                            "second",
+                            store,
+                            new StateSourceOptions<AppSettings.Fragment>()
+                        )
+                    );
                 });
             });
         });
@@ -276,8 +290,32 @@ public sealed class SubjectRoutingTests
         var oldRoute = RouteKey.From("jp");
         fallbackStore.SetNotFound(oldRoute, oldResourceKey, "missing:jp");
         activeStore.Set(oldRoute, oldResourceKey, Fragment("japan"));
-        var fallbackSource = new StateSource<AppSettings.Fragment>("fallback", fallbackStore, new StateSourceOptions<AppSettings.Fragment> { Priority = 10, FallbackCondition = StateFallbackCondition.NotFound, Watcher = fallbackStore, ResourceKeySelector = candidate => ResourceKey.From(((MutableRoutingSubject)candidate).Resource), RouteSelector = candidate => RouteKey.From(((MutableRoutingSubject)candidate).Region) });
-        var source = new StateSource<AppSettings.Fragment>("mutable-route", activeStore, new StateSourceOptions<AppSettings.Fragment> { Watcher = activeStore, ResourceKeySelector = candidate => ResourceKey.From(((MutableRoutingSubject)candidate).Resource), RouteSelector = candidate => RouteKey.From(((MutableRoutingSubject)candidate).Region) });
+        var fallbackSource = new StateSource<AppSettings.Fragment>(
+            "fallback",
+            fallbackStore,
+            new StateSourceOptions<AppSettings.Fragment>
+            {
+                Priority = 10,
+                FallbackCondition = StateFallbackCondition.NotFound,
+                Watcher = fallbackStore,
+                ResourceKeySelector = candidate =>
+                    ResourceKey.From(((MutableRoutingSubject)candidate).Resource),
+                RouteSelector = candidate =>
+                    RouteKey.From(((MutableRoutingSubject)candidate).Region),
+            }
+        );
+        var source = new StateSource<AppSettings.Fragment>(
+            "mutable-route",
+            activeStore,
+            new StateSourceOptions<AppSettings.Fragment>
+            {
+                Watcher = activeStore,
+                ResourceKeySelector = candidate =>
+                    ResourceKey.From(((MutableRoutingSubject)candidate).Resource),
+                RouteSelector = candidate =>
+                    RouteKey.From(((MutableRoutingSubject)candidate).Region),
+            }
+        );
         var resolver = new StateSourceResolver<AppSettings.Fragment>(
             new StateSourceSet<AppSettings.Fragment>([fallbackSource, source])
         );
@@ -314,8 +352,30 @@ public sealed class SubjectRoutingTests
         };
         var labelStore = new RoutedStateStore();
         var retryStore = new RoutedStateStore();
-        var label = new StateSource<AppSettings.Fragment>("label", labelStore, new StateSourceOptions<AppSettings.Fragment> { Watcher = labelStore, ResourceKeySelector = candidate => ResourceKey.From(((MutableRoutingSubject)candidate).Resource), RouteSelector = candidate => RouteKey.From(((MutableRoutingSubject)candidate).Region) });
-        var retry = new StateSource<AppSettings.Fragment>("retry", retryStore, new StateSourceOptions<AppSettings.Fragment> { Watcher = retryStore, ResourceKeySelector = candidate => ResourceKey.From(((MutableRoutingSubject)candidate).SecondaryResource), RouteSelector = candidate => RouteKey.From(((MutableRoutingSubject)candidate).SecondaryRegion) });
+        var label = new StateSource<AppSettings.Fragment>(
+            "label",
+            labelStore,
+            new StateSourceOptions<AppSettings.Fragment>
+            {
+                Watcher = labelStore,
+                ResourceKeySelector = candidate =>
+                    ResourceKey.From(((MutableRoutingSubject)candidate).Resource),
+                RouteSelector = candidate =>
+                    RouteKey.From(((MutableRoutingSubject)candidate).Region),
+            }
+        );
+        var retry = new StateSource<AppSettings.Fragment>(
+            "retry",
+            retryStore,
+            new StateSourceOptions<AppSettings.Fragment>
+            {
+                Watcher = retryStore,
+                ResourceKeySelector = candidate =>
+                    ResourceKey.From(((MutableRoutingSubject)candidate).SecondaryResource),
+                RouteSelector = candidate =>
+                    RouteKey.From(((MutableRoutingSubject)candidate).SecondaryRegion),
+            }
+        );
         labelStore.Set(RouteKey.From("jp"), ResourceKey.From("label-key"), Fragment("japan"));
         retryStore.Set(RouteKey.From("us"), ResourceKey.From("retry-key"), FragmentWithRetry(4));
         var composite = new CompositeStateSource<AppSettings.Fragment>(
@@ -327,13 +387,14 @@ public sealed class SubjectRoutingTests
             RouteKey.From("outer-route")
         );
 
-        (await composite.ReadAsync(outerContext)).Status.ShouldBe(StateReadStatus.Success);
+        var read = await composite.ReadAsync(outerContext);
+        read.Status.ShouldBe(StateReadStatus.Success);
         subject.Resource = "changed-label";
         subject.Region = "eu";
         subject.SecondaryResource = "changed-retry";
         subject.SecondaryRegion = "ca";
 
-        await composite.WaitForChangeAsync(outerContext, "composite-revision");
+        await composite.WaitForChangeAsync(outerContext, read.Revision);
 
         labelStore.LastWatchContext!.Value.ResourceKey.ShouldBe(ResourceKey.From("label-key"));
         labelStore.LastWatchContext.Value.Route.ShouldBe(RouteKey.From("jp"));
@@ -362,8 +423,9 @@ public sealed class SubjectRoutingTests
             new StateSourceSet<AppSettings.Fragment>([component])
         );
         var compositeContext = component.GetResourceContext(subject);
-        (await composite.ReadAsync(compositeContext)).Value!.Label.Value.ShouldBe("composite");
-        await composite.WaitForChangeAsync(compositeContext, "revision");
+        var read = await composite.ReadAsync(compositeContext);
+        read.Value!.Label.Value.ShouldBe("composite");
+        await composite.WaitForChangeAsync(compositeContext, read.Revision);
         compositeStore.LastReadContext!.Value.Route.ShouldBe(route);
         compositeStore.LastWatchContext!.Value.Route.ShouldBe(route);
     }

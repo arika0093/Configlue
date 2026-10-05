@@ -862,7 +862,6 @@ internal sealed class RuntimeWritePreparer<TModel, TFragment>
             )
             .ConfigureAwait(false);
         var proposed = await ComposeCompositeReplacementAsync(
-                source,
                 composite,
                 current,
                 components.ComponentOverrides,
@@ -1066,9 +1065,13 @@ internal sealed class RuntimeWritePreparer<TModel, TFragment>
         return new CompositeComponentPreparation(writePlans, componentOverrides);
     }
 
-    /// <summary>Re-reads untouched components and composes the parent replacement.</summary>
+    /// <summary>Re-reads untouched components and composes the parent replacement in memory.</summary>
+    /// <remarks>
+    /// No composite re-read: patched values are already prepared and untouched components are
+    /// read once here, then merged in priority order. The replacement keeps the pre-patch
+    /// revision identity so proposed-resolution validation compares against the baseline.
+    /// </remarks>
     private async ValueTask<StateReadResult<TFragment>> ComposeCompositeReplacementAsync(
-        StateSource<TFragment> source,
         CompositeStateSource<TFragment> composite,
         StateReadResult<TFragment> current,
         Dictionary<SourceId, TFragment> componentOverrides,
@@ -1102,30 +1105,23 @@ internal sealed class RuntimeWritePreparer<TModel, TFragment>
             componentOverrides.Add(component.Id, componentValue);
         }
 
-        var composed = await composite
-            .ReadWithOverridesAsync(
-                componentOverrides,
-                GetResourceContext(source),
-                cancellationToken
-            )
-            .ConfigureAwait(false);
-        if (composed.Status != StateReadStatus.Success || composed.Value is null)
-        {
-            throw new InvalidOperationException(
-                $"Patched composite source '{source.Id}' could not be resolved: {composed.Status}."
-            );
-        }
+        var merged = composite.MergeComponentFragments(componentOverrides);
 
         return StateReadResult<TFragment>.Success(
-            composed.Value,
+            merged,
             current.Revision,
             modelSchema.ToMetadata()
         ) with
         {
-            Revisions = composed.Revisions,
+            Revisions = current.Revisions,
         };
     }
 
+    /// <summary>
+    /// Guards one composite component against changes since the baseline. Only the flat
+    /// component revision is compared; deeper nested vectors are owned by the component
+    /// itself and are not part of the composite contract (see issue #310).
+    /// </summary>
     private void ValidateCompositeComponentBaseline(
         StateRevisionVector nestedBaseline,
         StateSource<TFragment> component,
@@ -1138,37 +1134,6 @@ internal sealed class RuntimeWritePreparer<TModel, TFragment>
                 _diagnostics,
                 $"Component source '{component.Id}' changed while the patch batch was being prepared."
             );
-        }
-
-        var hasExpectedNested =
-            nestedBaseline.TryGetNestedRevisions(component.Id, out var expectedNested)
-            && expectedNested is not null;
-        var currentNested = componentCurrent.Revisions;
-        if (hasExpectedNested != (currentNested is not null))
-        {
-            throw RuntimeState.NewConflict(
-                _diagnostics,
-                $"Component source '{component.Id}' changed while the patch batch was being prepared."
-            );
-        }
-
-        if (currentNested is not null)
-        {
-            if (
-                !string.Equals(
-                    expectedRevision,
-                    componentCurrent.Revision,
-                    StringComparison.Ordinal
-                ) || !RuntimeState.HaveSameRevisions(expectedNested, currentNested)
-            )
-            {
-                throw RuntimeState.NewConflict(
-                    _diagnostics,
-                    $"Component source '{component.Id}' changed while the patch batch was being prepared."
-                );
-            }
-
-            return;
         }
 
         if (!string.Equals(expectedRevision, componentCurrent.Revision, StringComparison.Ordinal))

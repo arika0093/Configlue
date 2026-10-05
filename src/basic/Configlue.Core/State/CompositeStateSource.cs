@@ -1,6 +1,6 @@
 using System.Linq;
+using System.Text;
 using Configlue.CompilerServices;
-using Configlue.Internal;
 using Configlue.Sources;
 
 namespace Configlue.State;
@@ -8,13 +8,26 @@ namespace Configlue.State;
 /// <summary>Combines sparse fragments from multiple physical sources as one logical read source.</summary>
 /// <typeparam name="TFragment">The generated fragment type shared by the component sources.</typeparam>
 /// <remarks>
-/// Component sources are read in priority order and their present members are merged into one fragment. A
-/// component's fallback condition determines whether a missing or unavailable component can be omitted. Writes
-/// require an explicit default component or member routes and are expanded to component-local patches. All
-/// successful components in one read must use the same schema metadata so schema migration can run once on the
-/// combined fragment. Per-subject watch targets are retained in a bounded residency cache. A watch lease pins
-/// its captured targets until all component watchers have drained; idle entries are evicted during later cache
-/// access without allocating a cleanup task per subject.
+/// <para>
+/// Read composition is the primary primitive: component sources are read in priority order and
+/// their present members are merged into one fragment. A component's fallback condition determines
+/// whether a missing or unavailable component can be omitted. All successful components in one read
+/// must use the same schema metadata so schema migration can run once on the combined fragment.
+/// </para>
+/// <para>
+/// Write routing is explicit metadata only: a default component and/or member routes select the
+/// owning component per member. The runtime expands routed patches to component-local writes and
+/// owns all optimistic-concurrency checks; this type never caches per-subject state.
+/// </para>
+/// <para>
+/// Watch aggregation is stateless: <see cref="ReadAsync"/> returns a composite revision that encodes
+/// the observed per-component revisions, and <see cref="WaitForChangeAsync"/> decodes that revision
+/// and fans out to the components with freshly resolved effective contexts. Per-subject and
+/// per-route residency lives in the runtime (resolver/watch loop) via the returned revision and
+/// revision vector; this type retains no watch targets, leases, or eviction state (see issue #310).
+/// The revision vector is flat: component revisions are reported as direct entries, and deeper
+/// nested vectors from components are not propagated.
+/// </para>
 /// </remarks>
 /// <remarks>Advanced composition SPI: combines component sources as one logical source.</remarks>
 [System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Advanced)]
@@ -30,10 +43,6 @@ public sealed class CompositeStateSource<TFragment>
     private readonly object _boundPlanGate = new();
     private StateWritePlan? _boundWritePlan;
     private ConfiglueModelSchema? _boundSchema;
-    private readonly ResidencyCache<
-        (SubjectKey SubjectKey, RouteKey Route),
-        CompositeWatchState
-    > _watchTargets;
 
     /// <summary>Creates a logical read source from priority-ordered component sources.</summary>
     /// <param name="components">Component sources that return the same generated fragment type.</param>
@@ -44,15 +53,6 @@ public sealed class CompositeStateSource<TFragment>
         StateSourceSet<TFragment> components,
         SourceId? defaultWriteSourceId = null,
         StateWritePlan? writePlan = null
-    )
-        : this(components, defaultWriteSourceId, writePlan, TimeSpan.FromMinutes(5), 256) { }
-
-    internal CompositeStateSource(
-        StateSourceSet<TFragment> components,
-        SourceId? defaultWriteSourceId,
-        StateWritePlan? writePlan,
-        TimeSpan watchTargetIdleTimeout,
-        int watchTargetCapacity
     )
     {
         ArgumentNullException.ThrowIfNull(components);
@@ -79,14 +79,6 @@ public sealed class CompositeStateSource<TFragment>
         _defaultWriteSourceId = effectiveDefault;
 
         _components = components;
-        _watchTargets = new ResidencyCache<
-            (SubjectKey SubjectKey, RouteKey Route),
-            CompositeWatchState
-        >(
-            static _ => new CompositeWatchState(),
-            idleTimeout: watchTargetIdleTimeout,
-            capacity: watchTargetCapacity
-        );
     }
 
     /// <summary>The physical component sources in read-priority order.</summary>
@@ -118,16 +110,6 @@ public sealed class CompositeStateSource<TFragment>
     internal StateWritePlan WritePlan => _writePlan;
 
     internal SourceId? DefaultWriteSourceId => _defaultWriteSourceId;
-
-    internal int WatchTargetCount => _watchTargets.Count;
-
-    internal Action? BeforeWatchLeaseReturn
-    {
-        get => _watchTargets.BeforeLeaseReturn;
-        set => _watchTargets.BeforeLeaseReturn = value;
-    }
-
-    internal void EvictIdleWatchTargetsForTest() => _watchTargets.Trim();
 
     internal StateSource<TFragment> ResolveWriteComponent(string propertyPath)
     {
@@ -211,22 +193,6 @@ public sealed class CompositeStateSource<TFragment>
         }
     }
 
-    internal async ValueTask<StateReadResult<TFragment>> ReadWithOverridesAsync(
-        IReadOnlyDictionary<SourceId, TFragment> overrides,
-        ConfiglueResourceContext context,
-        CancellationToken cancellationToken
-    )
-    {
-        context = ConfiglueResourceContext.Normalize(context);
-        return await ReadCoreAsync(
-                overrides,
-                ConfigurationSubject(context),
-                context,
-                cancellationToken
-            )
-            .ConfigureAwait(false);
-    }
-
     /// <inheritdoc />
     public async ValueTask<StateReadResult<TFragment>> ReadAsync(
         ConfiglueResourceContext context,
@@ -234,7 +200,7 @@ public sealed class CompositeStateSource<TFragment>
     )
     {
         context = ConfiglueResourceContext.Normalize(context);
-        return await ReadCoreAsync(null, ConfigurationSubject(context), context, cancellationToken)
+        return await ReadCoreAsync(ConfigurationSubject(context), context, cancellationToken)
             .ConfigureAwait(false);
     }
 
@@ -242,7 +208,6 @@ public sealed class CompositeStateSource<TFragment>
         context.IsDefault ? null : context.Subject;
 
     private async ValueTask<StateReadResult<TFragment>> ReadCoreAsync(
-        IReadOnlyDictionary<SourceId, TFragment>? overrides,
         IConfiglueSubject? subject,
         ConfiglueResourceContext context,
         CancellationToken cancellationToken
@@ -250,8 +215,7 @@ public sealed class CompositeStateSource<TFragment>
     {
         var successful = new List<ComponentResult>();
         var revisions = new List<StateRevision>(_components.Count);
-        List<KeyValuePair<SourceId, StateRevisionVector>>? nestedRevisions = null;
-        var watchTargets = new List<WatchTarget>(_components.Count);
+        var observations = new List<ComponentObservation>(_components.Count);
         StateReadResult<TFragment> lastFailure = default;
         StateSchemaMetadata? schema = null;
         var hasSchema = false;
@@ -265,32 +229,11 @@ public sealed class CompositeStateSource<TFragment>
                 .ReadAsync(effectiveContext, cancellationToken)
                 .ConfigureAwait(false);
             result = result.FromSource(source.Id, source.PhysicalOrigin);
-            if (
-                result.Status == StateReadStatus.NotFound
-                && overrides is not null
-                && overrides.TryGetValue(source.Id, out var addedReplacement)
-            )
-            {
-                result = StateReadResult<TFragment>.Success(
-                    addedReplacement,
-                    result.Revision,
-                    addedReplacement.Schema.ToMetadata()
-                ) with
-                {
-                    PhysicalOrigin = result.PhysicalOrigin,
-                    Revisions = result.Revisions,
-                };
-            }
 
             revisions.Add(new StateRevision(source.Id, result.Revision));
-            watchTargets.Add(new WatchTarget(source, effectiveContext, result.Revision));
-            if (result.Revisions is { } nested)
-            {
-                nestedRevisions ??= [];
-                nestedRevisions.Add(
-                    new KeyValuePair<SourceId, StateRevisionVector>(source.Id, nested)
-                );
-            }
+            observations.Add(
+                new ComponentObservation(source.Id, result.Revision, effectiveContext)
+            );
 
             if (result.Status == StateReadStatus.Success)
             {
@@ -313,19 +256,6 @@ public sealed class CompositeStateSource<TFragment>
                     );
                 }
 
-                if (overrides is not null && overrides.TryGetValue(source.Id, out var replacement))
-                {
-                    result = StateReadResult<TFragment>.Success(
-                        replacement,
-                        result.Revision,
-                        replacement.Schema.ToMetadata()
-                    ) with
-                    {
-                        PhysicalOrigin = result.PhysicalOrigin,
-                        Revisions = result.Revisions,
-                    };
-                }
-
                 successful.Add(new ComponentResult(source, result));
                 continue;
             }
@@ -333,18 +263,13 @@ public sealed class CompositeStateSource<TFragment>
             lastFailure = result;
             if (!CanFallBack(source.FallbackCondition, result.Status))
             {
-                SetWatchTargets(watchTargets, subject, context);
-                return result with { Revisions = CreateRevisionVector(revisions, nestedRevisions) };
+                return result with { Revisions = new StateRevisionVector(revisions) };
             }
         }
 
-        SetWatchTargets(watchTargets, subject, context);
         if (successful.Count == 0)
         {
-            return lastFailure with
-            {
-                Revisions = CreateRevisionVector(revisions, nestedRevisions),
-            };
+            return lastFailure with { Revisions = new StateRevisionVector(revisions) };
         }
 
         TFragment? combined = null;
@@ -354,20 +279,16 @@ public sealed class CompositeStateSource<TFragment>
             combined = combined is null ? fragment : combined.Merge(fragment);
         }
 
-        return StateReadResult<TFragment>.Success(combined!, schema: schema) with
+        return StateReadResult<TFragment>.Success(
+            combined!,
+            EncodeComponentRevisions(observations),
+            schema
+        ) with
         {
             PhysicalOrigin = GetPhysicalOrigin(successful),
-            Revisions = CreateRevisionVector(revisions, nestedRevisions),
+            Revisions = new StateRevisionVector(revisions),
         };
     }
-
-    private static StateRevisionVector CreateRevisionVector(
-        List<StateRevision> revisions,
-        List<KeyValuePair<SourceId, StateRevisionVector>>? nestedRevisions
-    ) =>
-        nestedRevisions is null
-            ? new StateRevisionVector(revisions)
-            : new StateRevisionVector(revisions, nestedRevisions);
 
     /// <inheritdoc />
     public ValueTask<StateWriteResult> WriteAsync(
@@ -414,40 +335,57 @@ public sealed class CompositeStateSource<TFragment>
         CancellationToken cancellationToken = default
     )
     {
-        _ = observedRevision;
         context = ConfiglueResourceContext.Normalize(context);
         var subject = context.IsDefault ? null : context.Subject;
-        return WaitForChangeCoreAsync(subject, context, cancellationToken);
+        return WaitForChangeCoreAsync(subject, context, observedRevision, cancellationToken);
     }
 
     private async ValueTask WaitForChangeCoreAsync(
         IConfiglueSubject? subject,
         ConfiglueResourceContext context,
+        string? observedRevision,
         CancellationToken cancellationToken
     )
     {
-        var cacheKey = (subject?.Key ?? SubjectKey.Default, context.Route);
-        using var watchTargetLease = _watchTargets.Acquire(cacheKey);
-        var targets = watchTargetLease.Value.Targets;
+        var expected = DecodeComponentRevisions(observedRevision);
         using var watchCancellation = CancellationTokenSource.CreateLinkedTokenSource(
             cancellationToken
         );
-        var watchers = new List<Task>(targets.Length);
+        var watchers = new List<Task>(_components.Count);
         try
         {
-            foreach (var target in targets)
+            for (var index = 0; index < _components.Count; index++)
             {
+                var component = _components[index];
                 cancellationToken.ThrowIfCancellationRequested();
-                if (target.Source.Watcher is null)
+                if (component.Watcher is null)
                 {
                     continue;
                 }
 
+                string? componentRevision = null;
+                ConfiglueResourceContext effectiveContext;
+                if (
+                    subject is not null
+                    && expected is not null
+                    && expected.TryGetValue(component.Id, out var observation)
+                )
+                {
+                    componentRevision = observation.Revision;
+                    effectiveContext = observation.ResolveEffectiveContext(subject);
+                }
+                else
+                {
+                    effectiveContext = subject is null
+                        ? context
+                        : component.GetResourceContext(subject);
+                }
+
                 watchers.Add(
-                    target
-                        .Source.WaitForChangeAsync(
-                            target.EffectiveContext,
-                            target.Revision,
+                    component
+                        .WaitForChangeAsync(
+                            effectiveContext,
+                            componentRevision,
                             watchCancellation.Token
                         )
                         .AsTask()
@@ -489,16 +427,191 @@ public sealed class CompositeStateSource<TFragment>
         }
     }
 
-    private void SetWatchTargets(
-        List<WatchTarget> targets,
-        IConfiglueSubject? subject,
-        ConfiglueResourceContext context
+    /// <summary>
+    /// Encodes the observed per-component revisions and their effective contexts into the
+    /// composite revision returned by <see cref="ReadAsync"/>. Base64 parts keep the encoding
+    /// unambiguous; null revisions and model IDs are recorded as <c>-</c>. Returns null when
+    /// there is nothing to encode.
+    /// </summary>
+    internal static string? EncodeComponentRevisions(
+        IReadOnlyList<ComponentObservation> observations
     )
     {
-        using var lease = _watchTargets.Acquire(
-            (subject?.Key ?? SubjectKey.Default, context.Route)
-        );
-        lease.Value.SetTargets(targets.ToArray());
+        if (observations.Count == 0)
+        {
+            return null;
+        }
+
+        var parts = new string[observations.Count];
+        for (var index = 0; index < observations.Count; index++)
+        {
+            var observation = observations[index];
+            var encodedId = Convert.ToBase64String(
+                Encoding.UTF8.GetBytes(observation.SourceId.Value)
+            );
+            var encodedRevision = observation.Revision is null
+                ? "-"
+                : Convert.ToBase64String(Encoding.UTF8.GetBytes(observation.Revision));
+            var encodedResource = Convert.ToBase64String(
+                Encoding.UTF8.GetBytes(observation.ResourceKey.Value)
+            );
+            var encodedRoute = Convert.ToBase64String(
+                Encoding.UTF8.GetBytes(observation.Route.Value)
+            );
+            var encodedModel = observation.ModelId is null
+                ? "-"
+                : Convert.ToBase64String(Encoding.UTF8.GetBytes(observation.ModelId));
+            parts[index] = string.Join(
+                ".",
+                encodedId,
+                encodedRevision,
+                encodedResource,
+                encodedRoute,
+                encodedModel
+            );
+        }
+
+        return string.Join(",", parts);
+    }
+
+    /// <summary>
+    /// Decodes a composite revision back to per-component observations. Returns null when the
+    /// observed revision is missing or was not produced by <see cref="EncodeComponentRevisions"/>
+    /// (for example a failure revision or a value from an older version); callers fall back to
+    /// freshly resolved contexts and null per-component revisions so the wait stays conservative.
+    /// </summary>
+    internal static Dictionary<SourceId, ComponentObservation>? DecodeComponentRevisions(
+        string? compositeRevision
+    )
+    {
+        if (compositeRevision is null || compositeRevision.Length == 0)
+        {
+            return null;
+        }
+
+        try
+        {
+            var entries = compositeRevision.Split(',');
+            var decoded = new Dictionary<SourceId, ComponentObservation>(entries.Length);
+            foreach (var entry in entries)
+            {
+                var segments = entry.Split('.');
+                if (segments.Length != 5)
+                {
+                    return null;
+                }
+
+                var sourceId = SourceId.From(
+                    Encoding.UTF8.GetString(Convert.FromBase64String(segments[0]))
+                );
+                string? revision =
+                    segments[1] == "-"
+                        ? null
+                        : Encoding.UTF8.GetString(Convert.FromBase64String(segments[1]));
+                var resourceKey = Encoding.UTF8.GetString(Convert.FromBase64String(segments[2]));
+                var route = Encoding.UTF8.GetString(Convert.FromBase64String(segments[3]));
+                string? modelId =
+                    segments[4] == "-"
+                        ? null
+                        : Encoding.UTF8.GetString(Convert.FromBase64String(segments[4]));
+                decoded[sourceId] = new ComponentObservation(
+                    sourceId,
+                    revision,
+                    resourceKey,
+                    route,
+                    modelId
+                );
+            }
+
+            return decoded;
+        }
+        catch (FormatException)
+        {
+            return null;
+        }
+        catch (ArgumentException)
+        {
+            return null;
+        }
+    }
+
+    /// <summary>One component observation captured during a composite read.</summary>
+    internal sealed class ComponentObservation
+    {
+        public ComponentObservation(
+            SourceId sourceId,
+            string? revision,
+            ConfiglueResourceContext effectiveContext
+        )
+        {
+            SourceId = sourceId;
+            Revision = revision;
+            ResourceKey = effectiveContext.ResourceKey;
+            Route = effectiveContext.Route;
+            ModelId = effectiveContext.ModelId;
+        }
+
+        internal ComponentObservation(
+            SourceId sourceId,
+            string? revision,
+            string resourceKey,
+            string route,
+            string? modelId
+        )
+        {
+            SourceId = sourceId;
+            Revision = revision;
+            ResourceKey = string.IsNullOrEmpty(resourceKey)
+                ? ResourceKey.Default
+                : ResourceKey.From(resourceKey);
+            Route = string.IsNullOrEmpty(route) ? RouteKey.Default : RouteKey.From(route);
+            ModelId = modelId;
+        }
+
+        public SourceId SourceId { get; }
+
+        public string? Revision { get; }
+
+        public string? ModelId { get; }
+
+        public ResourceKey ResourceKey { get; }
+
+        public RouteKey Route { get; }
+
+        /// <summary>
+        /// Rebuilds the captured effective context for the current subject. The subject key is
+        /// stable while routing selectors may observe mutated subject state, so the captured
+        /// resource key and route are reused instead of re-resolving them.
+        /// </summary>
+        public ConfiglueResourceContext ResolveEffectiveContext(IConfiglueSubject subject)
+        {
+            ArgumentNullException.ThrowIfNull(subject);
+            return new ConfiglueResourceContext(ModelId, subject, ResourceKey, Route);
+        }
+    }
+
+    /// <summary>
+    /// Merges already-read component fragments in priority order without additional source I/O.
+    /// Lower-priority components are merged first so higher-priority members win.
+    /// </summary>
+    internal TFragment MergeComponentFragments(IReadOnlyDictionary<SourceId, TFragment> fragments)
+    {
+        TFragment? combined = null;
+        for (var index = _components.Count - 1; index >= 0; index--)
+        {
+            var component = _components[index];
+            if (!fragments.TryGetValue(component.Id, out var fragment) || fragment is null)
+            {
+                continue;
+            }
+
+            combined = combined is null ? fragment : combined.Merge(fragment);
+        }
+
+        return combined
+            ?? throw new InvalidOperationException(
+                "No component fragments were supplied for the composite merge."
+            );
     }
 
     private static string? GetPhysicalOrigin(List<ComponentResult> successful)
@@ -531,34 +644,5 @@ public sealed class CompositeStateSource<TFragment>
 
         public StateSource<TFragment> Source { get; }
         public StateReadResult<TFragment> Result { get; }
-    }
-
-    private sealed class WatchTarget
-    {
-        public WatchTarget(
-            StateSource<TFragment> source,
-            ConfiglueResourceContext effectiveContext,
-            string? revision
-        )
-        {
-            Source = source;
-            EffectiveContext = effectiveContext;
-            Revision = revision;
-        }
-
-        public StateSource<TFragment> Source { get; }
-        public ConfiglueResourceContext EffectiveContext { get; }
-        public string? Revision { get; }
-    }
-
-    private sealed class CompositeWatchState : IDisposable
-    {
-        private WatchTarget[] _targets = [];
-
-        public WatchTarget[] Targets => Volatile.Read(ref _targets);
-
-        public void SetTargets(WatchTarget[] targets) => Volatile.Write(ref _targets, targets);
-
-        public void Dispose() { }
     }
 }
