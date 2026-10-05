@@ -187,21 +187,39 @@ public sealed partial class FileResourceTests
         await File.WriteAllTextAsync(path, "old");
         using var resource = new FileResource(path);
         var revision = (await resource.ReadAsync()).Revision;
+        // Barrier: fired after the waiter atomically captures the change signal
+        // together with watcher creation/state inspection, so forcing the error
+        // here reproduces the racy interleaving without timing-only sleeps.
+        var armed = new TaskCompletionSource<bool>(
+            TaskCreationOptions.RunContinuationsAsynchronously
+        );
+        resource.WatcherArmedSignalForTests = armed;
         var wait = resource.WaitForChangeAsync(default, revision).AsTask();
-        var watcher = await GetReviewWatcher(resource);
-        typeof(FileResource)
-            .GetMethod("OnWatcherError", BindingFlags.Instance | BindingFlags.NonPublic)!
-            .Invoke(
-                resource,
-                new object[] { watcher, new ErrorEventArgs(new IOException("simulated overflow")) }
-            );
+        await armed.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        var watcher = GetWatcherSnapshot(resource);
+        watcher.ShouldNotBeNull();
+        resource.SimulateWatcherErrorForTests();
         await wait.WaitAsync(TimeSpan.FromSeconds(5));
         resource.HasActiveWatcherForTests.ShouldBeFalse();
+        var rearmed = new TaskCompletionSource<bool>(
+            TaskCreationOptions.RunContinuationsAsynchronously
+        );
+        resource.WatcherArmedSignalForTests = rearmed;
         using var cancellation = new CancellationTokenSource();
         var next = resource.WaitForChangeAsync(default, revision, cancellation.Token).AsTask();
-        (await GetReviewWatcher(resource)).ShouldNotBeSameAs(watcher);
+        await rearmed.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        GetWatcherSnapshot(resource).ShouldNotBeSameAs(watcher);
         cancellation.Cancel();
         await Should.ThrowAsync<OperationCanceledException>(() => next);
+    }
+
+    private static FileSystemWatcher? GetWatcherSnapshot(FileResource resource)
+    {
+        var field = typeof(FileResource).GetField(
+            "_fileWatcher",
+            BindingFlags.Instance | BindingFlags.NonPublic
+        )!;
+        return (FileSystemWatcher?)field.GetValue(resource);
     }
 
     private static async Task<FileSystemWatcher> GetReviewWatcher(FileResource resource)

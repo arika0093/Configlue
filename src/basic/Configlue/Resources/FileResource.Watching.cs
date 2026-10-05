@@ -33,6 +33,31 @@ public sealed partial class FileResource
 
     internal int DisposeCallCountForTests => Volatile.Read(ref _disposeCallCount);
 
+    private volatile TaskCompletionSource<bool>? _watcherArmedSignalForTests;
+
+    internal TaskCompletionSource<bool>? WatcherArmedSignalForTests
+    {
+        get => _watcherArmedSignalForTests;
+        set => _watcherArmedSignalForTests = value;
+    }
+
+    internal void SimulateWatcherErrorForTests()
+    {
+        lock (_watchGate)
+        {
+            if (_disposed || _fileWatcher is null)
+            {
+                return;
+            }
+
+            _fileWatcher.Dispose();
+            _fileWatcher = null;
+            var previous = _changed;
+            _changed = NewChangeSignal();
+            previous.TrySetResult();
+        }
+    }
+
     /// <inheritdoc />
     public async ValueTask WaitForChangeAsync(
         ConfiglueResourceContext context,
@@ -56,6 +81,7 @@ public sealed partial class FileResource
             }
 
             bool hasWatcher;
+            Task watchSignalTask;
             lock (_watchGate)
             {
                 if (_disposed)
@@ -65,14 +91,23 @@ public sealed partial class FileResource
 
                 if (_options.ChangeDetectionMode == FileChangeDetectionMode.Hybrid)
                 {
-                    // Keep watcher creation and signal capture atomic with respect to watcher
-                    // callbacks. Otherwise an event can replace _changed after creation but
-                    // before this waiter captures it, leaving the waiter on the new signal.
                     EnsureFileWatcher();
                 }
 
                 hasWatcher = _fileWatcher is not null;
+                // Capture the signal in the same synchronization boundary as watcher
+                // creation/state inspection. Otherwise OnWatcherError can dispose the
+                // watcher, swap _changed, and complete the previous signal between the
+                // two lock regions, leaving this waiter on the fresh signal while the
+                // watcher is gone (missed handoff -> polling fallback without a
+                // revision change).
+                watchSignalTask = _changed.Task;
             }
+
+            // Signal test barrier after the atomic capture so a test can force the
+            // error interleaving deterministically: observing the watcher now implies
+            // the waiter has already captured the signal it will await.
+            _watcherArmedSignalForTests?.TrySetResult(true);
 
             if (!hasWatcher)
             {
@@ -83,9 +118,10 @@ public sealed partial class FileResource
 
             // Filesystem notifications provide low latency while the polling tick re-verifies
             // the content revision, so events missed by the watcher still surface.
+            var signalTask = watchSignalTask;
             while (true)
             {
-                Task signalTask;
+                Task currentSignal;
                 lock (_watchGate)
                 {
                     if (_disposed)
@@ -95,26 +131,39 @@ public sealed partial class FileResource
 
                     if (_fileWatcher is null)
                     {
-                        break;
+                        // The watcher failed while this waiter was between awaits
+                        // (for example during the revision re-read below). The
+                        // previous signal was already completed by OnWatcherError, so
+                        // release the waiter instead of silently falling back to
+                        // polling without a revision change.
+                        return;
+                    }
+
+                    if (signalTask.IsCompleted)
+                    {
+                        return;
                     }
 
                     signalTask = _changed.Task;
+                    currentSignal = signalTask;
                 }
 
                 var tick = Task.Delay(_options.PollingInterval, cancellationToken);
-                var completed = await Task.WhenAny(signalTask, tick, _disposedSignal.Task)
-                    .ConfigureAwait(false);
+                await Task.WhenAny(currentSignal, tick, _disposedSignal.Task).ConfigureAwait(false);
                 if (_disposed || _disposedSignal.Task.IsCompleted)
                 {
                     throw new OperationCanceledException(cancellationToken);
                 }
 
                 cancellationToken.ThrowIfCancellationRequested();
-                if (ReferenceEquals(completed, signalTask))
+                if (currentSignal.IsCompleted)
                 {
                     return;
                 }
 
+                // Preserve prompt watcher-error handoff when the error lands during
+                // the revision re-read below: the re-read await is outside the gate,
+                // so check the captured signal again before re-arming.
                 if (
                     !string.Equals(
                         await GetCurrentRevisionAsync(cancellationToken).ConfigureAwait(false),
@@ -125,10 +174,15 @@ public sealed partial class FileResource
                 {
                     return;
                 }
-            }
 
-            // The watcher became unavailable after an error; fall back to polling.
-            await PollUntilChangedAsync(observedRevision, cancellationToken).ConfigureAwait(false);
+                if (currentSignal.IsCompleted)
+                {
+                    return;
+                }
+
+                // Loop re-enters the gate above, which releases the waiter when the
+                // watcher is gone instead of degrading to polling.
+            }
         }
         catch (ObjectDisposedException) when (_disposedSignal.Task.IsCompleted)
         {
