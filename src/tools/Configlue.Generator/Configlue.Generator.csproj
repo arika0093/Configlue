@@ -49,13 +49,13 @@
       Include="..\..\fragments\src\SparseFragments.Generator.Shared\**\*.cs"
       Exclude="..\..\fragments\src\SparseFragments.Generator.Shared\obj\**;..\..\fragments\src\SparseFragments.Generator.Shared\bin\**"
       LinkBase="Shared"
-      Condition="Exists('..\..\fragments\src\SparseFragments.Generator.Shared\SparseModelDiscovery.cs')"
+      Condition="Exists('..\..\fragments\src\SparseFragments.Generator.Shared\SparseFragments.Generator.Shared.csproj')"
     />
     <PackageReference
       Include="SparseFragments.Generator.Shared"
       Version="0.1.*"
       PrivateAssets="all"
-      Condition="!Exists('..\..\fragments\src\SparseFragments.Generator.Shared\SparseModelDiscovery.cs')"
+      Condition="!Exists('..\..\fragments\src\SparseFragments.Generator.Shared\SparseFragments.Generator.Shared.csproj')"
     />
   </ItemGroup>
 </Project>

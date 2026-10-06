@@ -6,12 +6,6 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
   <ItemGroup>
-    <ProjectReference Include="../../src/fragments/src/SparseFragments/SparseFragments.csproj" />
-    <ProjectReference
-      Include="../../src/fragments/src/SparseFragments.Generator/SparseFragments.Generator.csproj"
-      OutputItemType="Analyzer"
-      ReferenceOutputAssembly="false"
-    />
     <ProjectReference Include="../../src/basic/Configlue/Configlue.csproj" />
     <ProjectReference
       Include="../../src/tools/Configlue.Generator/Configlue.Generator.csproj"
@@ -19,8 +13,5 @@
       ReferenceOutputAssembly="false"
     />
     <ProjectReference Include="../../src/providers/Configlue.Provider.Json/Configlue.Provider.Json.csproj" />
-  </ItemGroup>
-  <ItemGroup>
-    <Using Include="SparseFragments" />
   </ItemGroup>
 </Project>

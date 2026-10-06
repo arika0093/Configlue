@@ -161,14 +161,6 @@ public sealed class PublicApiCheckTest
         typeof(Configlue.Sources.StateSource<>).GetConstructors().Length.ShouldBe(3);
 
     [Test]
-    public void StandaloneFragments() =>
-        PublicApiCheck.Check<SparseFragments.SparseFragmentModelAttribute>();
-
-    [Test]
-    public void StandaloneGenerator() =>
-        PublicApiCheck.Check<SparseFragments.Generator.SparseFragmentsGenerator>();
-
-    [Test]
     public void Extensibility() =>
         PublicApiCheck.Check<SerializedSource<object>>(
             "Configlue.Extensibility",

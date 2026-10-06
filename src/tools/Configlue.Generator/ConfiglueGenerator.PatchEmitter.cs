@@ -237,7 +237,7 @@ public sealed partial class ConfiglueGenerator
         code.AppendLineAt(3, "return selected;");
         code.AppendLineAt(2, "}");
         AppendPatchRouting(code, members);
-        SparseFragments.Generator.Shared.SparseJsonPatchEmitter.AppendConfiglueJsonBetween(
+        ConfiglueJsonBetweenEmitter.AppendConfiglueJsonBetween(
             code,
             sparseMembers,
             static sparse => "__configlue_member_" + sparse.Property.Name,
@@ -246,10 +246,15 @@ public sealed partial class ConfiglueGenerator
                     ? sparse.Property.Type.Name
                     : sparse.ChildFragmentType + "?",
             static sparse =>
-                sparse.ChildFragmentType!.Substring(
-                    0,
-                    sparse.ChildFragmentType.Length - "Fragment".Length
-                ) + "Patch.__ConfiglueJsonBetween"
+            {
+                var fragmentType =
+                    sparse.ChildFragmentType
+                    ?? throw new InvalidOperationException(
+                        "Nested member is missing its fragment type."
+                    );
+                return fragmentType.Substring(0, fragmentType.Length - "Fragment".Length)
+                    + "Patch.__ConfiglueJsonBetween";
+            }
         );
         if (isRootModel)
         {

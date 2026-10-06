@@ -24,11 +24,9 @@ on:
       - '**/*.props'
       - '**/*.targets'
       - 'tests/fixtures/consumers/**'
-      - 'src/fragments/src/SparseFragments/README.md'
       - '.github/workflows/test-package-consumers.yaml'
       - '.github/workflows/scripts/verify-*.sh'
       - '.github/workflows/scripts/assert-supported-aot-diagnostics.sh'
-      - '.github/workflows/scripts/assert-sparse-aot-diagnostics.sh'
   schedule:
     # Weekly drift cadence inherited from test-nativeaot.yaml (#275).
     - cron: '0 4 * * 1'
@@ -98,9 +96,6 @@ jobs:
       - name: Verify README Quick Start sample
         run: bash ./.github/workflows/scripts/verify-readme-quickstart.sh artifacts/packages
 
-      - name: Verify SparseFragments README samples
-        run: bash ./.github/workflows/scripts/verify-sparsefragments-readme.sh artifacts/packages src/fragments/src/SparseFragments/README.md
-
       - name: Build and run basic consumer (net10.0)
         run: |
           set -euo pipefail
@@ -118,17 +113,6 @@ jobs:
             -p:ConfigluePackageVersion="$CONFIGLUE_PACKAGE_VERSION" \
             -p:RestoreAdditionalProjectSources="$CONFIGLUE_PACKAGE_FEED"
           dotnet tests/fixtures/consumers/package-basic/bin/Release/net8.0/PackageBasic.Consumer.dll
-
-      - name: Build and run standalone SparseFragments consumers
-        run: |
-          set -euo pipefail
-          for framework in net8.0 net10.0; do
-            dotnet build tests/fixtures/consumers/package-sparse/PackageSparse.Consumer.csproj \
-              --configuration Release --framework "$framework" \
-              -p:ConfigluePackageVersion="$CONFIGLUE_PACKAGE_VERSION" \
-              -p:RestoreAdditionalProjectSources="$CONFIGLUE_PACKAGE_FEED"
-            dotnet "tests/fixtures/consumers/package-sparse/bin/Release/$framework/PackageSparse.Consumer.dll"
-          done
 
       - name: Build standalone consumer without built-in IsExternalInit
         run: |
@@ -169,24 +153,6 @@ jobs:
           done
           echo "Facade transitive-closure smoke passed."
 
-      - name: Assert SparseFragments independence smoke
-        run: |
-          set -euo pipefail
-          # SparseFragments must stand alone: the package-sparse consumer graph
-          # must not contain any Configlue.* package. Same assets.json rationale
-          # as the facade smoke above; no new fixture needed.
-          assets="tests/fixtures/consumers/package-sparse/obj/project.assets.json"
-          if [[ ! -f "$assets" ]]; then
-            echo "Missing restored assets file '$assets'." >&2
-            exit 1
-          fi
-          if grep -q '"Configlue\.' "$assets"; then
-            echo "SparseFragments consumer graph must not reference Configlue packages:" >&2
-            grep -o '"Configlue\.[^"]*"' "$assets" | sort -u >&2
-            exit 1
-          fi
-          echo "SparseFragments independence smoke passed."
-
       - name: Upload failure artifacts
         if: failure() || cancelled()
         uses: actions/upload-artifact@v7
@@ -195,7 +161,6 @@ jobs:
           path: |
             artifacts/packages/*.nupkg
             tests/fixtures/consumers/package-basic/**/*.binlog
-            tests/fixtures/consumers/package-sparse/**/*.binlog
           if-no-files-found: ignore
           retention-days: 7
 
@@ -346,155 +311,5 @@ jobs:
           path: |
             artifacts/packages/*.nupkg
             tests/fixtures/consumers/native-aot-supported/**/*.binlog
-          if-no-files-found: ignore
-          retention-days: 7
-
-  # Standalone SparseFragments NativeAOT contract (#317): a packed-package
-  # consumer using only SparseFragments published
-  # with NativeAOT. It exercises fragment construction/From, merge, diff/patch
-  # application, deep clone, and JSON Patch conversion through an explicit
-  # source-generated JsonSerializerContext, fails on any IL trim/AOT diagnostic
-  # via assert-sparse-aot-diagnostics.sh (including any SparseFragments-origin
-  # diagnostic), and executes the resulting native binary.
-  sparse-fragments-aot:
-    timeout-minutes: 30
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v7
-        with:
-          fetch-depth: 0
-          submodules: recursive
-
-      - name: Set up .NET
-        uses: actions/setup-dotnet@v6
-        with:
-          dotnet-version: 10.0.x
-
-      - name: Cache NuGet packages
-        uses: actions/cache@v6
-        with:
-          path: ~/.nuget/packages
-          key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj', '**/*.props', '**/*.targets', 'global.json') }}
-          restore-keys: |
-            ${{ runner.os }}-nuget-
-
-      - name: Pack Configlue packages
-        if: inputs.release-packages-artifact == ''
-        run: dotnet pack Configlue.slnx --configuration Release --output artifacts/packages
-
-      - name: Download release candidate packages
-        if: inputs.release-packages-artifact != ''
-        uses: actions/download-artifact@v8
-        with:
-          name: ${{ inputs.release-packages-artifact }}
-          path: artifacts/packages
-
-      - name: List release candidate packages
-        if: inputs.release-packages-artifact != ''
-        shell: bash
-        run: |
-          set -euo pipefail
-          echo "Validating release candidate artifact '${{ inputs.release-packages-artifact }}'."
-          ls -l artifacts/packages/*.nupkg
-
-      - name: Resolve local feed and package version
-        shell: bash
-        run: |
-          set -euo pipefail
-          package="$(ls artifacts/packages/SparseFragments.*.nupkg | head -n 1)"
-          version="$(basename "$package" | sed -E 's/^SparseFragments\.(.+)\.nupkg$/\1/')"
-          echo "CONFIGLUE_PACKAGE_VERSION=$version" >> "$GITHUB_ENV"
-          echo "CONFIGLUE_PACKAGE_FEED=$(realpath artifacts/packages)" >> "$GITHUB_ENV"
-
-      - name: Self-test SparseFragments AOT diagnostic gate (synthetic logs)
-        shell: bash
-        run: |
-          set -euo pipefail
-          # Tripwire for the gate itself (#317): without a negative control the
-          # sparse-aot publish below would stay green even if
-          # assert-sparse-aot-diagnostics.sh became blind (e.g. a regex that
-          # matches nothing). These synthetic logs prove the script still
-          # accepts a diagnostic-free log and rejects SparseFragments-origin
-          # diagnostics, with no extra NativeAOT publish cost.
-          gate="./.github/workflows/scripts/assert-sparse-aot-diagnostics.sh"
-          tmp="$(mktemp -d)"
-          trap 'rm -rf "$tmp"' EXIT
-          cat > "$tmp/empty.log" <<'EOF'
-          Publish succeeded without trimming diagnostics.
-          EOF
-          cat > "$tmp/negative-sparse.log" <<'EOF'
-          ILC : Trim analysis warning IL2026: SparseFragments.SparseCollectionMerger.Merge[T](SparseFragments.Optional`1[T],SparseFragments.Optional`1[T]): Using member 'System.Reflection.MethodInfo.Invoke' which has 'RequiresUnreferencedCodeAttribute' can break functionality when trimming application code. [/home/runner/work/Configlue/Configlue/tests/fixtures/consumers/sparse-aot/SparseAot.Consumer.csproj]
-          EOF
-          cat > "$tmp/negative-jsonpatch.log" <<'EOF'
-          ILC : AOT analysis warning IL3050: SparseFragments.JsonPatchEngine.Apply(System.Text.Json.Nodes.JsonNode,Boolean,SparseFragments.JsonPatchDocument,System.StringComparison): Using member 'System.Text.Json.JsonSerializer.Deserialize' which has 'RequiresDynamicCodeAttribute' can break functionality when AOT compiling. The native code for this instantiation might not be available at runtime. [/home/runner/work/Configlue/Configlue/tests/fixtures/consumers/sparse-aot/SparseAot.Consumer.csproj]
-          EOF
-          if ! bash "$gate" "$tmp/empty.log"; then
-            echo "Gate rejected a diagnostic-free log; it should have passed." >&2
-            exit 1
-          fi
-          if bash "$gate" "$tmp/negative-sparse.log"; then
-            echo "Gate accepted a SparseFragments IL2026 diagnostic; it should have failed." >&2
-            exit 1
-          fi
-          if bash "$gate" "$tmp/negative-jsonpatch.log"; then
-            echo "Gate accepted a SparseFragments JSON Patch IL3050 diagnostic; it should have failed." >&2
-            exit 1
-          fi
-          echo "SparseFragments diagnostic-gate self-test passed (positive/negative controls)."
-
-      - name: Publish SparseFragments NativeAOT consumer
-        shell: bash
-        run: |
-          set -euo pipefail
-          publish_log="$(mktemp)"
-          trap 'rm -f "$publish_log"' EXIT
-          # Release gate (#317): the standalone SparseFragments surface
-          # (generated fragment/patch plus the JsonPatch bridge over an explicit
-          # source-generated resolver) must publish with no IL trim/AOT
-          # diagnostics. The consumer project sets IlcTreatWarningsAsErrors, so
-          # the publish itself fails on any ILC warning; the assertion script is
-          # the explicit SparseFragments-origin gate. No warning-code or
-          # namespace allowlist is applied here.
-          dotnet publish tests/fixtures/consumers/sparse-aot/SparseAot.Consumer.csproj \
-            --configuration Release --runtime linux-x64 --self-contained \
-            -p:ConfigluePackageVersion="$CONFIGLUE_PACKAGE_VERSION" \
-            -p:RestoreAdditionalProjectSources="$CONFIGLUE_PACKAGE_FEED" 2>&1 | tee "$publish_log"
-
-          bash ./.github/workflows/scripts/assert-sparse-aot-diagnostics.sh "$publish_log"
-
-          # SparseFragments must stand alone: the published graph must not
-          # contain any Configlue.* package (same assets.json rationale as the
-          # facade smoke above; no new fixture needed).
-          assets="tests/fixtures/consumers/sparse-aot/obj/project.assets.json"
-          if [[ ! -f "$assets" ]]; then
-            echo "Missing restored assets file '$assets'." >&2
-            exit 1
-          fi
-          if grep -q '"Configlue\.' "$assets"; then
-            echo "SparseFragments NativeAOT consumer graph must not reference Configlue packages:" >&2
-            grep -o '"Configlue\.[^"]*"' "$assets" | sort -u >&2
-            exit 1
-          fi
-          echo "SparseFragments NativeAOT independence smoke passed."
-
-      - name: Run SparseFragments NativeAOT consumer
-        run: |
-          set -euo pipefail
-          output="$(tests/fixtures/consumers/sparse-aot/bin/Release/net10.0/linux-x64/publish/SparseAot.Consumer)"
-          echo "$output"
-          if [[ "$output" != *"SPARSE_AOT_SMOKE_PASS"* ]]; then
-            echo "The SparseFragments NativeAOT consumer did not reach its success marker." >&2
-            exit 1
-          fi
-
-      - name: Upload failure artifacts
-        if: failure() || cancelled()
-        uses: actions/upload-artifact@v7
-        with:
-          name: sparse-fragments-aot-results
-          path: |
-            artifacts/packages/*.nupkg
-            tests/fixtures/consumers/sparse-aot/**/*.binlog
           if-no-files-found: ignore
           retention-days: 7

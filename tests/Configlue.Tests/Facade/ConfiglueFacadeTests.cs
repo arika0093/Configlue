@@ -904,15 +904,24 @@ public sealed class ConfiglueFacadeTests
             }
         };
 
-        var pendingRemove = Task.Run(() => registry.TryRemoveAsync("failing").AsTask());
-        (
-            await Task.Run(() =>
-                SpinWait.SpinUntil(
-                    () => !registry.TryGet("failing", out _),
-                    TimeSpan.FromSeconds(5)
-                )
-            )
-        ).ShouldBeTrue();
+        // Start the removal inline (no Task.Run): TryRemoveAsync retires the
+        // entry synchronously before its first await, so TryGet is false
+        // deterministically without depending on thread-pool scheduling.
+        // The previous Task.Run + blocking SpinWait flaked on windows-latest
+        // when the pool was saturated.
+        var pendingRemove = registry.TryRemoveAsync("failing").AsTask();
+        var retireDeadline = DateTime.UtcNow + TimeSpan.FromSeconds(5);
+        while (registry.TryGet("failing", out _))
+        {
+            if (DateTime.UtcNow >= retireDeadline)
+            {
+                break;
+            }
+
+            await Task.Delay(10);
+        }
+
+        (!registry.TryGet("failing", out _)).ShouldBeTrue();
         await failingStarted.Task.WaitAsync(TimeSpan.FromSeconds(5));
 
         await registry.ClearAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(5));
