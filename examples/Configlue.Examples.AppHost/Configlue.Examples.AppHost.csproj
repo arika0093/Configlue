@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <Sdk Name="Aspire.AppHost.Sdk" Version="13.0.0" />
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <AssemblyName>Configlue.Examples.AppHost</AssemblyName>
+    <RootNamespace>Configlue.Examples.AppHost</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Aspire.Hosting.PostgreSQL" Version="13.0.0" />
+    <ProjectReference Include="../Configlue.Examples.HttpServer/Configlue.Examples.HttpServer.csproj" />
+    <ProjectReference Include="../Configlue.Examples.Playground/Configlue.Examples.Playground.csproj" />
+  </ItemGroup>
+</Project>

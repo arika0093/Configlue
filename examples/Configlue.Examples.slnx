@@ -1,0 +1,11 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="Configlue.Examples.Shared/Configlue.Examples.Shared.csproj" />
+    <Project Path="Configlue.Examples.HttpServer/Configlue.Examples.HttpServer.csproj" />
+    <Project Path="Configlue.Examples.Playground/Configlue.Examples.Playground.csproj" />
+    <Project Path="Configlue.Examples.AppHost/Configlue.Examples.AppHost.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="Configlue.Examples.Smoke/Configlue.Examples.Smoke.csproj" />
+  </Folder>
+</Solution>

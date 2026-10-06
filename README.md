@@ -214,6 +214,20 @@ config.UseCommonSources(sources =>
 });
 ```
 
+### Runnable showcase
+
+The Quick Start above stays lightweight and independent of Aspire. When you
+want to click through the concepts — local writable settings, layered
+configuration with provenance, write behavior, HTTP client/server state, and
+PostgreSQL-backed state — run the single-Playground showcase:
+
+```bash
+dotnet run --project examples/Configlue.Examples.AppHost
+```
+
+See [examples/README.md](examples/README.md) for scenarios and standalone
+alternatives.
+
 ## Installation
 ### Plain .NET (primary package)
 

@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+  <PropertyGroup>
+    <AssemblyName>Configlue.Examples.Playground</AssemblyName>
+    <RootNamespace>Configlue.Examples.Playground</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../Configlue.Examples.Shared/Configlue.Examples.Shared.csproj" />
+    <ProjectReference Include="../../src/basic/Configlue/Configlue.csproj" />
+    <ProjectReference Include="../../src/extensions/Configlue.Extensions.DI/Configlue.Extensions.DI.csproj" />
+    <ProjectReference Include="../../src/sources/Configlue.Source.Http/Configlue.Source.Http.csproj" />
+    <ProjectReference Include="../../src/sources/Configlue.Source.PostgreSql/Configlue.Source.PostgreSql.csproj" />
+    <ProjectReference Include="../../src/sources/Configlue.Source.PostgreSql.Migrations/Configlue.Source.PostgreSql.Migrations.csproj" />
+    <ProjectReference
+      Include="../../src/tools/Configlue.Generator/Configlue.Generator.csproj"
+      OutputItemType="Analyzer"
+      ReferenceOutputAssembly="false"
+    />
+    <PackageReference Include="Npgsql" Version="10.0.3" />
+  </ItemGroup>
+</Project>

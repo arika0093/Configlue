@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+  <PropertyGroup>
+    <AssemblyName>Configlue.Examples.HttpServer</AssemblyName>
+    <RootNamespace>Configlue.Examples.HttpServer</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../Configlue.Examples.Shared/Configlue.Examples.Shared.csproj" />
+    <ProjectReference Include="../../src/basic/Configlue/Configlue.csproj" />
+    <ProjectReference Include="../../src/extensions/Configlue.Extensions.DI/Configlue.Extensions.DI.csproj" />
+    <ProjectReference Include="../../src/hosting/Configlue.Hosting.AspNetCore/Configlue.Hosting.AspNetCore.csproj" />
+    <ProjectReference
+      Include="../../src/tools/Configlue.Generator/Configlue.Generator.csproj"
+      OutputItemType="Analyzer"
+      ReferenceOutputAssembly="false"
+    />
+  </ItemGroup>
+</Project>
