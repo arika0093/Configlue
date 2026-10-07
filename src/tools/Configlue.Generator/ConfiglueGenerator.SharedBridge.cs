@@ -1,9 +1,5 @@
 global using CloneCollectionKind = SparseFragments.Generator.Shared.SparseCloneCollectionKind;
 global using CollectionKind = SparseFragments.Generator.Shared.SparseCollectionKind;
-global using SymbolCollectionInfo = SparseFragments.Generator.Shared.SparseSymbolCollectionInfo;
-using System.Collections.Generic;
-using System.Threading;
-using Microsoft.CodeAnalysis;
 using SparseFragments.Generator.Shared;
 
 namespace Configlue.Generator;
@@ -68,34 +64,52 @@ public sealed partial class ConfiglueGenerator
         ModelAttributeName,
         MergeAttributeName,
         "Configlue.ConfiglueMergeStrategy<T>",
-        "Configlue.ConfiglueCloneReferenceSafeAttribute"
+        "Configlue.ConfiglueCloneReferenceSafeAttribute",
+        // Non-partial nested POCOs keep Configlue's structural semantics: they
+        // receive generated structural hosts for deep behavior instead of
+        // collapsing to atomic replace values.
+        SparseStructuralPolicy.StructuralHosts
     );
 
-    private static SymbolCollectionInfo GetCollectionInfo(ITypeSymbol type) =>
-        SparseCollectionAnalyzer.GetCollectionInfo(type);
-
-    private static IEnumerable<SymbolMemberModel> GetSharedSparseMembers(
-        INamedTypeSymbol model,
-        CancellationToken cancellationToken
-    )
-    {
-        foreach (
-            var member in SparseModelDiscovery.GetMembers(
-                model,
-                SparseConfiguration,
-                cancellationToken
+    // JSON Patch import dialect for the shared semantic Between emitter: whole-state
+    // transitions use the whole operation, nested members recurse into the nested
+    // __ConfiglueJsonBetween helper, and scalar members use ordinal default equality
+    // (over-setting is semantically harmless, under-setting never happens).
+    private static readonly SparseBetweenDialect ConfiglueBetweenDialect = new(
+        "global::Configlue.",
+        "global::Configlue.Optional<Fragment?>",
+        "global::Configlue.FragmentOperation<Fragment?>",
+        "__configlue_whole_operation",
+        "__ConfiglueJson",
+        static member =>
+            member.ChildModel is null
+                ? SparseNaming.EscapeIdentifier(member.Property.Name)
+                : "__configlue_member_" + member.Property.Name,
+        static member => member.ChildModel is null,
+        static member =>
+            member.ChildModel is null ? member.Property.Type.Name : member.ChildFragmentType + "?",
+        static (member, beforeValue, afterValue) =>
+            "global::System.Collections.Generic.EqualityComparer<"
+            + (
+                member.ChildModel is null
+                    ? member.Property.Type.Name
+                    : member.ChildFragmentType + "?"
             )
-        )
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            yield return new SymbolMemberModel(
-                member.Id,
-                member.Property,
-                member.ChildModel,
-                member.MergeMode,
-                member.Collection,
-                member.MergeStrategyType
-            );
-        }
+            + ">.Default.Equals("
+            + beforeValue
+            + "!, "
+            + afterValue
+            + "!)",
+        static (member, beforeAccess, afterAccess) =>
+            NestedPatchBetweenName(member) + "(" + beforeAccess + ", " + afterAccess + ")"
+    );
+
+    private static string NestedPatchBetweenName(SparseMemberModel member)
+    {
+        var fragmentType =
+            member.ChildFragmentType
+            ?? throw new InvalidOperationException("Nested member is missing its fragment type.");
+        return fragmentType.Substring(0, fragmentType.Length - "Fragment".Length)
+            + "Patch.__ConfiglueJsonBetween";
     }
 }

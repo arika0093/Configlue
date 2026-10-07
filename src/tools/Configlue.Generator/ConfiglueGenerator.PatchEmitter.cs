@@ -237,24 +237,14 @@ public sealed partial class ConfiglueGenerator
         code.AppendLineAt(3, "return selected;");
         code.AppendLineAt(2, "}");
         AppendPatchRouting(code, members);
-        ConfiglueJsonBetweenEmitter.AppendConfiglueJsonBetween(
+        // Single shared bridge: Configlue differs only in the Between dialect and apply expression.
+        // JSON Patch interop stays an adapter over the semantic patch, not routing.
+        // Configlue uses its own embedded runtime (global::Configlue.ConfiglueJsonPatch)
+        // so the facade package boundary stays free of a SparseFragments dependency.
+        SparseFragments.Generator.Shared.SparseSemanticBetweenEmitter.AppendBetweenMethod(
             code,
             sparseMembers,
-            static sparse => "__configlue_member_" + sparse.Property.Name,
-            static sparse =>
-                sparse.ChildModel is null
-                    ? sparse.Property.Type.Name
-                    : sparse.ChildFragmentType + "?",
-            static sparse =>
-            {
-                var fragmentType =
-                    sparse.ChildFragmentType
-                    ?? throw new InvalidOperationException(
-                        "Nested member is missing its fragment type."
-                    );
-                return fragmentType.Substring(0, fragmentType.Length - "Fragment".Length)
-                    + "Patch.__ConfiglueJsonBetween";
-            }
+            ConfiglueBetweenDialect
         );
         if (isRootModel)
         {

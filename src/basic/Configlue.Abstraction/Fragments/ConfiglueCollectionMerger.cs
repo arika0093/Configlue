@@ -6,6 +6,18 @@ namespace Configlue;
 [EditorBrowsable(EditorBrowsableState.Never)]
 public static class ConfiglueCollectionMerger
 {
+    /// <summary>Appends ordered contributions, preserving duplicates.</summary>
+    public static List<T> MergeAppendList<T>(IEnumerable<T> lower, IEnumerable<T> higher)
+    {
+        ArgumentNullException.ThrowIfNull(lower);
+        ArgumentNullException.ThrowIfNull(higher);
+        var capacity = checked(GetCount(lower) + GetCount(higher));
+        var result = new List<T>(capacity);
+        result.AddRange(lower);
+        result.AddRange(higher);
+        return result;
+    }
+
     /// <summary>Merges ordered contributions, retaining the first occurrence of each value.</summary>
     public static T[] MergeDistinctArray<T>(IEnumerable<T> lower, IEnumerable<T> higher) =>
         MergeDistinctList(lower, higher).ToArray();

@@ -1,4 +1,3 @@
-using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Text;
 using System.Threading;
@@ -11,84 +10,14 @@ namespace Configlue.Generator;
 
 public sealed partial class ConfiglueGenerator
 {
-    private static bool IsValidMergeStrategy(
-        INamedTypeSymbol strategyType,
-        ITypeSymbol memberType,
-        bool isNestedModel,
-        CancellationToken cancellationToken
-    )
-    {
-        if (
-            isNestedModel
-            || strategyType.TypeKind != TypeKind.Class
-            || strategyType.IsAbstract
-            || strategyType.Arity != 0
-        )
-        {
-            return false;
-        }
-
-        for (var current = strategyType; current is not null; current = current.ContainingType)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            if (
-                current.DeclaredAccessibility
-                is not (Accessibility.Public or Accessibility.Internal)
-            )
-            {
-                return false;
-            }
-        }
-
-        var hasConstructor = strategyType.InstanceConstructors.Any(static constructor =>
-            constructor.Parameters.Length == 0
-            && constructor.DeclaredAccessibility is Accessibility.Public or Accessibility.Internal
-        );
-        if (!hasConstructor)
-        {
-            return false;
-        }
-
-        for (var current = strategyType; current is not null; current = current.BaseType)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            if (
-                current.OriginalDefinition.ToDisplayString()
-                    == "Configlue.ConfiglueMergeStrategy<T>"
-                && SymbolEqualityComparer.Default.Equals(current.TypeArguments[0], memberType)
-            )
-            {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    private sealed class SymbolMemberModel(
-        int id,
-        IPropertySymbol property,
-        INamedTypeSymbol? childModel,
-        int mergeMode,
-        SymbolCollectionInfo collection,
-        INamedTypeSymbol? mergeStrategyType
-    )
-    {
-        public int Id { get; } = id;
-        public IPropertySymbol Property { get; } = property;
-        public INamedTypeSymbol? ChildModel { get; } = childModel;
-        public int MergeMode { get; } = mergeMode;
-        public SymbolCollectionInfo Collection { get; } = collection;
-        public INamedTypeSymbol? MergeStrategyType { get; } = mergeStrategyType;
-    }
-
     private sealed class SymbolPreviousModelInfo(
         INamedTypeSymbol model,
-        ImmutableArray<SymbolMemberModel> members
+        ImmutableArray<SparseFragments.Generator.Shared.SparseSymbolMemberModel> members
     )
     {
         public INamedTypeSymbol Model { get; } = model;
-        public ImmutableArray<SymbolMemberModel> Members { get; } = members;
+        public ImmutableArray<SparseFragments.Generator.Shared.SparseSymbolMemberModel> Members { get; } =
+            members;
     }
 
     private sealed class GenerationResult : IEquatable<GenerationResult>

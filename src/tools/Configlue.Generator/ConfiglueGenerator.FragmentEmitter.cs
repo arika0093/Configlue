@@ -28,17 +28,10 @@ public sealed partial class ConfiglueGenerator
         var coreMembers = members
             .Select(member => ToSparseMember(member, portableSetView))
             .ToImmutableArray();
-        SparseFragments.Generator.Shared.SparseFragmentCoreEmitter.AppendDeclaration(
-            code,
-            "global::Configlue.IConfiglueFragment",
-            "global::Configlue.IConfiglueDeepCloneable",
-            static writer =>
-                writer.AppendLineAt(
-                    1,
-                    "[global::System.Text.Json.Serialization.JsonConverter(typeof(FragmentJsonConverter))]"
-                ),
-            "global::Configlue.CompilerServices.IConfiglueOrdinalDynamicFragment"
-        );
+        // The shared declaration shell no longer emits product interfaces, so
+        // Configlue owns its Fragment contract surface (fragment, deep-clone and
+        // ordinal-dynamic contracts) while sharing the member algebra below.
+        AppendFragmentDeclaration(code);
         code.AppendLineAt(
             2,
             "public static global::System.Text.Json.Serialization.JsonConverter<Fragment> JsonConverter { get; } = new FragmentJsonConverter();"
@@ -90,6 +83,26 @@ public sealed partial class ConfiglueGenerator
         code.AppendLineAt(1, "}");
         AppendBuilder(code, members);
         AppendPatch(code, modelType, members, isRootModel);
+    }
+
+    private static void AppendFragmentDeclaration(IndentedStringBuilder code)
+    {
+        code.CancellationToken.ThrowIfCancellationRequested();
+        code.AppendLineAt(
+            1,
+            "/// <summary>A sparse, presence-aware representation of this model.</summary>"
+        );
+        code.AppendLineAt(
+            1,
+            "[global::System.Text.Json.Serialization.JsonConverter(typeof(FragmentJsonConverter))]"
+        );
+        code.AppendLineAt(
+            1,
+            "public sealed class Fragment : global::Configlue.IConfiglueFragment<Fragment>, global::Configlue.IConfiglueDeepCloneable<Fragment>, global::Configlue.CompilerServices.IConfiglueOrdinalDynamicFragment"
+        );
+        code.AppendLineAt(1, "{");
+        code.AppendLineAt(2, "public Fragment() { }");
+        code.AppendLine();
     }
 
     private static void AppendPreviousMappings(

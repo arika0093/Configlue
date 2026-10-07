@@ -11,10 +11,15 @@ namespace Configlue.Generator;
 
 public sealed partial class ConfiglueGenerator
 {
-    private static IEnumerable<SymbolMemberModel> GetMembers(
+    private static IEnumerable<SparseFragments.Generator.Shared.SparseSymbolMemberModel> GetMembers(
         INamedTypeSymbol model,
         CancellationToken cancellationToken
-    ) => GetSharedSparseMembers(model, cancellationToken);
+    ) =>
+        SparseFragments.Generator.Shared.SparseModelDiscovery.GetMembers(
+            model,
+            SparseConfiguration,
+            cancellationToken
+        );
 
     private static ImmutableArray<SymbolPreviousModelInfo> GetPreviousModels(
         INamedTypeSymbol model,
@@ -44,7 +49,11 @@ public sealed partial class ConfiglueGenerator
                     previousModel.TypeKind == TypeKind.Class
                     || previousModel.TypeKind == TypeKind.Struct
                 )
-                && HasConfiglueModelAttribute(previousModel, cancellationToken);
+                && SparseFragments.Generator.Shared.SparseModelDiscovery.IsFragmentModel(
+                    previousModel,
+                    SparseConfiguration,
+                    cancellationToken
+                );
             var previousVersion = previousModel is null
                 ? InitialSchemaVersion
                 : GetModelVersion(previousModel, cancellationToken);

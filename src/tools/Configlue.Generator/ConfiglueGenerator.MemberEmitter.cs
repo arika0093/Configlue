@@ -1,13 +1,8 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
-using System.Globalization;
-using System.Linq;
-using System.Text;
 using System.Threading;
 using Microsoft.CodeAnalysis;
-using Microsoft.CodeAnalysis.CSharp;
-using Microsoft.CodeAnalysis.CSharp.Syntax;
 
 namespace Configlue.Generator;
 
@@ -59,12 +54,13 @@ public sealed partial class ConfiglueGenerator
         return false;
     }
 
-    private static string TypeName(ITypeSymbol type) => type.ToDisplayString(TypeFormat);
+    private static string TypeName(ITypeSymbol type) =>
+        SparseFragments.Generator.Shared.SparseNaming.TypeName(type);
 
     private static string TypeName(TypeModel type) => type.Name;
 
     private static string NonNullableTypeName(ITypeSymbol type) =>
-        type.WithNullableAnnotation(NullableAnnotation.NotAnnotated).ToDisplayString(TypeFormat);
+        SparseFragments.Generator.Shared.SparseNaming.NonNullableTypeName(type);
 
     private static string MergeModeName(int mode) =>
         SparseFragments.Generator.Shared.SparseNaming.MergeModeName(mode);
@@ -83,119 +79,6 @@ public sealed partial class ConfiglueGenerator
         }
 
         return string.Empty;
-    }
-
-    private const int JsonIgnoreNever = 0;
-    private const int JsonIgnoreAlways = 1;
-
-    private static string GetJsonPropertyName(
-        IPropertySymbol property,
-        CancellationToken cancellationToken,
-        out bool isExplicit
-    )
-    {
-        foreach (var attribute in property.GetAttributes())
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            if (
-                attribute.AttributeClass?.ToDisplayString()
-                    == "System.Text.Json.Serialization.JsonPropertyNameAttribute"
-                && attribute.ConstructorArguments.FirstOrDefault().Value is string configuredName
-            )
-            {
-                isExplicit = true;
-                return configuredName;
-            }
-        }
-
-        isExplicit = false;
-        return property.Name;
-    }
-
-    private static int GetJsonIgnoreCondition(
-        IPropertySymbol property,
-        CancellationToken cancellationToken
-    )
-    {
-        foreach (var attribute in property.GetAttributes())
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            if (
-                attribute.AttributeClass?.ToDisplayString()
-                != "System.Text.Json.Serialization.JsonIgnoreAttribute"
-            )
-            {
-                continue;
-            }
-
-            // [JsonIgnore] without arguments means Always. Otherwise honor the
-            // configured Condition, whether supplied as a named argument or as a
-            // constructor argument.
-            var condition = JsonIgnoreAlways;
-            foreach (var argument in attribute.NamedArguments)
-            {
-                cancellationToken.ThrowIfCancellationRequested();
-                if (
-                    string.Equals(argument.Key, "Condition", StringComparison.Ordinal)
-                    && TryParseJsonIgnoreCondition(argument.Value, out var namedCondition)
-                )
-                {
-                    condition = namedCondition;
-                }
-            }
-
-            if (attribute.ConstructorArguments.Length == 1)
-            {
-                var hasExplicitCondition = attribute.NamedArguments.Any(static argument =>
-                    string.Equals(argument.Key, "Condition", StringComparison.Ordinal)
-                );
-
-                if (
-                    !hasExplicitCondition
-                    && TryParseJsonIgnoreCondition(
-                        attribute.ConstructorArguments[0],
-                        out var ctorCondition
-                    )
-                )
-                {
-                    condition = ctorCondition;
-                }
-            }
-
-            return condition;
-        }
-
-        return JsonIgnoreNever;
-    }
-
-    private static bool TryParseJsonIgnoreCondition(TypedConstant constant, out int condition)
-    {
-        if (constant.Value is int intValue && intValue >= 0 && intValue <= 3)
-        {
-            condition = intValue;
-            return true;
-        }
-
-        if (constant.Value is long longValue && longValue >= 0 && longValue <= 3)
-        {
-            condition = (int)longValue;
-            return true;
-        }
-
-        if (constant.Value is short shortValue && shortValue >= 0 && shortValue <= 3)
-        {
-            condition = shortValue;
-            return true;
-        }
-
-        if (constant.Value is byte byteValue && byteValue <= 3)
-        {
-            condition = byteValue;
-            return true;
-        }
-
-        condition = JsonIgnoreAlways;
-        return false;
     }
 
     private static string? GetEnvironmentVariableName(

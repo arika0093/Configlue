@@ -3,8 +3,6 @@ using System.Collections.Immutable;
 using System.Linq;
 using System.Threading;
 using Microsoft.CodeAnalysis;
-using Microsoft.CodeAnalysis.CSharp;
-using Microsoft.CodeAnalysis.CSharp.Syntax;
 
 namespace Configlue.Generator;
 
@@ -36,9 +34,15 @@ public sealed partial class ConfiglueGenerator
                 || (
                     other is not null
                     && Model.Equals(other.Model)
-                    && SequenceEqual(Members, other.Members)
-                    && SequenceEqual(PocoCloneModels, other.PocoCloneModels)
-                    && SequenceEqual(StructuralModels, other.StructuralModels)
+                    && SparseFragments.Generator.Shared.SparseSequence.Equal(Members, other.Members)
+                    && SparseFragments.Generator.Shared.SparseSequence.Equal(
+                        PocoCloneModels,
+                        other.PocoCloneModels
+                    )
+                    && SparseFragments.Generator.Shared.SparseSequence.Equal(
+                        StructuralModels,
+                        other.StructuralModels
+                    )
                 );
         }
 
@@ -64,227 +68,28 @@ public sealed partial class ConfiglueGenerator
         }
     }
 
-    private static bool IsPromotedPartialType(
-        INamedTypeSymbol type,
-        CancellationToken cancellationToken
-    )
-    {
-        foreach (var reference in type.DeclaringSyntaxReferences)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            if (
-                reference.GetSyntax(cancellationToken) is TypeDeclarationSyntax declaration
-                && declaration.Modifiers.Any(SyntaxKind.PartialKeyword)
-            )
-            {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    private static bool IsPromotablePartial(
-        INamedTypeSymbol type,
-        CancellationToken cancellationToken
-    )
-    {
-        cancellationToken.ThrowIfCancellationRequested();
-        if (type.ContainingType is not null || type.Arity != 0 || type.IsAbstract)
-        {
-            return false;
-        }
-
-        if (type.TypeKind != TypeKind.Class && type.TypeKind != TypeKind.Struct)
-        {
-            return false;
-        }
-
-        if (type.IsRefLikeType)
-        {
-            return false;
-        }
-
-        if (IsConfiglueModel(type, cancellationToken))
-        {
-            return false;
-        }
-
-        if (!IsPromotedPartialType(type, cancellationToken))
-        {
-            return false;
-        }
-
-        if (!IsAccessibleForGeneration(type))
-        {
-            return false;
-        }
-
-        if (type.SpecialType != SpecialType.None || IsFrameworkType(type))
-        {
-            return false;
-        }
-
-        if (
-            SparseFragments.Generator.Shared.ModelConstructorBinding.AnalyzeStructural(
-                type,
-                cancellationToken
-            )
-                is null
-            && SparseFragments.Generator.Shared.ModelConstructorBinding.AnalyzeRoot(
-                type,
-                cancellationToken
-            )
-                is null
-        )
-        {
-            return false;
-        }
-
-        if (HasUnsupportedPocoMembers(type, cancellationToken))
-        {
-            return false;
-        }
-
-        if (
-            !SparseFragments
-                .Generator.Shared.SparseModelDiscovery.GetReadableProperties(
-                    type,
-                    cancellationToken
-                )
-                .Any()
-        )
-        {
-            return false;
-        }
-
-        return true;
-    }
-
-    private static ImmutableArray<INamedTypeSymbol> CollectPromotedSymbols(
-        ImmutableArray<SymbolMemberModel> members,
-        CancellationToken cancellationToken
-    )
-    {
-        var result = ImmutableArray.CreateBuilder<INamedTypeSymbol>();
-        var seen = new HashSet<INamedTypeSymbol>(SymbolEqualityComparer.Default);
-        var pending = new Stack<ITypeSymbol>();
-        foreach (var member in members)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            pending.Push(member.Property.Type);
-        }
-
-        while (pending.Count > 0)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            var type = pending.Pop();
-            if (type is INamedTypeSymbol named)
-            {
-                var collection = GetCollectionInfo(named);
-                if (collection.CloneKind == CloneCollectionKind.Unsupported)
-                {
-                    if (
-                        named.OriginalDefinition.SpecialType == SpecialType.System_Nullable_T
-                        && named.TypeArguments.Length == 1
-                        && named.TypeArguments[0] is INamedTypeSymbol underlying
-                        && IsPromotablePartial(underlying, cancellationToken)
-                        && seen.Add(underlying)
-                    )
-                    {
-                        result.Add(underlying);
-                        foreach (
-                            var nested in GetMembers(underlying, cancellationToken)
-                                .Select(static member => member.Property.Type)
-                        )
-                        {
-                            pending.Push(nested);
-                        }
-                    }
-                    else if (IsPromotablePartial(named, cancellationToken) && seen.Add(named))
-                    {
-                        result.Add(named);
-                        foreach (
-                            var nested in GetMembers(named, cancellationToken)
-                                .Select(static member => member.Property.Type)
-                        )
-                        {
-                            pending.Push(nested);
-                        }
-                    }
-                }
-            }
-
-            foreach (var nested in UnwrapPromotedCollectionElements(type, cancellationToken))
-            {
-                pending.Push(nested);
-            }
-        }
-
-        return result
-            .ToImmutable()
-            .Sort(
-                static (left, right) =>
-                    string.Compare(
-                        left.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
-                        right.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
-                        System.StringComparison.Ordinal
-                    )
-            );
-    }
-
-    private static IEnumerable<ITypeSymbol> UnwrapPromotedCollectionElements(
-        ITypeSymbol type,
-        CancellationToken cancellationToken
-    )
-    {
-        cancellationToken.ThrowIfCancellationRequested();
-        if (type is IArrayTypeSymbol array)
-        {
-            yield return array.ElementType;
-            yield break;
-        }
-
-        if (type is INamedTypeSymbol named)
-        {
-            if (
-                named.OriginalDefinition.SpecialType == SpecialType.System_Nullable_T
-                && named.TypeArguments.Length == 1
-            )
-            {
-                yield return named.TypeArguments[0];
-                yield break;
-            }
-
-            var collection = GetCollectionInfo(named);
-            if (collection.CloneKind != CloneCollectionKind.Unsupported)
-            {
-                if (collection.ElementType is not null)
-                {
-                    yield return collection.ElementType;
-                }
-
-                if (collection.ValueType is not null)
-                {
-                    yield return collection.ValueType;
-                }
-            }
-        }
-    }
-
     private static ImmutableArray<PromotedModel> CreatePromotedModels(
-        ImmutableArray<SymbolMemberModel> members,
+        ImmutableArray<SparseFragments.Generator.Shared.SparseSymbolMemberModel> members,
         CancellationToken cancellationToken
     )
     {
-        var symbols = CollectPromotedSymbols(members, cancellationToken);
+        var symbols = SparseFragments.Generator.Shared.SparsePromotedDiscovery.CollectPromotedTypes(
+            members,
+            SparseConfiguration,
+            cancellationToken
+        );
         var result = ImmutableArray.CreateBuilder<PromotedModel>(symbols.Length);
         foreach (var symbol in symbols)
         {
             cancellationToken.ThrowIfCancellationRequested();
             var symbolMembers = GetMembers(symbol, cancellationToken).ToImmutableArray();
             var memberModels = CreateMemberModels(symbolMembers, cancellationToken);
-            var pocoCloneModels = GetPocoCloneTypes(symbolMembers, cancellationToken)
+            var pocoCloneModels = SparseFragments
+                .Generator.Shared.SparseModelDiscovery.GetPocoCloneTypes(
+                    symbolMembers,
+                    SparseConfiguration,
+                    cancellationToken
+                )
                 .Select(pocoType => CreatePocoCloneModel(pocoType, cancellationToken))
                 .ToImmutableArray();
             var structuralModels = CollectStructuralTypes(symbolMembers, cancellationToken)

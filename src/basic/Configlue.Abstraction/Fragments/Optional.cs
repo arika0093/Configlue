@@ -12,7 +12,7 @@ public readonly record struct Optional<T>
     }
 
     /// <summary>Whether the member was present in its source.</summary>
-    public bool IsPresent { get; init; }
+    public bool IsPresent { get; }
 
     /// <summary>The member value. Throws when the member is missing.</summary>
     public T? Value =>
@@ -34,6 +34,13 @@ public readonly record struct Optional<T>
 
     /// <summary>Whether this member is missing or present with a value.</summary>
     public override string ToString() => IsPresent ? $"Present({_value})" : "Missing";
+
+    // This remains a record struct with synthesized field equality over
+    // (_value, IsPresent). That is exactly the semantic Missing/Present
+    // equality once the invariant holds: IsPresent is get-only, so Missing has
+    // a single representation (default, where _value is always default(T?)
+    // when !IsPresent) and only Present(value) can set IsPresent. No custom
+    // Equals/GetHashCode override is needed.
 
     /// <summary>Creates a present member from a value.</summary>
     public static implicit operator Optional<T>(T? value) => Present(value);
