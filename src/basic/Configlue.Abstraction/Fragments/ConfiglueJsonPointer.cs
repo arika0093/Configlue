@@ -1,9 +1,18 @@
+using System.Buffers;
 using System.ComponentModel;
 using System.Text;
 
 namespace Configlue;
 
 /// <summary>RFC 6901 JSON Pointer parsing and escaping.</summary>
+/// <remarks>
+/// Product-neutral parsing core mirrored from
+/// <c>src/fragments:src/SparseFragments/JsonPatch/JsonPointer.cs</c>
+/// (namespace <c>SparseFragments</c>). The public <see cref="Parse"/>,
+/// <see cref="Escape"/>, and <see cref="Format"/> shapes are the Configlue
+/// adapter surface; per-pointer tokenization internals stay equivalent so a
+/// future shared-source cutover is a namespace/visibility change only.
+/// </remarks>
 [EditorBrowsable(EditorBrowsableState.Advanced)]
 public static class JsonPointer
 {
@@ -32,11 +41,27 @@ public static class JsonPointer
             );
         }
 
-        var rawTokens = pointer.Substring(1).Split('/');
-        var tokens = new string[rawTokens.Length];
-        for (var i = 0; i < rawTokens.Length; i++)
+        // Size the token array by counting segments so a single pass tokenizes
+        // the pointer without an intermediate Substring/Split allocation.
+        var count = 1;
+        for (var scan = 1; scan < pointer.Length; scan++)
         {
-            tokens[i] = Unescape(rawTokens[i], pointer);
+            if (pointer[scan] == '/')
+            {
+                count++;
+            }
+        }
+
+        var tokens = new string[count];
+        var tokenIndex = 0;
+        var segmentStart = 1;
+        for (var scan = 1; scan <= pointer.Length; scan++)
+        {
+            if (scan == pointer.Length || pointer[scan] == '/')
+            {
+                tokens[tokenIndex++] = Unescape(pointer, segmentStart, scan - segmentStart);
+                segmentStart = scan + 1;
+            }
         }
 
         return tokens;
@@ -71,53 +96,70 @@ public static class JsonPointer
         return builder.ToString();
     }
 
-    private static string Unescape(string token, string pointer)
+    private static string Unescape(string pointer, int start, int length)
     {
-        if (token.IndexOf('~') < 0)
+        var firstEscape = pointer.IndexOf('~', start, length);
+        if (firstEscape < 0)
         {
-            return token;
+            return pointer.Substring(start, length);
         }
 
-        var builder = new StringBuilder(token.Length);
-        var index = 0;
-        while (index < token.Length)
+        // Decoding only shortens the token. Keep small temporary buffers on the
+        // stack and rent a reusable buffer for longer tokens.
+        var rented = length > 256 ? ArrayPool<char>.Shared.Rent(length) : null;
+        Span<char> buffer = rented is null ? stackalloc char[length] : rented;
+        try
         {
-            var c = token[index];
-            if (c != '~')
+            var written = firstEscape - start;
+            pointer.AsSpan(start, written).CopyTo(buffer);
+            var end = start + length;
+            var index = firstEscape;
+            while (index < end)
             {
-                builder.Append(c);
-                index++;
-                continue;
+                var c = pointer[index];
+                if (c != '~')
+                {
+                    buffer[written++] = c;
+                    index++;
+                    continue;
+                }
+
+                if (index + 1 >= end)
+                {
+                    throw new JsonPatchException(
+                        JsonPatchErrorKind.MalformedPointer,
+                        $"JSON Pointer '{pointer}' has a dangling '~' escape."
+                    );
+                }
+
+                var next = pointer[index + 1];
+                if (next == '0')
+                {
+                    buffer[written++] = '~';
+                }
+                else if (next == '1')
+                {
+                    buffer[written++] = '/';
+                }
+                else
+                {
+                    throw new JsonPatchException(
+                        JsonPatchErrorKind.MalformedPointer,
+                        $"JSON Pointer '{pointer}' has an invalid '~' escape."
+                    );
+                }
+
+                index += 2;
             }
 
-            if (index + 1 >= token.Length)
-            {
-                throw new JsonPatchException(
-                    JsonPatchErrorKind.MalformedPointer,
-                    $"JSON Pointer '{pointer}' has a dangling '~' escape."
-                );
-            }
-
-            var next = token[index + 1];
-            if (next == '0')
-            {
-                builder.Append('~');
-            }
-            else if (next == '1')
-            {
-                builder.Append('/');
-            }
-            else
-            {
-                throw new JsonPatchException(
-                    JsonPatchErrorKind.MalformedPointer,
-                    $"JSON Pointer '{pointer}' has an invalid '~' escape."
-                );
-            }
-
-            index += 2;
+            return buffer.Slice(0, written).ToString();
         }
-
-        return builder.ToString();
+        finally
+        {
+            if (rented is not null)
+            {
+                ArrayPool<char>.Shared.Return(rented);
+            }
+        }
     }
 }

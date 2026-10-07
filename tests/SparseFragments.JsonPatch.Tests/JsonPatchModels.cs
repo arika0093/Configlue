@@ -4,7 +4,8 @@ namespace SparseFragments.JsonPatch.Tests;
 
 // Configlue-side mirrors of the standalone RFC 6902 interop models that live
 // in the SparseFragments repository. These exercise Configlue-generated
-// model parity via ConfiglueJsonPatchTests.
+// model parity via ConfiglueJsonPatchTests (thin integration suite; the
+// canonical behavioral suite in JsonPatchBehavioralTests uses no models).
 [Configlue.ConfiglueModel("jsonpatch-widget", Version = 1)]
 public partial class ConfigluePatchWidget
 {

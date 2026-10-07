@@ -1,20 +1,50 @@
 using System.ComponentModel;
-using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 
 namespace Configlue;
 
 /// <summary>One RFC 6902 operation.</summary>
+/// <remarks>
+/// Product-neutral RFC 6902 parsing/validation core mirrored from
+/// <c>src/fragments:src/SparseFragments/JsonPatch/JsonPatchOperation.cs</c>
+/// (namespace <c>SparseFragments</c>). Configlue keeps its own public contract
+/// (namespace <c>Configlue</c>) with no runtime dependency on SparseFragments:
+/// only the <see cref="Op"/>, <see cref="Path"/>, <see cref="From"/>,
+/// <see cref="Value"/>, and <see cref="HasValue"/> members are public, while the
+/// pre-parsed pointer tokens stay internal so the engine never re-tokenizes.
+/// </remarks>
 [EditorBrowsable(EditorBrowsableState.Advanced)]
 public sealed class JsonPatchOperation
 {
     /// <summary>Initializes a new instance.</summary>
     public JsonPatchOperation(string op, string path, string? from, JsonNode? value, bool hasValue)
+        : this(
+            op,
+            path,
+            JsonPointer.Parse(path),
+            from,
+            from is null ? null : JsonPointer.Parse(from),
+            value,
+            hasValue
+        ) { }
+
+    /// <summary>Initializes a new instance with pre-parsed pointer tokens.</summary>
+    internal JsonPatchOperation(
+        string op,
+        string path,
+        string[] pathTokens,
+        string? from,
+        string[]? fromTokens,
+        JsonNode? value,
+        bool hasValue
+    )
     {
         Op = op;
         Path = path;
+        PathTokens = pathTokens;
         From = from;
+        FromTokens = fromTokens;
         Value = value;
         HasValue = hasValue;
     }
@@ -25,8 +55,14 @@ public sealed class JsonPatchOperation
     /// <summary>The target pointer.</summary>
     public string Path { get; }
 
+    /// <summary>The parsed target pointer tokens, reused during apply.</summary>
+    internal string[] PathTokens { get; }
+
     /// <summary>The source pointer for move/copy.</summary>
     public string? From { get; }
+
+    /// <summary>The parsed source pointer tokens for move/copy.</summary>
+    internal string[]? FromTokens { get; }
 
     /// <summary>The operation value for add/replace/test.</summary>
     public JsonNode? Value { get; }
@@ -68,10 +104,12 @@ public sealed class JsonPatchOperation
 
         var op = opElement.GetString()!;
         var path = pathElement.GetString()!;
-        // Validate pointer syntax eagerly so malformed pointers surface distinctly.
-        JsonPointer.Parse(path);
+        // Validate pointer syntax eagerly so malformed pointers surface distinctly,
+        // keeping the parsed tokens so apply does not tokenize them again.
+        var pathTokens = JsonPointer.Parse(path);
 
         string? from = null;
+        string[]? fromTokens = null;
         var hasFrom = false;
         if (element.TryGetProperty("from", out var fromElement))
         {
@@ -85,14 +123,21 @@ public sealed class JsonPatchOperation
             }
 
             from = fromElement.GetString()!;
-            JsonPointer.Parse(from);
+            fromTokens = JsonPointer.Parse(from);
         }
 
         var hasValue = element.TryGetProperty("value", out var valueElement);
         JsonNode? value = null;
         if (hasValue)
         {
-            value = JsonNode.Parse(valueElement.GetRawText());
+            // Detach from the parsed document without converting the value to text and reparsing it.
+            value = valueElement.ValueKind switch
+            {
+                JsonValueKind.Object => JsonObject.Create(valueElement.Clone()),
+                JsonValueKind.Array => JsonArray.Create(valueElement.Clone()),
+                JsonValueKind.Null => null,
+                _ => JsonValue.Create(valueElement.Clone()),
+            };
         }
 
         switch (op)
@@ -129,6 +174,6 @@ public sealed class JsonPatchOperation
                 );
         }
 
-        return new JsonPatchOperation(op, path, from, value, hasValue);
+        return new JsonPatchOperation(op, path, pathTokens, from, fromTokens, value, hasValue);
     }
 }

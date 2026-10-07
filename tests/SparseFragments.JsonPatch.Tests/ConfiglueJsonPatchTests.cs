@@ -5,6 +5,13 @@ using static SparseFragments.JsonPatch.Tests.PatchTestHelpers;
 namespace SparseFragments.JsonPatch.Tests;
 
 /// <summary>Configlue-generated model RFC 6902 interop behavior (parity with standalone).</summary>
+/// <remarks>
+/// Thin Configlue integration/parity suite: generated
+/// <c>FromJsonPatch</c>/<c>ToJsonPatch</c> bridges over the product-neutral
+/// runtime. Canonical RFC 6902 mechanics are covered without generated models
+/// in <c>JsonPatchBehavioralTests</c>; public facade/error adaptation in
+/// <c>ConfiglueJsonPatchAdapterTests</c>.
+/// </remarks>
 public sealed class ConfiglueJsonPatchTests
 {
     private static global::Configlue.Optional<ConfigluePatchWidget.Fragment?> Present(
