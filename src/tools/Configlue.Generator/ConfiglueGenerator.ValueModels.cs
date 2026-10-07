@@ -240,7 +240,10 @@ public sealed partial class ConfiglueGenerator
                 || (
                     other is not null
                     && Model.Equals(other.Model)
-                    && SequenceEqual(Mappings, other.Mappings)
+                    && SparseFragments.Generator.Shared.SparseSequence.Equal(
+                        Mappings,
+                        other.Mappings
+                    )
                 );
         }
 
@@ -286,7 +289,7 @@ public sealed partial class ConfiglueGenerator
                         other.CloneHelperName,
                         StringComparison.Ordinal
                     )
-                    && SequenceEqual(Members, other.Members)
+                    && SparseFragments.Generator.Shared.SparseSequence.Equal(Members, other.Members)
                 );
         }
 
@@ -334,7 +337,7 @@ public sealed partial class ConfiglueGenerator
                     && string.Equals(HostName, other.HostName, StringComparison.Ordinal)
                     && string.Equals(ValueTypeName, other.ValueTypeName, StringComparison.Ordinal)
                     && Equals(Constructor, other.Constructor)
-                    && SequenceEqual(Members, other.Members)
+                    && SparseFragments.Generator.Shared.SparseSequence.Equal(Members, other.Members)
                 );
         }
 
@@ -396,12 +399,27 @@ public sealed partial class ConfiglueGenerator
                     other is not null
                     && string.Equals(HintName, other.HintName, StringComparison.Ordinal)
                     && Nullable.Equals(Model, other.Model)
-                    && SequenceEqual(Members, other.Members)
-                    && SequenceEqual(PreviousModels, other.PreviousModels)
-                    && SequenceEqual(PocoCloneModels, other.PocoCloneModels)
-                    && SequenceEqual(StructuralModels, other.StructuralModels)
-                    && SequenceEqual(Diagnostics, other.Diagnostics)
-                    && SequenceEqual(PromotedModels, other.PromotedModels)
+                    && SparseFragments.Generator.Shared.SparseSequence.Equal(Members, other.Members)
+                    && SparseFragments.Generator.Shared.SparseSequence.Equal(
+                        PreviousModels,
+                        other.PreviousModels
+                    )
+                    && SparseFragments.Generator.Shared.SparseSequence.Equal(
+                        PocoCloneModels,
+                        other.PocoCloneModels
+                    )
+                    && SparseFragments.Generator.Shared.SparseSequence.Equal(
+                        StructuralModels,
+                        other.StructuralModels
+                    )
+                    && SparseFragments.Generator.Shared.SparseSequence.Equal(
+                        Diagnostics,
+                        other.Diagnostics
+                    )
+                    && SparseFragments.Generator.Shared.SparseSequence.Equal(
+                        PromotedModels,
+                        other.PromotedModels
+                    )
                 );
         }
 
@@ -446,11 +464,20 @@ public sealed partial class ConfiglueGenerator
     private static TypeModel CreateTypeModel(ITypeSymbol type, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        var isConfiglueModel = IsConfiglueModel(type, cancellationToken);
+        var isConfiglueModel =
+            SparseFragments.Generator.Shared.SparseModelDiscovery.IsFragmentModel(
+                type,
+                SparseConfiguration,
+                cancellationToken
+            );
         if (
             !isConfiglueModel
             && type is INamedTypeSymbol promotable
-            && IsPromotablePartial(promotable, cancellationToken)
+            && SparseFragments.Generator.Shared.SparsePromotedDiscovery.IsPromotablePartial(
+                promotable,
+                SparseConfiguration,
+                cancellationToken
+            )
         )
         {
             isConfiglueModel = true;
@@ -476,15 +503,16 @@ public sealed partial class ConfiglueGenerator
     }
 
     private static MemberModel CreateMemberModel(
-        SymbolMemberModel member,
+        SparseFragments.Generator.Shared.SparseSymbolMemberModel member,
         CancellationToken cancellationToken
     )
     {
-        var jsonPropertyName = GetJsonPropertyName(
-            member.Property,
-            cancellationToken,
-            out var hasExplicitJsonPropertyName
-        );
+        var jsonPropertyName =
+            SparseFragments.Generator.Shared.SparseJsonNaming.GetJsonPropertyName(
+                member.Property,
+                cancellationToken,
+                out var hasExplicitJsonPropertyName
+            );
         var property = new PropertyModel(
             member.Property.Name,
             CreateTypeModel(member.Property.Type, cancellationToken),
@@ -494,7 +522,10 @@ public sealed partial class ConfiglueGenerator
             GetEnvironmentVariableName(member.Property, cancellationToken),
             member.Property.SetMethod?.IsInitOnly == true,
             member.Property.SetMethod is null,
-            GetJsonIgnoreCondition(member.Property, cancellationToken)
+            SparseFragments.Generator.Shared.SparseJsonNaming.GetJsonIgnoreCondition(
+                member.Property,
+                cancellationToken
+            )
         );
         TypeModel? childModel = null;
         string? childFragmentType = null;
@@ -508,8 +539,16 @@ public sealed partial class ConfiglueGenerator
             childModel = CreateTypeModel(member.ChildModel, cancellationToken);
             childIsReferenceType = member.ChildModel.IsReferenceType;
             if (
-                IsConfiglueModel(member.ChildModel, cancellationToken)
-                || IsPromotablePartial(member.ChildModel, cancellationToken)
+                SparseFragments.Generator.Shared.SparseModelDiscovery.IsFragmentModel(
+                    member.ChildModel,
+                    SparseConfiguration,
+                    cancellationToken
+                )
+                || SparseFragments.Generator.Shared.SparsePromotedDiscovery.IsPromotablePartial(
+                    member.ChildModel,
+                    SparseConfiguration,
+                    cancellationToken
+                )
             )
             {
                 var childType = NonNullableTypeName(member.ChildModel);
@@ -553,7 +592,7 @@ public sealed partial class ConfiglueGenerator
     }
 
     private static CollectionInfo CreateCollectionInfo(
-        SymbolCollectionInfo collection,
+        SparseFragments.Generator.Shared.SparseSymbolCollectionInfo collection,
         CancellationToken cancellationToken
     )
     {
@@ -581,7 +620,7 @@ public sealed partial class ConfiglueGenerator
     }
 
     private static ImmutableArray<MemberModel> CreateMemberModels(
-        ImmutableArray<SymbolMemberModel> members,
+        ImmutableArray<SparseFragments.Generator.Shared.SparseSymbolMemberModel> members,
         CancellationToken cancellationToken
     )
     {
@@ -597,7 +636,7 @@ public sealed partial class ConfiglueGenerator
 
     private static ImmutableArray<PreviousModelInfo> CreatePreviousModelInfos(
         ImmutableArray<SymbolPreviousModelInfo> previousModels,
-        ImmutableArray<SymbolMemberModel> currentMembers,
+        ImmutableArray<SparseFragments.Generator.Shared.SparseSymbolMemberModel> currentMembers,
         ImmutableArray<MemberModel> currentValueMembers,
         CancellationToken cancellationToken
     )
@@ -612,10 +651,10 @@ public sealed partial class ConfiglueGenerator
                 previousMembers.Length,
                 StringComparer.Ordinal
             );
-            var previousSymbolMembersByName = new Dictionary<string, SymbolMemberModel>(
-                previousModel.Members.Length,
-                StringComparer.Ordinal
-            );
+            var previousSymbolMembersByName = new Dictionary<
+                string,
+                SparseFragments.Generator.Shared.SparseSymbolMemberModel
+            >(previousModel.Members.Length, StringComparer.Ordinal);
             for (var index = 0; index < previousModel.Members.Length; index++)
             {
                 var previousSymbolMember = previousModel.Members[index];
@@ -735,24 +774,5 @@ public sealed partial class ConfiglueGenerator
                 cancellationToken
             )
         );
-    }
-
-    private static bool SequenceEqual<T>(ImmutableArray<T> left, ImmutableArray<T> right)
-    {
-        if (left.Length != right.Length)
-        {
-            return false;
-        }
-
-        var comparer = EqualityComparer<T>.Default;
-        for (var index = 0; index < left.Length; index++)
-        {
-            if (!comparer.Equals(left[index], right[index]))
-            {
-                return false;
-            }
-        }
-
-        return true;
     }
 }

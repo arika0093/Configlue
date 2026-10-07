@@ -295,12 +295,22 @@ public sealed partial class ConfiglueGenerator
             .OfType<TypeDeclarationSyntax>()
             .FirstOrDefault();
 
-        if (declaration is null || !declaration.Modifiers.Any(SyntaxKind.PartialKeyword))
+        var rootShape = SparseFragments.Generator.Shared.SparseShapeValidation.ValidateRootShape(
+            model,
+            declaration,
+            cancellationToken
+        );
+        if (rootShape == SparseFragments.Generator.Shared.SparseRootShapeProblem.MustBePartial)
         {
             return AnalysisFailure(MustBePartial, location, model.Name);
         }
 
-        if (!IsSupportedRootModelShape(model, declaration))
+        if (
+            rootShape
+            is SparseFragments.Generator.Shared.SparseRootShapeProblem.UnsupportedModel
+                or SparseFragments.Generator.Shared.SparseRootShapeProblem.RefLikeModel
+                or SparseFragments.Generator.Shared.SparseRootShapeProblem.FileLocalModel
+        )
         {
             return AnalysisFailure(UnsupportedModel, location, model.Name);
         }
@@ -362,7 +372,10 @@ public sealed partial class ConfiglueGenerator
             if (
                 property.ReturnsByRef
                 || property.ReturnsByRefReadonly
-                || !IsSupportedGeneratedMemberType(property.Type, cancellationToken)
+                || SparseFragments.Generator.Shared.SparseShapeValidation.GetUnsupportedMemberReason(
+                    property.Type
+                )
+                    is not null
             )
             {
                 diagnostics.Add(
@@ -407,12 +420,22 @@ public sealed partial class ConfiglueGenerator
             {
                 // [JsonIgnore(Condition = Always)] members are never part of the JSON
                 // payload, so they neither collide with nor shadow persisted names.
-                if (GetJsonIgnoreCondition(property, cancellationToken) == JsonIgnoreAlways)
+                if (
+                    SparseFragments.Generator.Shared.SparseJsonNaming.GetJsonIgnoreCondition(
+                        property,
+                        cancellationToken
+                    ) == SparseFragments.Generator.Shared.SparseJsonNaming.JsonIgnoreAlways
+                )
                 {
                     continue;
                 }
 
-                var wireName = GetJsonPropertyName(property, cancellationToken, out _);
+                var wireName =
+                    SparseFragments.Generator.Shared.SparseJsonNaming.GetJsonPropertyName(
+                        property,
+                        cancellationToken,
+                        out _
+                    );
                 if (jsonNames.TryGetValue(wireName, out var other))
                 {
                     diagnostics.Add(
@@ -502,10 +525,11 @@ public sealed partial class ConfiglueGenerator
                 member.MergeMode == CustomMergeMode
                 && (
                     member.MergeStrategyType is null
-                    || !IsValidMergeStrategy(
+                    || !SparseFragments.Generator.Shared.SparseMergeValidation.IsValidCustomStrategy(
                         member.MergeStrategyType,
                         member.Property.Type,
                         member.ChildModel is not null,
+                        SparseConfiguration,
                         cancellationToken
                     )
                 )
@@ -571,7 +595,12 @@ public sealed partial class ConfiglueGenerator
             memberModels,
             cancellationToken
         );
-        var pocoCloneModels = GetPocoCloneTypes(members, cancellationToken)
+        var pocoCloneModels = SparseFragments
+            .Generator.Shared.SparseModelDiscovery.GetPocoCloneTypes(
+                members,
+                SparseConfiguration,
+                cancellationToken
+            )
             .Select(pocoType => CreatePocoCloneModel(pocoType, cancellationToken))
             .ToImmutableArray();
         var structuralModels = CollectStructuralTypes(members, cancellationToken)
@@ -640,7 +669,7 @@ public sealed partial class ConfiglueGenerator
 
     private static void AddDependentModelDiagnostics(
         INamedTypeSymbol root,
-        ImmutableArray<SymbolMemberModel> members,
+        ImmutableArray<SparseFragments.Generator.Shared.SparseSymbolMemberModel> members,
         CancellationToken cancellationToken,
         ImmutableArray<GeneratorDiagnosticInfo>.Builder diagnostics
     )
@@ -755,76 +784,6 @@ public sealed partial class ConfiglueGenerator
                 );
             }
         }
-    }
-
-    private static ImmutableArray<INamedTypeSymbol> CollectStructuralTypes(
-        ImmutableArray<SymbolMemberModel> members,
-        CancellationToken cancellationToken
-    )
-    {
-        var result = ImmutableArray.CreateBuilder<INamedTypeSymbol>();
-        var seen = new HashSet<INamedTypeSymbol>(SymbolEqualityComparer.Default);
-        var pending = new Stack<INamedTypeSymbol>();
-        foreach (var child in members.Select(static member => member.ChildModel))
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            if (
-                child is not null
-                && IsStructuralType(child, cancellationToken)
-                && !IsPromotablePartial(child, cancellationToken)
-            )
-            {
-                pending.Push(child);
-            }
-        }
-
-        while (pending.Count > 0)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            var type = pending.Pop();
-            if (!seen.Add(type))
-            {
-                continue;
-            }
-
-            result.Add(type);
-            foreach (
-                var nested in GetMembers(type, cancellationToken)
-                    .Select(static member => member.ChildModel)
-            )
-            {
-                cancellationToken.ThrowIfCancellationRequested();
-                if (
-                    nested is not null
-                    && IsStructuralType(nested, cancellationToken)
-                    && !IsPromotablePartial(nested, cancellationToken)
-                )
-                {
-                    pending.Push(nested);
-                }
-            }
-        }
-
-        return result.ToImmutable();
-    }
-
-    private static StructuralModel CreateStructuralModel(
-        INamedTypeSymbol type,
-        CancellationToken cancellationToken
-    )
-    {
-        return new StructuralModel(
-            StructuralHostName(type, cancellationToken),
-            NonNullableTypeName(type),
-            CreateMemberModels(
-                GetMembers(type, cancellationToken).ToImmutableArray(),
-                cancellationToken
-            ),
-            SparseFragments.Generator.Shared.ModelConstructorBinding.AnalyzeStructural(
-                type,
-                cancellationToken
-            )
-        );
     }
 
     private static GenerationAnalysis AnalysisFailure(

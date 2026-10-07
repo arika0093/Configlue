@@ -190,6 +190,7 @@ namespace Configlue
     }
     public static class ConfiglueCollectionMerger
     {
+        public static System.Collections.Generic.List<T> MergeAppendList<T>(System.Collections.Generic.IEnumerable<T> lower, System.Collections.Generic.IEnumerable<T> higher) { }
         public static T[] MergeDistinctArray<T>(System.Collections.Generic.IEnumerable<T> lower, System.Collections.Generic.IEnumerable<T> higher) { }
         public static System.Collections.Generic.List<T> MergeDistinctList<T>(System.Collections.Generic.IEnumerable<T> lower, System.Collections.Generic.IEnumerable<T> higher) { }
         public static System.Collections.Generic.HashSet<T> MergeSet<T>(System.Collections.Generic.IEnumerable<T> lower, System.Collections.Generic.IEnumerable<T> higher) { }
@@ -760,7 +761,7 @@ namespace Configlue
     }
     public readonly struct Optional<T> : System.IEquatable<Configlue.Optional<T>>
     {
-        public bool IsPresent { get; init; }
+        public bool IsPresent { get; }
         public T Value { get; }
         public static Configlue.Optional<T> Missing { get; }
         public void CopyTo(ref Configlue.Optional<T> destination) { }

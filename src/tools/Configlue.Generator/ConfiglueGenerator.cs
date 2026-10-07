@@ -19,8 +19,6 @@ public sealed partial class ConfiglueGenerator : IIncrementalGenerator
     private const string PreviousVersionAttributeName =
         "Configlue.ConfigluePreviousVersionAttribute";
     private const string MergeAttributeName = "Configlue.ConfiglueMergeAttribute";
-    private const string IsExternalInitMetadataName =
-        "System.Runtime.CompilerServices.IsExternalInit";
     private const string EmitIsExternalInitOption = "build_property.ConfiglueEmitIsExternalInit";
     internal const string IsExternalInitHintName = "Configlue.IsExternalInit.g.cs";
     internal const string IsExternalInitSource =
@@ -34,11 +32,6 @@ public sealed partial class ConfiglueGenerator : IIncrementalGenerator
         + "}\n";
     private const int CustomMergeMode = 4;
     private const int InitialSchemaVersion = 1;
-    private static readonly SymbolDisplayFormat TypeFormat =
-        SymbolDisplayFormat.FullyQualifiedFormat.WithMiscellaneousOptions(
-            SymbolDisplayFormat.FullyQualifiedFormat.MiscellaneousOptions
-                | SymbolDisplayMiscellaneousOptions.IncludeNullableReferenceTypeModifier
-        );
 
     private static readonly DiagnosticDescriptor MustBePartial = new(
         "CFG001",
@@ -185,24 +178,9 @@ public sealed partial class ConfiglueGenerator : IIncrementalGenerator
             || !string.Equals(value, "false", StringComparison.OrdinalIgnoreCase);
     }
 
-    internal static bool ShouldEmitIsExternalInit(Compilation compilation, bool configured)
-    {
-        if (!configured)
-        {
-            return false;
-        }
-
-        var marker = compilation.GetTypeByMetadataName(IsExternalInitMetadataName);
-        if (marker is null)
-        {
-            return true;
-        }
-
-        if (SymbolEqualityComparer.Default.Equals(marker.ContainingAssembly, compilation.Assembly))
-        {
-            return false;
-        }
-
-        return marker.DeclaredAccessibility != Accessibility.Public;
-    }
+    internal static bool ShouldEmitIsExternalInit(Compilation compilation, bool configured) =>
+        SparseFragments.Generator.Shared.SparseExternalInit.ShouldEmitIsExternalInit(
+            compilation,
+            configured
+        );
 }
