@@ -67,7 +67,7 @@ jobs:
 
       - name: Pack Configlue packages
         if: inputs.release-packages-artifact == ''
-        run: dotnet pack Configlue.slnx --configuration Release --output artifacts/packages
+        run: dotnet pack Configlue.release.slnx --configuration Release --output artifacts/packages
 
       - name: Download release candidate packages
         if: inputs.release-packages-artifact != ''
@@ -88,8 +88,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          package="$(ls artifacts/packages/SparseFragments.*.nupkg | head -n 1)"
-          version="$(basename "$package" | sed -E 's/^SparseFragments\.(.+)\.nupkg$/\1/')"
+          package="$(ls artifacts/packages/Configlue.*.nupkg | grep -E '/Configlue\.[0-9].*\.nupkg$' | head -n 1)"
+          version="$(basename "$package" | sed -E 's/^Configlue\.(.+)\.nupkg$/\1/')"
           echo "CONFIGLUE_PACKAGE_VERSION=$version" >> "$GITHUB_ENV"
           echo "CONFIGLUE_PACKAGE_FEED=$(realpath artifacts/packages)" >> "$GITHUB_ENV"
 
@@ -113,16 +113,6 @@ jobs:
             -p:ConfigluePackageVersion="$CONFIGLUE_PACKAGE_VERSION" \
             -p:RestoreAdditionalProjectSources="$CONFIGLUE_PACKAGE_FEED"
           dotnet tests/fixtures/consumers/package-basic/bin/Release/net8.0/PackageBasic.Consumer.dll
-
-      - name: Build standalone consumer without built-in IsExternalInit
-        run: |
-          set -euo pipefail
-          for framework in netstandard2.0 net48; do
-            dotnet build tests/fixtures/consumers/package-sparse-netstandard/PackageSparse.NetStandard.Consumer.csproj \
-              --configuration Release --framework "$framework" \
-              -p:ConfigluePackageVersion="$CONFIGLUE_PACKAGE_VERSION" \
-              -p:RestoreAdditionalProjectSources="$CONFIGLUE_PACKAGE_FEED"
-          done
 
       - name: Assert facade transitive closure smoke (#261)
         run: |
@@ -196,7 +186,7 @@ jobs:
 
       - name: Pack Configlue packages
         if: inputs.release-packages-artifact == ''
-        run: dotnet pack Configlue.slnx --configuration Release --output artifacts/packages
+        run: dotnet pack Configlue.release.slnx --configuration Release --output artifacts/packages
 
       - name: Download release candidate packages
         if: inputs.release-packages-artifact != ''
@@ -217,8 +207,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          package="$(ls artifacts/packages/SparseFragments.*.nupkg | head -n 1)"
-          version="$(basename "$package" | sed -E 's/^SparseFragments\.(.+)\.nupkg$/\1/')"
+          package="$(ls artifacts/packages/Configlue.*.nupkg | grep -E '/Configlue\.[0-9].*\.nupkg$' | head -n 1)"
+          version="$(basename "$package" | sed -E 's/^Configlue\.(.+)\.nupkg$/\1/')"
           echo "CONFIGLUE_PACKAGE_VERSION=$version" >> "$GITHUB_ENV"
           echo "CONFIGLUE_PACKAGE_FEED=$(realpath artifacts/packages)" >> "$GITHUB_ENV"
 

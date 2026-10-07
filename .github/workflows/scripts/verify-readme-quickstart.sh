@@ -22,12 +22,12 @@ if [[ ! -f "${readme_path}" ]]; then
     exit 1
 fi
 
-package="$(ls "${package_directory}"/SparseFragments.*.nupkg 2>/dev/null | head -n 1 || true)"
+package="$(ls "${package_directory}"/Configlue.*.nupkg 2>/dev/null | grep -E '/Configlue\.[0-9].*\.nupkg$' | head -n 1 || true)"
 if [[ -z "${package}" ]]; then
-    echo "No SparseFragments package found in '${package_directory}'." >&2
+    echo "No Configlue package found in '${package_directory}'." >&2
     exit 1
 fi
-version="$(basename "${package}" | sed -E 's/^SparseFragments\.(.+)\.nupkg$/\1/')"
+version="$(basename "${package}" | sed -E 's/^Configlue\.(.+)\.nupkg$/\1/')"
 if [[ -z "${version}" ]]; then
     echo "Could not resolve package version from '$(basename "${package}")'." >&2
     exit 1

@@ -117,8 +117,9 @@ jobs:
           -- --timeout 5m --report-trx --no-progress
 
       - name: Pack NuGet packages
+        # Pack the release subset so verify-packages.sh validates what release.yaml publishes (#342).
         run: >
-          dotnet pack Configlue.slnx --no-build --no-restore
+          dotnet pack Configlue.release.slnx --no-build --no-restore
           --configuration Release --output artifacts
 
       - name: Run native MAUI Windows smoke tests

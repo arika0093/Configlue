@@ -57,13 +57,16 @@ jobs:
         run: echo "semver=$SEMVER" >> "$GITHUB_OUTPUT"
 
       - name: Restore dependencies
-        run: dotnet restore Configlue.slnx
+        # Release packs the Configlue-owned subset only (#342): SparseFragments
+        # is released from its own repository (arika0093/SparseFragments) and
+        # is not part of the Configlue release artifact set.
+        run: dotnet restore Configlue.release.slnx
 
       - name: Build
-        run: dotnet build Configlue.slnx --no-restore --configuration Release
+        run: dotnet build Configlue.release.slnx --no-restore --configuration Release
 
       - name: Pack NuGet packages
-        run: dotnet pack Configlue.slnx --no-build --no-restore --configuration Release --output artifacts
+        run: dotnet pack Configlue.release.slnx --no-build --no-restore --configuration Release --output artifacts
 
       - name: Verify release candidate packages
         run: bash ./.github/workflows/scripts/verify-packages.sh artifacts

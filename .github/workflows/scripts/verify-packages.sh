@@ -4,13 +4,17 @@
 #
 # Consumer coverage in test-package-consumers.yaml is intentionally narrow:
 # package-basic exercises only the Configlue facade (net8.0/net10.0
-# restore/build/run), package-sparse exercises only SparseFragments (plus a
-# netstandard2.0/net48 build), and the supported native-aot job exercises only
+# restore/build/run), and the supported native-aot job exercises only
 # Configlue plus the MessagePack provider. These positive runs prove that required facade
 # dependencies resolve, but they cannot detect extra opt-in dependencies, a
 # netstandard2.0-only compat package leaking into the netstandard2.1 group,
-# SparseFragments independence beyond its own restore, or DevTools/Blazor
+# or DevTools/Blazor
 # graphs that no consumer references.
+#
+# SparseFragments is released from its own repository
+# (arika0093/SparseFragments) and is not part of the Configlue release
+# artifact set (#342); it is therefore not expected here even though the
+# submodule remains available for local development and parity testing.
 #
 # Per #274 (positive-consumer-first, minimal negatives), detailed composition
 # drift outside the checks below is intentionally ungated and accepted as
@@ -46,7 +50,6 @@ declare -A portable_package_assets=(
     [Configlue]="netstandard2.0 netstandard2.1 net10.0"
     [Configlue.Abstraction]="netstandard2.0 netstandard2.1 net10.0"
     [Configlue.Core]="netstandard2.0 netstandard2.1 net10.0"
-    [SparseFragments]="netstandard2.0"
     [Configlue.Extensions.ComponentModel]="netstandard2.0 netstandard2.1 net10.0"
     [Configlue.Extensions.DI]="netstandard2.0 netstandard2.1 net10.0"
     [Configlue.Extensions.MSOptions]="netstandard2.0 netstandard2.1 net10.0"
@@ -147,9 +150,6 @@ for package_file in "${package_files[@]}"; do
         Configlue.Generator)
             require_entry 'analyzers/dotnet/cs/Configlue.Generator.dll'
             continue
-            ;;
-        SparseFragments)
-            require_entry 'analyzers/dotnet/cs/SparseFragments.Generator.dll'
             ;;
         Configlue.JsonSchema.MSBuild)
             require_entry 'build/Configlue.JsonSchema.MSBuild.props'
