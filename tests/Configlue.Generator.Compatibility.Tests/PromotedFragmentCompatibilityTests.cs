@@ -148,8 +148,13 @@ public sealed class PromotedFragmentCompatibilityTests
     }
 
     [Test]
-    public void Sparse_NonPartialChild_StaysStructural()
+    public void Sparse_NonPartialChild_RequiresExplicitPolicy()
     {
+        // Intentional product-policy divergence (#340): the SparseFragments
+        // generator selects atomic handling for non-partial POCOs and reports
+        // SPF007, while the Configlue generator keeps them structural via shared
+        // policy (see Configlue_NonPartial_StaysStructural below). This parity
+        // test owns that difference.
         const string source = """
             using SparseFragments;
             [SparseFragmentModel]
@@ -166,12 +171,10 @@ public sealed class PromotedFragmentCompatibilityTests
                 public string? Value { get; set; }
             }
             """;
-        var (output, diagnostics, generated) = RunSparse(source);
-        diagnostics.Where(static d => d.Severity == DiagnosticSeverity.Error).ShouldBeEmpty();
-        generated.ShouldContain("partial class Holder");
-        generated.ShouldContain("__SparseStructural_");
-        generated.ShouldNotContain("partial class NonPartialLeaf");
-        output.Emit(Stream.Null).Success.ShouldBeTrue();
+        var (_, diagnostics, _) = RunSparse(source);
+        diagnostics
+            .Any(static d => d.Id == "SPF007" && d.Severity == DiagnosticSeverity.Error)
+            .ShouldBeTrue(BuildDiagnosticMessage(diagnostics));
     }
 
     [Test]

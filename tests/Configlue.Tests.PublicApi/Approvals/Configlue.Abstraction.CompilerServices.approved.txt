@@ -80,6 +80,9 @@ namespace Configlue.CompilerServices
         public static Configlue.CompilerServices.ConfiglueReferenceEqualityComparer Instance { get; }
         public bool Equals(object? left, object? right) { }
         public int GetHashCode(object value) { }
+        public static System.Collections.Generic.Dictionary<object, object> CreateCloneContext() { }
+        public static System.Collections.Generic.HashSet<System.Collections.Generic.KeyValuePair<object, object>> CreateDiffCycleContext() { }
+        public static System.Collections.Generic.HashSet<object> CreateFromCycleContext() { }
     }
     public static class ConfiglueWriteRouting
     {

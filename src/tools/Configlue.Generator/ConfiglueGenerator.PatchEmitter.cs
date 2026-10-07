@@ -70,6 +70,23 @@ public sealed partial class ConfiglueGenerator
             sparseMembers,
             patchDialect
         );
+        // Explicit Configlue patch contracts: shared whole-operation emission uses
+        // collision-prefixed public members (SparseNaming.WholeApiPrefix), so Configlue
+        // satisfies its own public patch interfaces explicitly here. The prefix is empty
+        // unless a member collides with Set/SetNull/Unset/IsEmpty.
+        var wholePrefix = SparseFragments.Generator.Shared.SparseNaming.WholeApiPrefix(
+            members.Select(static member => member.Property.Name)
+        );
+        code.AppendLineAt(
+            2,
+            "bool global::Configlue.IConfigluePatch.IsEmpty => " + wholePrefix + "IsEmpty;"
+        );
+        code.AppendLineAt(
+            2,
+            "void " + wholePatch + ".Set(" + modelType + " value) => " + wholePrefix + "Set(value);"
+        );
+        code.AppendLineAt(2, "void " + wholePatch + ".SetNull() => " + wholePrefix + "SetNull();");
+        code.AppendLineAt(2, "void " + wholePatch + ".Unset() => " + wholePrefix + "Unset();");
         SparseFragments.Generator.Shared.SparseFragmentPatchCoreEmitter.AppendPatchConstructor(
             code,
             sparseMembers,
@@ -256,11 +273,10 @@ public sealed partial class ConfiglueGenerator
                 "global::Configlue",
                 "global::Configlue.Optional"
             );
-            // Single shared bridge: Configlue differs only in Between helper and apply expression.
-            // JSON Patch interop stays an adapter over the semantic patch, not routing.
-            // Configlue uses its own embedded runtime (global::Configlue.ConfiglueJsonPatch)
-            // so the facade package boundary stays free of a SparseFragments dependency.
-            SparseFragments.Generator.Shared.SparseJsonPatchEmitter.AppendFromJsonPatch(
+            // Configlue-owned bridge emission (see ConfiglueGenerator.JsonPatchBridgeEmitter):
+            // the shared emitter hardcodes the upstream SparseJsonPatchBridge, so Configlue
+            // targets its own embedded runtime here to avoid a SparseFragments dependency.
+            AppendFromJsonPatch(
                 code,
                 "global::Configlue",
                 "ConfiglueJsonPatch",
@@ -268,7 +284,7 @@ public sealed partial class ConfiglueGenerator
                 jsonPrefix,
                 "__ConfiglueJsonBetween"
             );
-            SparseFragments.Generator.Shared.SparseJsonPatchEmitter.AppendToJsonPatch(
+            AppendToJsonPatch(
                 code,
                 "global::Configlue",
                 "ConfiglueJsonPatch",
@@ -344,9 +360,9 @@ public sealed partial class ConfiglueGenerator
                     4,
                     "if ("
                         + field
-                        + " is not null && !"
+                        + " is not null && !((global::Configlue.IConfigluePatch)"
                         + field
-                        + ".IsEmpty && global::Configlue.CompilerServices.ConfiglueWriteRouting.HasRouteBelow(writePlan, "
+                        + ").IsEmpty && global::Configlue.CompilerServices.ConfiglueWriteRouting.HasRouteBelow(writePlan, "
                         + pathVariable
                         + "))"
                 );
@@ -370,7 +386,11 @@ public sealed partial class ConfiglueGenerator
                 code.AppendLineAt(4, "}");
                 code.AppendLineAt(
                     4,
-                    "else if (" + field + " is not null && !" + field + ".IsEmpty)"
+                    "else if ("
+                        + field
+                        + " is not null && !((global::Configlue.IConfigluePatch)"
+                        + field
+                        + ").IsEmpty)"
                 );
                 code.AppendLineAt(4, "{");
                 code.AppendLineAt(
@@ -438,7 +458,7 @@ public sealed partial class ConfiglueGenerator
         code.AppendLineAt(3, "{");
         code.AppendLineAt(
             4,
-            "if (!merged.IsEmpty) { throw new global::System.InvalidOperationException(\"A whole-model operation cannot be combined with member patches.\"); }"
+            "if (!((global::Configlue.IConfigluePatch)merged).IsEmpty) { throw new global::System.InvalidOperationException(\"A whole-model operation cannot be combined with member patches.\"); }"
         );
         code.AppendLineAt(
             4,
@@ -500,9 +520,9 @@ public sealed partial class ConfiglueGenerator
                             + ".Kind == global::Configlue.FragmentOperationKind.Unchanged"
                         : "("
                             + MemberBackingField(member)
-                            + " is null || "
+                            + " is null || ((global::Configlue.IConfigluePatch)"
                             + MemberBackingField(member)
-                            + ".IsEmpty)",
+                            + ").IsEmpty)",
                 default
             );
 }

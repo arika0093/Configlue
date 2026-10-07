@@ -26,7 +26,7 @@ public sealed class GeneratorHostCompatibilityTests
                 public Child Child { get; set; } = new Child();
                 public int Count { get; set; }
             }
-            public class Child { public int Value { get; set; } }
+            public partial class Child { public int Value { get; set; } }
             public static class Consumer
             {
                 public static Settings.Fragment Edit(Settings.Fragment input)

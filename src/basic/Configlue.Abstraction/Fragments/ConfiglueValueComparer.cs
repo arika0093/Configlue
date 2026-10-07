@@ -18,6 +18,54 @@ public static class ConfiglueValueComparer
         return AreEqual((object?)left, (object?)right);
     }
 
+    /// <summary>Compares sequence-shaped values in their existing order.</summary>
+    /// <remarks>Generated-code plumbing: referenced by emitted code, not hand-written callers.</remarks>
+    public static bool AreSequenceEqual<T>(IEnumerable<T>? left, IEnumerable<T>? right)
+    {
+        if (ReferenceEquals(left, right))
+        {
+            return true;
+        }
+
+        if (left is null || right is null)
+        {
+            return false;
+        }
+
+        var leftList = AsIndexedSequence(left);
+        var rightList = AsIndexedSequence(right);
+        if (leftList is not null && rightList is not null)
+        {
+            if (leftList.Count != rightList.Count)
+            {
+                return false;
+            }
+
+            for (var index = 0; index < leftList.Count; index++)
+            {
+                if (!AreEqual(leftList[index], rightList[index]))
+                {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        return AreEqual((object?)left, (object?)right);
+    }
+
+    private static IList<T>? AsIndexedSequence<T>(IEnumerable<T> values)
+    {
+        if (values is T[] array)
+        {
+            return array;
+        }
+
+        // Derived/custom collections keep their existing non-generic comparison views.
+        return values.GetType() == typeof(List<T>) ? (List<T>)values : null;
+    }
+
     /// <summary>Compares set-shaped values without depending on enumeration order.</summary>
     public static bool AreSetEqual<T>(IEnumerable<T>? left, IEnumerable<T>? right)
     {
