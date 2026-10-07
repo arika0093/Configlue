@@ -4,6 +4,13 @@ using System.Text.Json;
 namespace Configlue;
 
 /// <summary>A parsed RFC 6902 document.</summary>
+/// <remarks>
+/// Product-neutral document parsing mirrored from
+/// <c>src/fragments:src/SparseFragments/JsonPatch/JsonPatchDocument.cs</c>
+/// (namespace <c>SparseFragments</c>). The Configlue adapter surface is the
+/// public type plus its two <c>Parse</c> overloads; operation validation lives
+/// in <see cref="JsonPatchOperation"/>.
+/// </remarks>
 [EditorBrowsable(EditorBrowsableState.Advanced)]
 public sealed class JsonPatchDocument
 {
@@ -97,12 +104,15 @@ public sealed class JsonPatchDocument
             );
         }
 
-        var operations = new List<JsonPatchOperation>(root.GetArrayLength());
+        var count = root.GetArrayLength();
+        var operations =
+            count == 0 ? Array.Empty<JsonPatchOperation>() : new JsonPatchOperation[count];
+        var index = 0;
         foreach (var element in root.EnumerateArray())
         {
-            operations.Add(JsonPatchOperation.Parse(element));
+            operations[index++] = JsonPatchOperation.Parse(element);
         }
 
-        return new JsonPatchDocument(operations.ToArray());
+        return new JsonPatchDocument(operations);
     }
 }

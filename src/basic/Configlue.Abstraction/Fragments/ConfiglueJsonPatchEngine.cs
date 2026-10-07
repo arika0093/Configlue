@@ -5,6 +5,16 @@ using System.Text.Json.Nodes;
 namespace Configlue;
 
 /// <summary>Applies RFC 6902 operations to a JSON document atomically.</summary>
+/// <remarks>
+/// Product-neutral RFC 6902 mechanics (parse, JSON Pointer handling, validation,
+/// patch application/export) mirrored from
+/// <c>src/fragments:src/SparseFragments/JsonPatch/JsonPatchEngine.cs</c>
+/// (namespace <c>SparseFragments</c>). The Configlue adapter surface is the
+/// public type plus the <c>ConfiglueJsonPatch</c> facade; the engine itself takes
+/// only JSON DOM inputs so a future shared-source cutover keeps behavior while
+/// swapping this copy for the upstream neutral implementation. There is no
+/// runtime dependency on SparseFragments.
+/// </remarks>
 [EditorBrowsable(EditorBrowsableState.Advanced)]
 public static class JsonPatchEngine
 {
@@ -107,6 +117,12 @@ public static class JsonPatchEngine
             throw new ArgumentNullException(nameof(document));
         }
 
+        if (document.Operations.Count == 0)
+        {
+            // Return independent bytes because callers can mutate the result.
+            return new byte[] { (byte)'[', (byte)']' };
+        }
+
         using var stream = new MemoryStream();
         using (var writer = new Utf8JsonWriter(stream))
         {
@@ -150,7 +166,7 @@ public static class JsonPatchEngine
             return null;
         }
 
-        return JsonNode.Parse(node.ToJsonString());
+        return node.DeepClone();
     }
 
 #pragma warning disable S1075 // RFC 6901 JSON Pointer uses slash delimiters.
@@ -161,11 +177,23 @@ public static class JsonPatchEngine
         List<JsonPatchOperation> ops
     )
     {
-        if (JsonNode.DeepEquals(before, after))
+        if (RfcJsonEquality.AreEqual(before, after))
         {
             return;
         }
 
+        DiffUnequalNodes(before, after, path, ops);
+    }
+
+    // Call only after comparing the nodes so unchanged members never need a
+    // path allocation, and changed members are not compared a second time.
+    private static void DiffUnequalNodes(
+        JsonNode? before,
+        JsonNode? after,
+        string path,
+        List<JsonPatchOperation> ops
+    )
+    {
         if (before is JsonObject beforeObject && after is JsonObject afterObject)
         {
             foreach (var key in ((IDictionary<string, JsonNode?>)beforeObject).Keys)
@@ -200,9 +228,9 @@ public static class JsonPatchEngine
                         )
                     );
                 }
-                else
+                else if (!RfcJsonEquality.AreEqual(beforeValue, property.Value))
                 {
-                    DiffNodes(
+                    DiffUnequalNodes(
                         beforeValue,
                         property.Value,
                         path + "/" + JsonPointer.Escape(property.Key),
@@ -233,19 +261,27 @@ public static class JsonPatchEngine
                     ref current,
                     ref isAbsent,
                     operation.Path,
+                    operation.PathTokens,
                     Clone(operation.Value),
                     operation.HasValue,
                     propertyNameComparison
                 );
                 break;
             case "remove":
-                ApplyRemove(ref current, ref isAbsent, operation.Path, propertyNameComparison);
+                ApplyRemove(
+                    ref current,
+                    ref isAbsent,
+                    operation.Path,
+                    operation.PathTokens,
+                    propertyNameComparison
+                );
                 break;
             case "replace":
                 ApplyReplace(
                     ref current,
                     ref isAbsent,
                     operation.Path,
+                    operation.PathTokens,
                     Clone(operation.Value),
                     propertyNameComparison
                 );
@@ -255,7 +291,9 @@ public static class JsonPatchEngine
                     ref current,
                     ref isAbsent,
                     operation.From!,
+                    operation.FromTokens!,
                     operation.Path,
+                    operation.PathTokens,
                     propertyNameComparison
                 );
                 break;
@@ -264,7 +302,9 @@ public static class JsonPatchEngine
                     ref current,
                     ref isAbsent,
                     operation.From!,
+                    operation.FromTokens!,
                     operation.Path,
+                    operation.PathTokens,
                     propertyNameComparison
                 );
                 break;
@@ -273,6 +313,7 @@ public static class JsonPatchEngine
                     current,
                     isAbsent,
                     operation.Path,
+                    operation.PathTokens,
                     operation.Value,
                     propertyNameComparison
                 );
@@ -289,6 +330,7 @@ public static class JsonPatchEngine
         ref JsonNode? current,
         ref bool isAbsent,
         string path,
+        string[] tokens,
         JsonNode? value,
         bool hasValue,
         StringComparison propertyNameComparison
@@ -326,7 +368,6 @@ public static class JsonPatchEngine
             );
         }
 
-        var tokens = JsonPointer.Parse(path);
         var parent = ResolveParent(current, tokens, isAdd: true, path, propertyNameComparison);
         SetChild(parent, tokens[tokens.Length - 1], value, path, propertyNameComparison);
     }
@@ -335,6 +376,7 @@ public static class JsonPatchEngine
         ref JsonNode? current,
         ref bool isAbsent,
         string path,
+        string[] tokens,
         StringComparison propertyNameComparison
     )
     {
@@ -361,7 +403,6 @@ public static class JsonPatchEngine
             );
         }
 
-        var tokens = JsonPointer.Parse(path);
         var parent = ResolveParent(current, tokens, isAdd: false, path, propertyNameComparison);
         RemoveChild(parent, tokens[tokens.Length - 1], path, propertyNameComparison);
     }
@@ -370,6 +411,7 @@ public static class JsonPatchEngine
         ref JsonNode? current,
         ref bool isAbsent,
         string path,
+        string[] tokens,
         JsonNode? value,
         StringComparison propertyNameComparison
     )
@@ -396,7 +438,6 @@ public static class JsonPatchEngine
             );
         }
 
-        var tokens = JsonPointer.Parse(path);
         var parent = ResolveParent(current, tokens, isAdd: false, path, propertyNameComparison);
         ReplaceChild(parent, tokens[tokens.Length - 1], value, path, propertyNameComparison);
     }
@@ -405,19 +446,34 @@ public static class JsonPatchEngine
         ref JsonNode? current,
         ref bool isAbsent,
         string from,
+        string[] fromTokens,
         string path,
+        string[] pathTokens,
         StringComparison propertyNameComparison
     )
     {
-        var value = ReadValue(current, isAbsent, from, propertyNameComparison);
+        // RFC 6902 section 4.6: the 'from' location MUST NOT be a proper prefix of 'path'.
+        if (
+            fromTokens.Length < pathTokens.Length
+            && (fromTokens.Length == 0 || IsTokenPrefix(fromTokens, pathTokens))
+        )
+        {
+            throw new JsonPatchException(
+                JsonPatchErrorKind.MalformedPointer,
+                $"JSON Patch move 'from' location '{from}' must not be a proper prefix of '{path}'."
+            );
+        }
+
+        var value = ReadValue(current, isAbsent, from, fromTokens, propertyNameComparison);
         // Remove first so array indices shift per RFC semantics.
-        ApplyRemove(ref current, ref isAbsent, from, propertyNameComparison);
+        ApplyRemove(ref current, ref isAbsent, from, fromTokens, propertyNameComparison);
         try
         {
             ApplyAdd(
                 ref current,
                 ref isAbsent,
                 path,
+                pathTokens,
                 value,
                 hasValue: true,
                 propertyNameComparison
@@ -433,15 +489,18 @@ public static class JsonPatchEngine
         ref JsonNode? current,
         ref bool isAbsent,
         string from,
+        string[] fromTokens,
         string path,
+        string[] pathTokens,
         StringComparison propertyNameComparison
     )
     {
-        var value = ReadValue(current, isAbsent, from, propertyNameComparison);
+        var value = ReadValue(current, isAbsent, from, fromTokens, propertyNameComparison);
         ApplyAdd(
             ref current,
             ref isAbsent,
             path,
+            pathTokens,
             Clone(value),
             hasValue: true,
             propertyNameComparison
@@ -452,12 +511,13 @@ public static class JsonPatchEngine
         JsonNode? current,
         bool isAbsent,
         string path,
+        string[] tokens,
         JsonNode? expected,
         StringComparison propertyNameComparison
     )
     {
-        var actual = ReadValue(current, isAbsent, path, propertyNameComparison);
-        if (!JsonNode.DeepEquals(actual, expected))
+        var actual = ReadValue(current, isAbsent, path, tokens, propertyNameComparison);
+        if (!RfcJsonEquality.AreEqual(actual, expected))
         {
             throw new JsonPatchException(
                 JsonPatchErrorKind.TestFailed,
@@ -470,6 +530,7 @@ public static class JsonPatchEngine
         JsonNode? current,
         bool isAbsent,
         string path,
+        string[] pathTokens,
         StringComparison propertyNameComparison
     )
     {
@@ -494,9 +555,8 @@ public static class JsonPatchEngine
             );
         }
 
-        var tokens = JsonPointer.Parse(path);
         JsonNode? node = current;
-        foreach (var token in tokens)
+        foreach (var token in pathTokens)
         {
             node = GetChild(node, token, path, isAdd: false, propertyNameComparison);
         }
@@ -764,6 +824,19 @@ public static class JsonPatchEngine
         }
     }
 
+    private static bool IsTokenPrefix(string[] prefix, string[] tokens)
+    {
+        for (var index = 0; index < prefix.Length; index++)
+        {
+            if (!string.Equals(prefix[index], tokens[index], StringComparison.Ordinal))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
     private static int ParseIndex(string token, string path)
     {
         if (token.Length == 0)
@@ -804,5 +877,123 @@ public static class JsonPatchEngine
         }
 
         return index;
+    }
+}
+
+/// <summary>RFC 6902 structural JSON equality used by the <c>test</c> operation.</summary>
+/// <remarks>
+/// Product-neutral core mirrored from
+/// <c>src/fragments:src/SparseFragments/JsonPatch/RfcJsonEquality.cs</c>
+/// (namespace <c>SparseFragments</c>, also internal there). RFC 6902 §4.6 defines
+/// equality structurally: strings by exact value, numbers by numerical equality
+/// (so <c>1</c>, <c>1.0</c> and <c>10e-1</c> are equal), arrays by length/order
+/// with recursive equality, objects by identical member sets with recursively
+/// equal values regardless of member order. This deliberately does not rely on
+/// <see cref="JsonNode.DeepEquals(JsonNode?, JsonNode?)"/> lexical behavior.
+/// </remarks>
+internal static class RfcJsonEquality
+{
+    public static bool AreEqual(JsonNode? left, JsonNode? right)
+    {
+        if (left is null || right is null)
+        {
+            return left is null && right is null;
+        }
+
+        if (left is JsonValue leftValue && right is JsonValue rightValue)
+        {
+            return JsonValuesEqual(leftValue, rightValue);
+        }
+
+        if (left is JsonArray leftArray && right is JsonArray rightArray)
+        {
+            if (leftArray.Count != rightArray.Count)
+            {
+                return false;
+            }
+
+            for (var index = 0; index < leftArray.Count; index++)
+            {
+                if (!AreEqual(leftArray[index], rightArray[index]))
+                {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        if (left is JsonObject leftObject && right is JsonObject rightObject)
+        {
+            if (leftObject.Count != rightObject.Count)
+            {
+                return false;
+            }
+
+            foreach (var property in leftObject)
+            {
+                if (
+                    !rightObject.TryGetPropertyValue(property.Key, out var current)
+                    || !AreEqual(property.Value, current)
+                )
+                {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        return false;
+    }
+
+    [System.Diagnostics.CodeAnalysis.SuppressMessage(
+        "Major Code Smell",
+        "S2589",
+        Justification = "Second TryGetValue runs only when decimal conversion fails on at least one operand."
+    )]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage(
+        "Major Bug",
+        "S1244",
+        Justification = "RFC 6902 requires exact numerical equality; decimal covers representable values, double fallback covers the rest."
+    )]
+    private static bool JsonValuesEqual(JsonValue left, JsonValue right)
+    {
+        if (left.GetValueKind() == System.Text.Json.JsonValueKind.Number)
+        {
+            // JSON numbers with different lexical forms share the same value kind.
+            if (
+                left.TryGetValue<decimal>(out var leftDecimal)
+                && right.TryGetValue<decimal>(out var rightDecimal)
+            )
+            {
+                return leftDecimal == rightDecimal;
+            }
+
+            if (
+                left.TryGetValue<double>(out var leftDouble)
+                && right.TryGetValue<double>(out var rightDouble)
+            )
+            {
+                return leftDouble.Equals(rightDouble);
+            }
+
+            return false;
+        }
+
+        if (left.GetValueKind() != right.GetValueKind())
+        {
+            return false;
+        }
+
+        return left.GetValueKind() switch
+        {
+            System.Text.Json.JsonValueKind.True => true,
+            System.Text.Json.JsonValueKind.False => true,
+            System.Text.Json.JsonValueKind.Null => true,
+            System.Text.Json.JsonValueKind.String => left.GetValue<string>()
+                == right.GetValue<string>(),
+            _ => JsonNode.DeepEquals(left, right),
+        };
     }
 }
