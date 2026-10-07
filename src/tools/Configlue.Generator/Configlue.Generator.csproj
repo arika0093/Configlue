@@ -42,9 +42,10 @@
     <InternalsVisibleTo Include="Configlue.Generator.Compatibility.Tests" />
   </ItemGroup>
   <ItemGroup>
-    <!-- Local submodule sources win while src/fragments is checked out. Once
-      Configlue consumes the published source-only package instead, the
-      PackageReference below takes over with the same sources from NuGet. -->
+    <!-- Submodule sources win when src/fragments is checked out; otherwise the
+      exact SparseFragmentsGeneratorSharedVersion package pinned in
+      src/Directory.Build.props is used. Bump via that property (deliberate
+      manual bump; dependabot does not auto-bump property-pinned versions). -->
     <Compile
       Include="..\..\fragments\src\SparseFragments.Generator.Shared\**\*.cs"
       Exclude="..\..\fragments\src\SparseFragments.Generator.Shared\obj\**;..\..\fragments\src\SparseFragments.Generator.Shared\bin\**"
@@ -53,7 +54,7 @@
     />
     <PackageReference
       Include="SparseFragments.Generator.Shared"
-      Version="0.1.*"
+      Version="$(SparseFragmentsGeneratorSharedVersion)"
       PrivateAssets="all"
       Condition="!Exists('..\..\fragments\src\SparseFragments.Generator.Shared\SparseFragments.Generator.Shared.csproj')"
     />

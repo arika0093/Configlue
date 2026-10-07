@@ -18,6 +18,13 @@
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <PolyArgumentExceptions>true</PolyArgumentExceptions>
     <PolyUseEmbeddedAttribute>true</PolyUseEmbeddedAttribute>
+    <!-- SparseFragments.Generator.Shared fallback pin (#344): exact version used
+      only when the src/fragments submodule is absent (see Configlue.Generator.csproj).
+      To adopt a new Shared release, bump this property and verify with a
+      package-fallback build (clean clone without the submodule). Dependabot NuGet
+      does NOT auto-bump Version="$(Property)" references, so this stays a deliberate
+      manual bump. The Shared package is source-only; keep PrivateAssets="all". -->
+    <SparseFragmentsGeneratorSharedVersion>0.1.0</SparseFragmentsGeneratorSharedVersion>
     <ConfiglueNetStandard20 Condition="'$(TargetFramework)' == 'netstandard2.0'"
       >true</ConfiglueNetStandard20>
     <ConfiglueNetStandard
