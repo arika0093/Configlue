@@ -7,7 +7,7 @@
     <PackageDescription>AWS SSM Parameter Store hierarchy source for Configlue.</PackageDescription>
   </PropertyGroup>
   <ItemGroup>
-    <PackageReference Include="AWSSDK.SimpleSystemsManagement" Version="4.0.104.1" />
+    <PackageReference Include="AWSSDK.SimpleSystemsManagement" Version="4.0.104.2" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="../../basic/Configlue.Abstraction/Configlue.Abstraction.csproj" />
