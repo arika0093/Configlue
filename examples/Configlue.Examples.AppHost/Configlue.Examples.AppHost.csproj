@@ -6,7 +6,7 @@
     <RootNamespace>Configlue.Examples.AppHost</RootNamespace>
   </PropertyGroup>
   <ItemGroup>
-    <PackageReference Include="Aspire.Hosting.PostgreSQL" Version="13.0.0" />
+    <PackageReference Include="Aspire.Hosting.PostgreSQL" Version="13.6.1" />
     <ProjectReference Include="../Configlue.Examples.HttpServer/Configlue.Examples.HttpServer.csproj" />
     <ProjectReference Include="../Configlue.Examples.Playground/Configlue.Examples.Playground.csproj" />
   </ItemGroup>
