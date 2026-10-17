@@ -7,7 +7,7 @@
     <PackageDescription>AWS AppConfig configuration-profile resources for Configlue.</PackageDescription>
   </PropertyGroup>
   <ItemGroup>
-    <PackageReference Include="AWSSDK.AppConfigData" Version="4.0.100.16" />
+    <PackageReference Include="AWSSDK.AppConfigData" Version="4.0.100.17" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="../../basic/Configlue.Abstraction/Configlue.Abstraction.csproj" />
