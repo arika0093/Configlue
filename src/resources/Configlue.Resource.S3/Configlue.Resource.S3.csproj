@@ -7,7 +7,7 @@
     <PackageDescription>Amazon S3 object resources for Configlue.</PackageDescription>
   </PropertyGroup>
   <ItemGroup>
-    <PackageReference Include="AWSSDK.S3" Version="4.0.104.1" />
+    <PackageReference Include="AWSSDK.S3" Version="4.0.104.2" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="../../basic/Configlue.Abstraction/Configlue.Abstraction.csproj" />
